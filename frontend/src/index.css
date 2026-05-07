@@ -1,0 +1,55 @@
+@import "tailwindcss";
+@import "@fortawesome/fontawesome-free/css/all.min.css";
+
+:root {
+  --color-bg: #ffffff;
+  --color-bg-subtle: #fafbfd;
+  --color-surface: #ffffff;
+  --color-border: #e5e5e5;
+  --color-border-strong: #d6dce8;
+  --color-text: #14213d;
+  --color-text-muted: #4b5a74;
+  --color-primary: #14213d;
+  --color-primary-contrast: #ffffff;
+  --color-accent: #fca311;
+  --color-accent-soft: #f5e2c2;
+  --color-overlay: rgba(255, 255, 255, 0.88);
+  --shadow-soft: 0 10px 26px rgba(20, 33, 61, 0.08);
+
+  --sans: "DM Sans", system-ui, "Segoe UI", Roboto, sans-serif;
+  --heading: "Syne", system-ui, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, Consolas, monospace;
+
+  font: 18px/145% var(--sans);
+  letter-spacing: 0.18px;
+  color-scheme: light dark;
+  color: var(--color-text);
+  background: var(--color-bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--color-bg);
+}
+
+#root {
+  width: 100%;
+  max-width: 100%;
+  min-height: 100vh;
+}
+
+h1,
+h2 {
+  font-family: var(--heading);
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+p {
+  margin: 0;
+}

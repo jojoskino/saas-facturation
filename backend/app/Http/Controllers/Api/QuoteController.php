@@ -1,0 +1,241 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\Quote;
+use App\Support\DocumentMath;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Validation\Rule;
+use OpenApi\Attributes as OA;
+
+class QuoteController extends Controller
+{
+    #[OA\Get(
+        path: '/api/quotes',
+        tags: ['Devis'],
+        security: [['sanctum' => []]],
+        responses: [
+            new OA\Response(response: 200, description: 'Liste paginée (items inclus)'),
+        ]
+    )]
+    public function index(Request $request): JsonResponse
+    {
+        $quotes = Quote::query()
+            ->where('user_id', $request->user()->id)
+            ->with(['client:id,name', 'items'])
+            ->orderByDesc('id')
+            ->paginate(25);
+
+        return response()->json($quotes);
+    }
+
+    #[OA\Post(
+        path: '/api/quotes',
+        tags: ['Devis'],
+        security: [['sanctum' => []]],
+        summary: 'Créer un devis (lignes optionnelles : recalcul des totaux)',
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['number'],
+                properties: [
+                    new OA\Property(property: 'client_id', type: 'integer', nullable: true),
+                    new OA\Property(property: 'number', type: 'string'),
+                    new OA\Property(property: 'status', type: 'string', enum: ['draft', 'sent', 'accepted', 'rejected'], nullable: true),
+                    new OA\Property(property: 'issue_date', type: 'string', format: 'date', nullable: true),
+                    new OA\Property(property: 'valid_until', type: 'string', format: 'date', nullable: true),
+                    new OA\Property(property: 'currency', type: 'string', example: 'XOF', nullable: true),
+                    new OA\Property(property: 'notes', type: 'string', nullable: true),
+                    new OA\Property(
+                        property: 'items',
+                        type: 'array',
+                        items: new OA\Items(
+                            properties: [
+                                new OA\Property(property: 'description', type: 'string'),
+                                new OA\Property(property: 'quantity', type: 'number'),
+                                new OA\Property(property: 'unit_price', type: 'number'),
+                                new OA\Property(property: 'tax_rate', type: 'number', nullable: true),
+                            ],
+                            type: 'object'
+                        ),
+                        nullable: true
+                    ),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, description: 'Devis créé'),
+            new OA\Response(response: 422, description: 'Validation'),
+        ]
+    )]
+    public function store(Request $request): JsonResponse
+    {
+        $userId = $request->user()->id;
+
+        $data = $request->validate([
+            'client_id' => ['nullable', Rule::exists('clients', 'id')->where('user_id', $userId)],
+            'number' => ['required', 'string', 'max:64', Rule::unique('quotes', 'number')->where('user_id', $userId)],
+            'status' => ['nullable', 'string', Rule::in(['draft', 'sent', 'accepted', 'rejected'])],
+            'issue_date' => ['nullable', 'date'],
+            'valid_until' => ['nullable', 'date'],
+            'currency' => ['nullable', 'string', 'max:8'],
+            'notes' => ['nullable', 'string'],
+            'items' => ['nullable', 'array'],
+            'items.*.description' => ['required_with:items', 'string', 'max:500'],
+            'items.*.quantity' => ['required_with:items', 'numeric', 'min:0'],
+            'items.*.unit_price' => ['required_with:items', 'numeric', 'min:0'],
+            'items.*.tax_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
+        ]);
+
+        $itemsInput = $data['items'] ?? [];
+        $computed = count($itemsInput) > 0
+            ? DocumentMath::quoteLinesFromInput($itemsInput)
+            : ['lines' => [], 'subtotal' => '0.00', 'tax_amount' => '0.00', 'total' => '0.00'];
+
+        $quote = $request->user()->quotes()->create([
+            'client_id' => $data['client_id'] ?? null,
+            'number' => $data['number'],
+            'status' => $data['status'] ?? 'draft',
+            'issue_date' => $data['issue_date'] ?? null,
+            'valid_until' => $data['valid_until'] ?? null,
+            'currency' => $data['currency'] ?? 'XOF',
+            'subtotal' => $computed['subtotal'],
+            'tax_amount' => $computed['tax_amount'],
+            'total' => $computed['total'],
+            'notes' => $data['notes'] ?? null,
+        ]);
+
+        foreach ($computed['lines'] as $line) {
+            $quote->items()->create($line);
+        }
+
+        $quote->load(['client:id,name', 'items']);
+
+        return response()->json($quote, 201);
+    }
+
+    #[OA\Get(
+        path: '/api/quotes/{id}',
+        tags: ['Devis'],
+        security: [['sanctum' => []]],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'integer')),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Détail'),
+        ]
+    )]
+    public function show(Request $request, string $id): JsonResponse
+    {
+        $quote = Quote::query()
+            ->where('user_id', $request->user()->id)
+            ->with(['client', 'items'])
+            ->findOrFail($id);
+
+        return response()->json($quote);
+    }
+
+    #[OA\Put(
+        path: '/api/quotes/{id}',
+        tags: ['Devis'],
+        security: [['sanctum' => []]],
+        summary: 'Mettre à jour (si `items` est envoyé, lignes remplacées et totaux recalculés)',
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'integer')),
+        ],
+        requestBody: new OA\RequestBody(
+            content: new OA\JsonContent(
+                properties: [
+                    new OA\Property(property: 'client_id', type: 'integer', nullable: true),
+                    new OA\Property(property: 'number', type: 'string'),
+                    new OA\Property(property: 'status', type: 'string', nullable: true),
+                    new OA\Property(property: 'issue_date', type: 'string', format: 'date', nullable: true),
+                    new OA\Property(property: 'valid_until', type: 'string', format: 'date', nullable: true),
+                    new OA\Property(property: 'currency', type: 'string', nullable: true),
+                    new OA\Property(property: 'notes', type: 'string', nullable: true),
+                    new OA\Property(property: 'items', type: 'array', nullable: true, items: new OA\Items(type: 'object')),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Mis à jour'),
+        ]
+    )]
+    public function update(Request $request, string $id): JsonResponse
+    {
+        $userId = $request->user()->id;
+
+        $quote = Quote::query()
+            ->where('user_id', $userId)
+            ->findOrFail($id);
+
+        $data = $request->validate([
+            'client_id' => ['nullable', Rule::exists('clients', 'id')->where('user_id', $userId)],
+            'number' => ['sometimes', 'required', 'string', 'max:64', Rule::unique('quotes', 'number')->where('user_id', $userId)->ignore($quote->id)],
+            'status' => ['nullable', 'string', Rule::in(['draft', 'sent', 'accepted', 'rejected'])],
+            'issue_date' => ['nullable', 'date'],
+            'valid_until' => ['nullable', 'date'],
+            'currency' => ['nullable', 'string', 'max:8'],
+            'notes' => ['nullable', 'string'],
+            'items' => ['sometimes', 'array'],
+            'items.*.description' => ['required_with:items', 'string', 'max:500'],
+            'items.*.quantity' => ['required_with:items', 'numeric', 'min:0'],
+            'items.*.unit_price' => ['required_with:items', 'numeric', 'min:0'],
+            'items.*.tax_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
+        ]);
+
+        $quote->fill([
+            'client_id' => array_key_exists('client_id', $data) ? $data['client_id'] : $quote->client_id,
+            'number' => $data['number'] ?? $quote->number,
+            'status' => $data['status'] ?? $quote->status,
+            'issue_date' => array_key_exists('issue_date', $data) ? $data['issue_date'] : $quote->issue_date,
+            'valid_until' => array_key_exists('valid_until', $data) ? $data['valid_until'] : $quote->valid_until,
+            'currency' => $data['currency'] ?? $quote->currency,
+            'notes' => array_key_exists('notes', $data) ? $data['notes'] : $quote->notes,
+        ]);
+
+        if (array_key_exists('items', $data)) {
+            $computed = count($data['items']) > 0
+                ? DocumentMath::quoteLinesFromInput($data['items'])
+                : ['lines' => [], 'subtotal' => '0.00', 'tax_amount' => '0.00', 'total' => '0.00'];
+
+            $quote->items()->delete();
+            foreach ($computed['lines'] as $line) {
+                $quote->items()->create($line);
+            }
+            $quote->subtotal = $computed['subtotal'];
+            $quote->tax_amount = $computed['tax_amount'];
+            $quote->total = $computed['total'];
+        }
+
+        $quote->save();
+        $quote->load(['client', 'items']);
+
+        return response()->json($quote);
+    }
+
+    #[OA\Delete(
+        path: '/api/quotes/{id}',
+        tags: ['Devis'],
+        security: [['sanctum' => []]],
+        parameters: [
+            new OA\Parameter(name: 'id', in: 'path', required: true, schema: new OA\Schema(type: 'integer')),
+        ],
+        responses: [
+            new OA\Response(response: 204, description: 'Supprimé'),
+        ]
+    )]
+    public function destroy(Request $request, string $id): Response
+    {
+        $quote = Quote::query()
+            ->where('user_id', $request->user()->id)
+            ->findOrFail($id);
+
+        $quote->delete();
+
+        return response()->noContent();
+    }
+}

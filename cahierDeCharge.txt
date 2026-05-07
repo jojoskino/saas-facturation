@@ -1,0 +1,131 @@
+  II. Présentation du Projet
+2.1 Contexte
+Plus de 40 % des indépendants utilisent encore des tableurs ou des documents Word pour établir leurs factures, ce qui engendre des erreurs, des pertes de données et un manque de professionnalisme dans leurs échanges commerciaux. Les solutions disponibles se polarisent entre des outils trop basiques et des ERP trop complexes et coûteux, laissant un vide que FactuFlow ambitionne d'occuper.
+2.2 Problématique
+Comment permettre aux freelances et petites entreprises de gérer leur facturation de manière professionnelle, rapide et sécurisée, sans la complexité des logiciels comptables traditionnels ?
+2.3 Objectifs du Projet
+•Fournir un outil de facturation professionnel, simple et accessible depuis n'importe quel navigateur web.
+•Automatiser la numérotation des documents, les calculs de TVA et la génération de PDFs conformes aux normes légales.
+•Offrir une vision claire de l'activité financière grâce à un tableau de bord analytique interactif.
+•Réduire le temps consacré aux tâches administratives de facturation d'au moins 70 % pour les utilisateurs.
+•Garantir la sécurité, la confidentialité et l'intégrité des données clients et financières.
+•Proposer une expérience utilisateur intuitive, maîtrisable sans formation préalable.
+2.4 Périmètre Fonctionnel
+La version initiale (MVP v1.0) de FactuFlow couvre cinq modules essentiels : gestion des clients, création de devis, création de factures, export PDF et tableau de bord analytique. Des fonctionnalités avancées (multi-devises, facturation récurrente, intégration comptable) sont planifiées pour les versions ultérieures.
+2.5 Public Cible
+•Freelances et travailleurs indépendants (développeurs, graphistes, consultants, formateurs) opérant sous divers statuts (auto-entrepreneur, EIRL, SASU).
+•Petites entreprises et TPE (moins de 20 collaborateurs) souhaitant digitaliser leur gestion commerciale sans ERP lourd.
+2.6 Contraintes
+•Conformité aux obligations légales de facturation (mentions obligatoires, numérotation chronologique).
+•Protection des données personnelles conforme au RGPD.
+•Disponibilité de service supérieure à 99,5 % (SLA).
+•Temps de chargement inférieur à 2 secondes sur une connexion standard.
+•Compatibilité avec Chrome, Firefox, Safari et Edge (deux dernières versions).
+•Interface responsive adaptée aux écrans desktop et tablette.
+
+IV. Modules
+Module 1 — Authentification & Comptes
+—  Inscription avec validation par e-mail.
+—  Connexion sécurisée par identifiant et mot de passe.
+—  Récupération de mot de passe oublié.
+—  Espace de données isolé par utilisateur.
+—  Mots de passe hachés avec bcrypt avant stockage.
+Module 2 — Gestion des Clients
+—  Création, modification et suppression de fiches clients.
+—  Informations complètes : raison sociale, adresse, SIRET, coordonnées, notes.
+—  Moteur de recherche en temps réel et filtres avancés.
+—  Historique des documents et indicateurs commerciaux par client.
+Module 3 — Gestion des Devis
+—  Sélection du client et ajout de lignes de prestations (description, quantité, PU HT, TVA).
+—  Calcul automatique en temps réel des totaux HT / TVA / TTC.
+—  Numérotation séquentielle automatique.
+—  Suivi des statuts : Brouillon → Envoyé → Accepté / Refusé / Expiré.
+—  Conversion instantanée d'un devis accepté en facture, sans ressaisie.
+—  Gestion des remises, date de validité et conditions générales.
+Module 4 — Gestion des Factures
+—  Factures conformes aux obligations légales (mentions obligatoires, numérotation chronologique).
+—  Cycle de vie : Brouillon → Émise → Envoyée → Payée / En retard / Annulée.
+—  Enregistrement des paiements partiels, solde restant dû mis à jour automatiquement.
+—  Génération d'avoirs en cas d'annulation ou de correction post-émission.
+—  Alertes automatiques pour les échéances et les impayés.
+Module 5 — Export PDF
+—  Génération PDF côté serveur via Puppeteer (rendu Chromium headless).
+—  Templates personnalisables : logo, couleurs, informations légales.
+—  Fichiers stockés de manière sécurisée et accessibles depuis l'historique.
+Module 6 — Tableau de Bord & Revenus
+—  KPIs en temps réel : CA du mois, taux de recouvrement, impayés, devis en attente.
+—  Graphiques interactifs : évolution du CA sur 12 mois, répartition par client.
+—  Filtrage par période (semaine, mois, trimestre, année).
+—  Export CSV du récapitulatif des revenus.
+—  Notification hebdomadaire automatique par e-mail.
+
+
+RULES DE DESIGN POUR IA (SAAS FACTURATION)
+🧠 1. PRINCIPES GÉNÉRAUX (OBLIGATOIRES)
+L’interface doit être minimaliste, moderne et professionnelle
+Priorité à la lisibilité et hiérarchie visuelle
+Design inspiré de SaaS modernes : Stripe, Notion, Linear
+Éviter les effets inutiles (ombres lourdes, gradients excessifs, animations inutiles)
+Chaque écran doit avoir un objectif clair (conversion ou action)
+
+Couleurs:
+#FFFFFF
+#E5E5E5
+#FCA311
+#14213D
+#000000
+
+Interdiction :
+Multicolore
+Néons
+Dégradés agressifs
+
+Typographie
+Police moderne sans-serif :
+Inter
+system-ui
+Roboto
+Hiérarchie stricte :
+H1 : très grand, bold
+H2 : medium bold
+texte : regular, lisible
+Espacement généreux (air entre les éléments)
+
+📐 3. LAYOUT (STRUCTURE)
+Règles globales :
+Utiliser une grille 12 colonnes ou flexbox propre
+Largeur max contenu : 1100–1200px
+Centrage systématique des sections importantes
+Beaucoup d’espace blanc (white space)
+
+🧩 5. COMPONENTS UI
+Boutons
+Style simple, arrondi léger (6–10px)
+1 bouton principal (noir ou bleu)
+1 bouton secondaire (outline)
+Hover subtil uniquement
+Border-radius: 8px
+
+Cards
+Fond blanc
+Bordure légère
+Ombre très légère ou aucune
+Padding confortable
+Inputs (forms)
+Simples, propres, sans décor inutile
+Bordure fine
+Focus visible
+
+6. ANIMATIONS (MINIMALES)
+Fade-in léger au scroll (optionnel)
+Hover smooth sur boutons et cards
+Durée courte (150–300ms)
+Pas d’animations flashy
+
+📱 7. RESPONSIVE DESIGN
+Mobile-first obligatoire
+Sections empilées sur mobile
+Navbar simplifiée sur mobile
+Boutons full-width sur mobile
+Textes adaptés (pas trop gros)
+

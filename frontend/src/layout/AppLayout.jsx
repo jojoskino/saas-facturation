@@ -1,0 +1,606 @@
+import { useEffect, useRef, useState } from "react";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { apiFetch, getStoredToken, setStoredToken } from "../api/client";
+
+const pathTitles = {
+  "/app": "Tableau de bord",
+  "/app/clients": "Gestion des Clients",
+  "/app/devis": "Devis",
+  "/app/factures": "Factures",
+};
+
+const navItems = [
+  { to: "/app", label: "Tableau de bord", icon: "fa-chart-pie", end: true },
+  { to: "/app/clients", label: "Clients", icon: "fa-address-book" },
+  { to: "/app/devis", label: "Devis", icon: "fa-file-signature" },
+  { to: "/app/factures", label: "Factures", icon: "fa-file-invoice-dollar" },
+];
+
+export default function AppLayout() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [userName, setUserName] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(localStorage.getItem("facturo_sidebar_collapsed") === "1");
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [confirmLogoutOpen, setConfirmLogoutOpen] = useState(false);
+  const profileRef = useRef(null);
+
+  const pageTitle = pathTitles[location.pathname] || "Application";
+
+  function renderTitle() {
+    if (location.pathname === "/app/clients") {
+      return (
+        <>
+          Gestion des <span className="app-shell__title-accent">Clients</span>
+        </>
+      );
+    }
+    return pageTitle;
+  }
+
+  useEffect(() => {
+    if (!getStoredToken()) {
+      navigate("/login", { replace: true });
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const me = await apiFetch("/api/me");
+        if (!cancelled) setUserName(me?.name || "");
+      } catch {
+        if (!cancelled) {
+          setStoredToken(null);
+          navigate("/login", { replace: true });
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate]);
+
+  useEffect(() => {
+    setSidebarOpen(false);
+    setProfileOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    function onDocClick(e) {
+      if (profileRef.current && !profileRef.current.contains(e.target)) {
+        setProfileOpen(false);
+      }
+    }
+    if (profileOpen) document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [profileOpen]);
+
+  function logout() {
+    apiFetch("/api/logout", { method: "POST" }).finally(() => {
+      setStoredToken(null);
+      navigate("/", { replace: true });
+    });
+  }
+
+  function goToProfile() {
+    setProfileOpen(false);
+    navigate("/app/profil");
+  }
+
+  return (
+    <div className="app-shell">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Syne:wght@600;700;800&display=swap');
+        .app-shell {
+          min-height: 100vh;
+          display: flex;
+          background: var(--color-bg-subtle);
+          color: var(--color-text);
+          font-family: var(--sans);
+        }
+        .app-shell__backdrop {
+          display: none;
+          position: fixed;
+          inset: 0;
+          background: rgba(20, 33, 61, 0.35);
+          z-index: 25;
+        }
+        .app-shell__backdrop.open { display: block; }
+        .app-shell__sidebar {
+          width: 248px;
+          flex-shrink: 0;
+          background: var(--color-surface);
+          border-right: 1px solid var(--color-border);
+          display: flex;
+          flex-direction: column;
+          position: sticky;
+          top: 0;
+          align-self: flex-start;
+          height: 100vh;
+          z-index: 30;
+          transition: width 0.2s ease;
+        }
+        .app-shell__sidebar.collapsed {
+          width: 76px;
+        }
+        .app-shell__brand {
+          height: 62px;
+          box-sizing: border-box;
+          padding: 0 12px 0 14px;
+          border-bottom: 1px solid var(--color-border);
+          font-family: var(--heading);
+          font-weight: 800;
+          font-size: 1.2rem;
+          letter-spacing: -0.03em;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 8px;
+        }
+        .app-shell__brand-title {
+          display: inline-flex;
+          align-items: center;
+          white-space: nowrap;
+          overflow: hidden;
+        }
+        .app-shell__brand span { color: var(--color-accent); }
+        .app-shell__sidebar.collapsed .app-shell__brand-title { display: none; }
+        .app-shell__nav {
+          flex: 1;
+          padding: 12px 10px;
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          overflow-y: auto;
+        }
+        .app-shell__nav a {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 11px 12px;
+          border-radius: 10px;
+          text-decoration: none;
+          color: var(--color-text);
+          font-weight: 600;
+          font-size: 14px;
+          border: 1px solid transparent;
+          position: relative;
+          transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+        }
+        .app-shell__nav a:hover {
+          background: #f8fafc;
+          border-color: #e4eaf4;
+        }
+        .app-shell__sidebar.collapsed .app-shell__nav a {
+          justify-content: center;
+          padding: 11px 8px;
+        }
+        .app-shell__sidebar.collapsed .app-shell__nav a span {
+          display: none;
+        }
+        .app-shell__nav a i { width: 18px; text-align: center; opacity: 0.85; }
+        .app-shell__nav a.active {
+          background: #fff8eb;
+          border-color: rgba(252, 163, 17, 0.35);
+          color: #0f172a;
+        }
+        .app-shell__nav a.active::before {
+          content: "";
+          position: absolute;
+          left: -10px;
+          top: 8px;
+          bottom: 8px;
+          width: 3px;
+          border-radius: 999px;
+          background: #fca311;
+        }
+        .app-shell__footer {
+          padding: 12px;
+          border-top: 1px solid var(--color-border);
+          position: relative;
+          display: flex;
+          justify-content: center;
+        }
+        .app-shell__collapse-btn {
+          width: 32px;
+          border-radius: 8px;
+          border: 1px solid var(--color-border);
+          background: transparent;
+          color: var(--color-text-muted);
+          height: 32px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          font-size: 12px;
+          margin-bottom: 0;
+        }
+        .app-shell__collapse-btn:hover {
+          color: var(--color-text);
+          border-color: var(--color-border-strong);
+          background: #fff;
+        }
+        .app-shell__logout-btn {
+          width: calc(100% - 4px);
+          border-radius: 10px;
+          border: 1px solid #efc2c2;
+          background: #fff6f6;
+          color: #9d2f2f;
+          height: 40px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          cursor: pointer;
+          font-weight: 700;
+          font-size: 13px;
+          margin-top: 0;
+        }
+        .app-shell__sidebar.collapsed .app-shell__logout-btn {
+          width: 40px;
+          height: 40px;
+          margin: 0 auto;
+          padding: 0;
+        }
+        .app-shell__sidebar.collapsed .app-shell__logout-btn span {
+          display: none;
+        }
+        .app-shell__profile-btn {
+          width: 100%;
+          border-radius: 10px;
+          border: 1px solid var(--color-border-strong);
+          background: #fff;
+          color: var(--color-text);
+          height: 40px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          cursor: pointer;
+          font-weight: 700;
+          font-size: 13px;
+        }
+        .app-shell__profile-menu {
+          position: absolute;
+          bottom: calc(100% + 8px);
+          left: 12px;
+          right: 12px;
+          background: #fff;
+          border: 1px solid var(--color-border);
+          border-radius: 10px;
+          box-shadow: var(--shadow-soft);
+          overflow: hidden;
+          z-index: 35;
+        }
+        .app-shell__profile-item {
+          width: 100%;
+          border: 0;
+          border-bottom: 1px solid var(--color-border);
+          background: #fff;
+          color: var(--color-text-muted);
+          text-align: left;
+          padding: 10px 12px;
+          cursor: pointer;
+          font-size: 13px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .app-shell__profile-item:hover { background: #f8fafc; color: var(--color-text); }
+        .app-shell__profile-item:last-child { border-bottom: 0; }
+        .app-shell__profile-name {
+          display: block;
+          color: var(--color-text-muted);
+          font-size: 12px;
+          padding: 8px 12px 0;
+        }
+        .app-shell__main-col {
+          flex: 1;
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+        }
+        .app-shell__header {
+          height: 62px;
+          flex-shrink: 0;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          padding: 0 20px 0 16px;
+          background: var(--color-overlay);
+          backdrop-filter: blur(10px);
+          border-bottom: 1px solid var(--color-border);
+          position: sticky;
+          top: 0;
+          z-index: 20;
+        }
+        .app-shell__header-left {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          min-width: 0;
+        }
+        .app-shell__menu-btn {
+          display: none;
+          width: 40px;
+          height: 40px;
+          border-radius: 10px;
+          border: 1px solid var(--color-border-strong);
+          background: var(--color-surface);
+          color: var(--color-text);
+          cursor: pointer;
+          align-items: center;
+          justify-content: center;
+        }
+        .app-shell__title {
+          font-family: var(--heading);
+          font-size: 1.05rem;
+          font-weight: 700;
+          letter-spacing: -0.02em;
+          margin: 0;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .app-shell__title-accent { color: var(--color-accent); }
+        .app-shell__header-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+        .app-shell__hello {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          line-height: 1.1;
+        }
+        .app-shell__hello-greet { font-size: 11px; color: var(--color-text-muted); font-weight: 600; }
+        .app-shell__hello-name { font-size: 13px; color: var(--color-text); font-weight: 700; }
+        .app-shell__profile-wrap { position: relative; }
+        .app-shell__profile-icon {
+          width: 38px;
+          height: 38px;
+          border-radius: 10px;
+          border: 1px solid var(--color-border-strong);
+          background: #fff;
+          color: var(--color-text);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+        }
+        .app-shell__profile-popover {
+          position: absolute;
+          right: 0;
+          top: calc(100% + 8px);
+          width: 210px;
+          background: #fff;
+          border: 1px solid var(--color-border);
+          border-radius: 10px;
+          box-shadow: var(--shadow-soft);
+          z-index: 40;
+          overflow: hidden;
+        }
+        .app-shell__btn {
+          border-radius: 10px;
+          padding: 9px 14px;
+          font-weight: 700;
+          font-size: 13px;
+          cursor: pointer;
+          border: 1px solid var(--color-border-strong);
+          background: var(--color-surface);
+          color: var(--color-text);
+          text-decoration: none;
+          display: inline-flex;
+          align-items: center;
+          transition: filter 0.2s ease, transform 0.2s ease;
+        }
+        .app-shell__btn:hover {
+          filter: brightness(1.02);
+          transform: translateY(-1px);
+        }
+        .app-shell__btn--primary {
+          background: var(--color-primary);
+          color: var(--color-primary-contrast);
+          border-color: var(--color-primary);
+        }
+        .app-shell__content {
+          flex: 1;
+          padding: 24px 20px 40px;
+          max-width: 1200px;
+          width: 100%;
+          margin: 0 auto;
+          box-sizing: border-box;
+        }
+        .app-shell__confirm-backdrop {
+          position: fixed;
+          inset: 0;
+          background: rgba(20, 33, 61, 0.35);
+          z-index: 90;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 18px;
+        }
+        .app-shell__confirm-modal {
+          width: min(480px, 100%);
+          border-radius: 12px;
+          background: #fff;
+          border: 1px solid var(--color-border);
+          box-shadow: var(--shadow-soft);
+          padding: 16px;
+        }
+        .app-shell__confirm-modal h3 {
+          margin: 0 0 8px;
+          font-family: var(--heading);
+          font-size: 1.05rem;
+        }
+        .app-shell__confirm-modal p {
+          margin: 0;
+          color: var(--color-text-muted);
+          font-size: 14px;
+        }
+        .app-shell__confirm-actions {
+          display: flex;
+          justify-content: flex-start;
+          gap: 8px;
+          margin-top: 14px;
+        }
+        .app-shell__btn--soft-danger {
+          border-color: #efc2c2;
+          background: #fff6f6;
+          color: #9d2f2f;
+        }
+        @media (max-width: 900px) {
+          .app-shell__menu-btn { display: inline-flex; }
+          .app-shell__header { padding: 0 12px; }
+          .app-shell__title { font-size: 0.98rem; max-width: 45vw; }
+          .app-shell__hello { max-width: 34vw; }
+          .app-shell__hello-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 12px;
+          }
+          .app-shell__profile-icon {
+            width: 34px;
+            height: 34px;
+          }
+          .app-shell__sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 248px;
+            transform: translateX(-100%);
+            transition: transform 0.22s ease;
+            box-shadow: var(--shadow-soft);
+          }
+          .app-shell__sidebar.collapsed { width: 248px; }
+          .app-shell__sidebar.collapsed .app-shell__nav a span { display: inline; }
+          .app-shell__sidebar.open { transform: translateX(0); }
+          .app-shell__backdrop.open { display: block; }
+        }
+        @media (max-width: 560px) {
+          .app-shell__header { height: 58px; }
+          .app-shell__brand { height: 58px; }
+          .app-shell__title { max-width: 48vw; font-size: 0.95rem; }
+          .app-shell__hello { display: none; }
+          .app-shell__content { padding: 14px 12px 30px; }
+        }
+      `}</style>
+
+      <div
+        className={`app-shell__backdrop ${sidebarOpen ? "open" : ""}`}
+        aria-hidden="true"
+        onClick={() => setSidebarOpen(false)}
+      />
+
+      <aside className={`app-shell__sidebar ${sidebarOpen ? "open" : ""} ${sidebarCollapsed ? "collapsed" : ""}`}>
+        <div className="app-shell__brand">
+          <div className="app-shell__brand-title">
+            Factu<span>ro</span>
+          </div>
+          <button
+            type="button"
+            className="app-shell__collapse-btn"
+            aria-label={sidebarCollapsed ? "Déplier la sidebar" : "Plier la sidebar"}
+            onClick={() => {
+              setSidebarCollapsed((prev) => {
+                const next = !prev;
+                localStorage.setItem("facturo_sidebar_collapsed", next ? "1" : "0");
+                return next;
+              });
+            }}
+          >
+            <i className={`fa-solid ${sidebarCollapsed ? "fa-angles-right" : "fa-angles-left"}`} />
+          </button>
+        </div>
+        <nav className="app-shell__nav">
+          {navItems.map((item) => (
+            <NavLink key={item.to} to={item.to} end={item.end} className={({ isActive }) => (isActive ? "active" : "")}>
+              <i className={`fa-solid ${item.icon}`} />
+              <span>{item.label}</span>
+            </NavLink>
+          ))}
+        </nav>
+        <div className="app-shell__footer">
+          <button type="button" className="app-shell__logout-btn" onClick={() => setConfirmLogoutOpen(true)}>
+            <i className="fa-solid fa-right-from-bracket" />
+            <span>Déconnexion</span>
+          </button>
+        </div>
+      </aside>
+
+      <div className="app-shell__main-col">
+        <header className="app-shell__header">
+          <div className="app-shell__header-left">
+            <button
+              type="button"
+              className="app-shell__menu-btn"
+              aria-label="Menu"
+              onClick={() => setSidebarOpen((o) => !o)}
+            >
+              <i className={`fa-solid ${sidebarOpen ? "fa-xmark" : "fa-bars"}`} />
+            </button>
+            <h1 className="app-shell__title">{renderTitle()}</h1>
+          </div>
+          <div className="app-shell__header-right">
+            {userName ? (
+              <span className="app-shell__hello">
+                <span className="app-shell__hello-greet">Bonjour,</span>
+                <span className="app-shell__hello-name">{userName}</span>
+              </span>
+            ) : null}
+            <div className="app-shell__profile-wrap" ref={profileRef}>
+              <button
+                type="button"
+                className="app-shell__profile-icon"
+                aria-label="Menu profil"
+                onClick={() => setProfileOpen((v) => !v)}
+              >
+                <i className="fa-solid fa-user" />
+              </button>
+              {profileOpen ? (
+                <div className="app-shell__profile-popover">
+                  <button type="button" className="app-shell__profile-item" onClick={goToProfile}>
+                    <i className="fa-solid fa-id-card" /> Voir le profil
+                  </button>
+                  <button type="button" className="app-shell__profile-item" onClick={() => setConfirmLogoutOpen(true)}>
+                    <i className="fa-solid fa-right-from-bracket" /> Déconnexion
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </header>
+
+        <main className="app-shell__content">
+          <Outlet context={{ userName }} />
+        </main>
+      </div>
+
+      {confirmLogoutOpen ? (
+        <div className="app-shell__confirm-backdrop" onClick={() => setConfirmLogoutOpen(false)} role="dialog" aria-modal="true">
+          <div className="app-shell__confirm-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Confirmer la déconnexion</h3>
+            <p>Voulez-vous vraiment vous déconnecter ?</p>
+            <div className="app-shell__confirm-actions">
+              <button
+                type="button"
+                className="app-shell__btn app-shell__btn--primary"
+                onClick={logout}
+              >
+                Confirmer
+              </button>
+              <button
+                type="button"
+                className="app-shell__btn app-shell__btn--soft-danger"
+                onClick={() => setConfirmLogoutOpen(false)}
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}

@@ -1,0 +1,257 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\User;
+use App\Support\Utf8;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\ValidationException;
+use OpenApi\Attributes as OA;
+
+class AuthController extends Controller
+{
+    #[OA\Post(
+        path: '/api/register',
+        tags: ['Auth'],
+        summary: 'Créer un compte',
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['name', 'email', 'password', 'password_confirmation'],
+                properties: [
+                    new OA\Property(property: 'name', type: 'string', example: 'Aminata Diop'),
+                    new OA\Property(property: 'email', type: 'string', format: 'email'),
+                    new OA\Property(property: 'password', type: 'string', format: 'password'),
+                    new OA\Property(property: 'password_confirmation', type: 'string', format: 'password'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 201, description: 'Compte créé — renvoie user + token'),
+            new OA\Response(response: 422, description: 'Erreur de validation'),
+        ]
+    )]
+    public function register(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
+            'password' => ['required', 'string', 'min:8', 'regex:/^(?=.*[A-Za-z])(?=.*\\d)(?=.*[^A-Za-z\\d]).+$/', 'confirmed'],
+        ], [
+            'name.required' => 'Le nom est obligatoire.',
+            'name.max' => 'Le nom ne doit pas dépasser :max caractères.',
+            'email.required' => "L'adresse e-mail est obligatoire.",
+            'email.email' => "L'adresse e-mail n'est pas valide.",
+            'email.max' => "L'adresse e-mail ne doit pas dépasser :max caractères.",
+            'email.unique' => 'Cette adresse e-mail est déjà utilisée.',
+            'password.required' => 'Le mot de passe est obligatoire.',
+            'password.min' => 'Le mot de passe doit contenir au moins :min caractères.',
+            'password.regex' => 'Le mot de passe doit contenir au moins une lettre, un chiffre et un symbole.',
+            'password.confirmed' => 'La confirmation du mot de passe ne correspond pas.',
+        ], [
+            'name' => 'nom',
+            'email' => 'adresse e-mail',
+            'password' => 'mot de passe',
+        ]);
+
+        $data['name'] = Utf8::clean($data['name']);
+        $data['email'] = Utf8::clean($data['email']);
+
+        $user = User::query()->create([
+            'name' => $data['name'],
+            'email' => $data['email'],
+            'password' => $data['password'],
+        ]);
+
+        $user->tokens()->delete();
+        $token = $user->createToken('api')->plainTextToken;
+
+        return response()->json(
+            [
+                'user' => $this->userPayload($user),
+                'token' => $token,
+                'token_type' => 'Bearer',
+            ],
+            201,
+            [],
+            JSON_INVALID_UTF8_SUBSTITUTE | JSON_UNESCAPED_UNICODE
+        );
+    }
+
+    #[OA\Post(
+        path: '/api/login',
+        tags: ['Auth'],
+        summary: 'Connexion',
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['email', 'password'],
+                properties: [
+                    new OA\Property(property: 'email', type: 'string', format: 'email'),
+                    new OA\Property(property: 'password', type: 'string', format: 'password'),
+                ]
+            )
+        ),
+        responses: [
+            new OA\Response(response: 200, description: 'Token émis'),
+            new OA\Response(response: 422, description: 'Identifiants invalides'),
+        ]
+    )]
+    public function login(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'email' => ['required', 'email'],
+            'password' => ['required', 'string'],
+        ], [
+            'email.required' => "L'adresse e-mail est obligatoire.",
+            'email.email' => "L'adresse e-mail n'est pas valide.",
+            'password.required' => 'Le mot de passe est obligatoire.',
+        ], [
+            'email' => 'adresse e-mail',
+            'password' => 'mot de passe',
+        ]);
+
+        $user = User::query()->where('email', $data['email'])->first();
+
+        if (! $user || ! Hash::check($data['password'], $user->password)) {
+            throw ValidationException::withMessages([
+                'email' => ['Les identifiants fournis sont incorrects.'],
+            ]);
+        }
+
+        $user->tokens()->delete();
+        $token = $user->createToken('api')->plainTextToken;
+
+        return response()->json(
+            [
+                'user' => $this->userPayload($user),
+                'token' => $token,
+                'token_type' => 'Bearer',
+            ],
+            200,
+            [],
+            JSON_INVALID_UTF8_SUBSTITUTE | JSON_UNESCAPED_UNICODE
+        );
+    }
+
+    #[OA\Post(
+        path: '/api/logout',
+        tags: ['Auth'],
+        summary: 'Révoquer le token courant',
+        security: [['sanctum' => []]],
+        responses: [
+            new OA\Response(response: 204, description: 'Déconnecté'),
+        ]
+    )]
+    public function logout(Request $request): JsonResponse
+    {
+        $request->user()?->currentAccessToken()?->delete();
+
+        return response()->json(null, 204);
+    }
+
+    #[OA\Get(
+        path: '/api/me',
+        tags: ['Auth'],
+        summary: 'Profil utilisateur authentifié',
+        security: [['sanctum' => []]],
+        responses: [
+            new OA\Response(response: 200, description: 'Utilisateur'),
+        ]
+    )]
+    public function me(Request $request): JsonResponse
+    {
+        return response()->json(
+            $this->userPayload($request->user()),
+            200,
+            [],
+            JSON_INVALID_UTF8_SUBSTITUTE | JSON_UNESCAPED_UNICODE
+        );
+    }
+
+    public function updateProfile(Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'string', 'email', 'max:255', "unique:users,email,{$user->id}"],
+        ], [
+            'name.required' => 'Le nom est obligatoire.',
+            'email.required' => "L'adresse e-mail est obligatoire.",
+            'email.email' => "L'adresse e-mail n'est pas valide.",
+            'email.unique' => 'Cette adresse e-mail est déjà utilisée.',
+        ]);
+
+        $user->update([
+            'name' => Utf8::clean($data['name']),
+            'email' => Utf8::clean($data['email']),
+        ]);
+
+        return response()->json(
+            [
+                'message' => 'Profil mis à jour avec succès.',
+                'user' => $this->userPayload($user->fresh()),
+            ],
+            200,
+            [],
+            JSON_INVALID_UTF8_SUBSTITUTE | JSON_UNESCAPED_UNICODE
+        );
+    }
+
+    public function updatePassword(Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        $data = $request->validate([
+            'current_password' => ['required', 'string'],
+            'password' => ['required', 'confirmed', Password::min(8)->letters()->numbers()->symbols()],
+        ], [
+            'current_password.required' => 'Le mot de passe actuel est obligatoire.',
+            'password.required' => 'Le nouveau mot de passe est obligatoire.',
+            'password.confirmed' => 'La confirmation du mot de passe ne correspond pas.',
+        ]);
+
+        if (! Hash::check($data['current_password'], $user->password)) {
+            throw ValidationException::withMessages([
+                'current_password' => ['Le mot de passe actuel est incorrect.'],
+            ]);
+        }
+
+        $user->update([
+            'password' => $data['password'],
+        ]);
+
+        return response()->json(
+            ['message' => 'Mot de passe mis à jour avec succès.'],
+            200,
+            [],
+            JSON_INVALID_UTF8_SUBSTITUTE | JSON_UNESCAPED_UNICODE
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function userPayload(?User $user): array
+    {
+        if ($user === null) {
+            return [];
+        }
+
+        return [
+            'id' => $user->id,
+            'name' => Utf8::clean($user->name),
+            'email' => Utf8::clean($user->email),
+            'email_verified_at' => $user->email_verified_at?->toIso8601String(),
+            'created_at' => $user->created_at?->toIso8601String(),
+            'updated_at' => $user->updated_at?->toIso8601String(),
+        ];
+    }
+}
