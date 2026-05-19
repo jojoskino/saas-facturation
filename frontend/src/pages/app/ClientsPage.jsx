@@ -3,6 +3,7 @@ import { apiFetch, peekCache } from "../../api/client";
 import TableSkeleton from "../../components/skeleton/TableSkeleton";
 import FormActions from "../../components/FormActions";
 import { AppSelect } from "../../components/AppFormControls";
+import ModalPortal from "../../components/ModalPortal";
 
 const emptyForm = {
   first_name: "",
@@ -515,16 +516,6 @@ export default function ClientsPage() {
           padding: 6px 8px;
         }
         .clients-pagination-info { text-align: center; }
-        .clients-modal-backdrop {
-          position: fixed;
-          inset: 0;
-          z-index: 60;
-          background: rgba(20, 33, 61, 0.35);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 18px;
-        }
         .clients-modal {
           width: min(640px, 100%);
           max-height: calc(100vh - 36px);
@@ -765,6 +756,7 @@ export default function ClientsPage() {
       </div>
 
       {modalOpen ? (
+        <ModalPortal>
         <div className="clients-modal-backdrop" role="dialog" aria-modal="true" onClick={closeModal}>
           <section className="clients-modal" onClick={(e) => e.stopPropagation()}>
             <div className="clients-modal-head">
@@ -821,9 +813,11 @@ export default function ClientsPage() {
             </form>
           </section>
         </div>
+        </ModalPortal>
       ) : null}
 
       {confirmSubmitOpen ? (
+        <ModalPortal>
         <div className="clients-modal-backdrop" role="dialog" aria-modal="true" onClick={() => setConfirmSubmitOpen(false)}>
           <section className="clients-modal" onClick={(e) => e.stopPropagation()}>
             <div className="clients-modal-head">
@@ -845,9 +839,11 @@ export default function ClientsPage() {
             </div>
           </section>
         </div>
+        </ModalPortal>
       ) : null}
 
       {deleteTarget ? (
+        <ModalPortal>
         <div className="clients-modal-backdrop" role="dialog" aria-modal="true" onClick={() => setDeleteTarget(null)}>
           <section className="clients-modal" onClick={(e) => e.stopPropagation()}>
             <div className="clients-modal-head">
@@ -869,9 +865,11 @@ export default function ClientsPage() {
             </div>
           </section>
         </div>
+        </ModalPortal>
       ) : null}
 
       {viewTarget ? (
+        <ModalPortal>
         <div className="clients-modal-backdrop" role="dialog" aria-modal="true" onClick={() => setViewTarget(null)}>
           <section className="clients-modal" onClick={(e) => e.stopPropagation()}>
             <div className="clients-modal-head">
@@ -908,9 +906,11 @@ export default function ClientsPage() {
             ) : null}
           </section>
         </div>
+        </ModalPortal>
       ) : null}
 
       {importOpen ? (
+        <ModalPortal>
         <div className="clients-modal-backdrop" role="dialog" aria-modal="true" onClick={() => setImportOpen(false)}>
           <section className="clients-modal" onClick={(e) => e.stopPropagation()}>
             <div className="clients-modal-head">
@@ -937,6 +937,7 @@ export default function ClientsPage() {
             </form>
           </section>
         </div>
+        </ModalPortal>
       ) : null}
 
       {toasts.length ? (

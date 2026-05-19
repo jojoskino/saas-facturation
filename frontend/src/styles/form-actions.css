@@ -29,14 +29,14 @@
 }
 
 .form-actions__btn--primary {
-  background: #14213d;
+  background: var(--color-primary, #14213d);
   color: #fff;
-  border-color: #14213d;
+  border-color: var(--color-primary, #14213d);
 }
 
 .form-actions__btn--primary:hover:not(:disabled) {
-  background: #1a2a4d;
-  border-color: #1a2a4d;
+  filter: brightness(1.08);
+  border-color: var(--color-primary, #14213d);
 }
 
 .form-actions__btn:disabled {

@@ -16,6 +16,12 @@
 }
 
 :root {
+  --z-sidebar: 30;
+  --z-header: 20;
+  --z-header-menu: 25;
+  --z-modal: 500;
+  --z-modal-overlay: 500;
+
   --color-bg: #f2f6ff;
   --color-bg-subtle: #edf2ff;
   --color-surface: rgba(255, 255, 255, 0.66);

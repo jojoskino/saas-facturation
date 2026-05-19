@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiDownload, apiFetchHtml } from "../api/client";
+import ModalPortal from "./ModalPortal";
 import Skeleton from "./skeleton/Skeleton";
 
 export default function DocumentPreviewModal({ open, onClose, previewPath, pdfPath, filename, title }) {
@@ -50,6 +51,7 @@ export default function DocumentPreviewModal({ open, onClose, previewPath, pdfPa
   }
 
   return (
+    <ModalPortal>
     <div className="doc-preview-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
       <section className="doc-preview-panel" onClick={(e) => e.stopPropagation()}>
         <header className="doc-preview-head">
@@ -102,7 +104,7 @@ export default function DocumentPreviewModal({ open, onClose, previewPath, pdfPa
         .doc-preview-backdrop {
           position: fixed;
           inset: 0;
-          z-index: 1200;
+          z-index: var(--z-modal, 500);
           background: rgba(20, 33, 61, 0.45);
           display: grid;
           place-items: center;
@@ -206,5 +208,6 @@ export default function DocumentPreviewModal({ open, onClose, previewPath, pdfPa
         }
       `}</style>
     </div>
+    </ModalPortal>
   );
 }

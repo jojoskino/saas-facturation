@@ -6,6 +6,7 @@ import DocumentPreviewModal from "../../components/DocumentPreviewModal";
 import { useTranslation } from "react-i18next";
 import { AppDateField, AppSelect, FieldLabel } from "../../components/AppFormControls";
 import InlineStatusSelect from "../../components/InlineStatusSelect";
+import ModalPortal from "../../components/ModalPortal";
 
 const defaultForm = {
   client_id: "",
@@ -701,6 +702,7 @@ export default function FacturesPage() {
       </section>
 
       {modalOpen ? (
+        <ModalPortal>
         <div className="doc-modal-backdrop" role="dialog" aria-modal="true" onClick={closeModal}>
           <section className="doc-modal" onClick={(e) => e.stopPropagation()}>
             <div className="doc-modal-head">
@@ -798,6 +800,7 @@ export default function FacturesPage() {
             </form>
           </section>
         </div>
+        </ModalPortal>
       ) : null}
 
       <DocumentPreviewModal
@@ -810,6 +813,7 @@ export default function FacturesPage() {
       />
 
       {paymentsOpen ? (
+        <ModalPortal>
         <div className="inv-modal-backdrop" role="dialog" aria-modal="true" onClick={() => setPaymentsOpen(null)}>
           <section className="inv-modal" onClick={(e) => e.stopPropagation()}>
             <div className="inv-modal-head">
@@ -859,9 +863,11 @@ export default function FacturesPage() {
             </form>
           </section>
         </div>
+        </ModalPortal>
       ) : null}
 
       {deleteTarget ? (
+        <ModalPortal>
         <div className="inv-modal-backdrop" role="dialog" aria-modal="true" onClick={() => setDeleteTarget(null)}>
           <section className="inv-modal" onClick={(e) => e.stopPropagation()}>
             <div className="inv-modal-head">
@@ -883,6 +889,7 @@ export default function FacturesPage() {
             </div>
           </section>
         </div>
+        </ModalPortal>
       ) : null}
     </div>
   );

@@ -6,6 +6,7 @@ import { useApiQuery } from "../hooks/useApiQuery";
 import I18nSync from "../components/I18nSync";
 import PlanBadge from "../components/PlanBadge";
 import { applyUserBranding } from "../utils/branding";
+import ModalPortal from "../components/ModalPortal";
 
 const navItems = [
   { to: "/app", labelKey: "nav.dashboard", icon: "fa-chart-pie", end: true },
@@ -354,8 +355,7 @@ export default function AppLayout() {
           border-bottom: 1px solid var(--color-border);
           position: sticky;
           top: 0;
-          z-index: 100;
-          isolation: isolate;
+          z-index: var(--z-header, 20);
         }
         .app-shell__header-left {
           display: flex;
@@ -399,7 +399,7 @@ export default function AppLayout() {
         }
         .app-shell__hello-greet { font-size: 11px; color: var(--color-text-muted); font-weight: 600; }
         .app-shell__hello-name { font-size: 13px; color: var(--color-text); font-weight: 700; }
-        .app-shell__profile-wrap { position: relative; z-index: 120; }
+        .app-shell__profile-wrap { position: relative; z-index: var(--z-header-menu, 25); }
         .app-shell__profile-icon {
           width: 38px;
           height: 38px;
@@ -421,7 +421,7 @@ export default function AppLayout() {
           border: 1px solid var(--color-border);
           border-radius: 10px;
           box-shadow: 0 16px 40px rgba(20, 33, 61, 0.18);
-          z-index: 200;
+          z-index: var(--z-header-menu, 25);
           overflow: hidden;
         }
         .app-shell__btn {
@@ -459,7 +459,7 @@ export default function AppLayout() {
           position: fixed;
           inset: 0;
           background: rgba(20, 33, 61, 0.35);
-          z-index: 90;
+          z-index: var(--z-modal, 500);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -630,6 +630,7 @@ export default function AppLayout() {
       </div>
 
       {confirmLogoutOpen ? (
+        <ModalPortal>
         <div className="app-shell__confirm-backdrop" onClick={() => setConfirmLogoutOpen(false)} role="dialog" aria-modal="true">
           <div className="app-shell__confirm-modal" onClick={(e) => e.stopPropagation()}>
             <h3>{t("logout.title")}</h3>
@@ -652,6 +653,7 @@ export default function AppLayout() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       ) : null}
     </div>
   );

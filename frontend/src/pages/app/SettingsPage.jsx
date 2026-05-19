@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { apiFetch, apiUpload } from "../../api/client";
+import { apiFetch, apiUpload, apiUrl } from "../../api/client";
 import { applyUserBranding } from "../../utils/branding";
 import { peekCache, setCache } from "../../api/cache";
 import { setAppLanguage } from "../../i18n";
@@ -8,6 +8,7 @@ import AppModal from "../../components/AppModal";
 import AccountAlerts from "../../components/account/AccountAlerts";
 import SettingsListSkeleton from "../../components/skeleton/SettingsListSkeleton";
 import FormActions from "../../components/FormActions";
+import { FieldLabel } from "../../components/AppFormControls";
 import { extractApiMessage, useAccountMe } from "../../hooks/useAccountMe";
 import "../../styles/account-pages.css";
 
@@ -21,6 +22,13 @@ const TIMEZONE_KEYS = [
 
 const DEFAULT_DOC_PRIMARY = "#14213D";
 const DEFAULT_DOC_ACCENT = "#FCA311";
+
+function resolveAssetUrl(url) {
+  if (!url) return "";
+  if (/^https?:\/\//i.test(url)) return url;
+  if (url.startsWith("/")) return apiUrl(url);
+  return url;
+}
 
 const emptyCompany = {
   company_name: "",
@@ -46,6 +54,8 @@ export default function SettingsPage() {
   const [logoFile, setLogoFile] = useState(null);
   const [logoPreview, setLogoPreview] = useState("");
   const [removeLogo, setRemoveLogo] = useState(false);
+  const [logoBroken, setLogoBroken] = useState(false);
+  const logoInputRef = useRef(null);
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [company, setCompany] = useState(emptyCompany);
   const [prefs, setPrefs] = useState({
@@ -69,9 +79,10 @@ export default function SettingsPage() {
       document_color_primary: user.document_color_primary || DEFAULT_DOC_PRIMARY,
       document_color_accent: user.document_color_accent || DEFAULT_DOC_ACCENT,
     });
-    setLogoPreview(user.company_logo_url || "");
+    setLogoPreview(resolveAssetUrl(user.company_logo_url || ""));
     setLogoFile(null);
     setRemoveLogo(false);
+    setLogoBroken(false);
     applyUserBranding(user);
     setPrefs({
       locale: user.locale || "fr",
@@ -95,6 +106,7 @@ export default function SettingsPage() {
     if (!file) return;
     setLogoFile(file);
     setRemoveLogo(false);
+    setLogoBroken(false);
     setLogoPreview(URL.createObjectURL(file));
   }
 
@@ -130,7 +142,7 @@ export default function SettingsPage() {
           document_color_primary: u.document_color_primary || DEFAULT_DOC_PRIMARY,
           document_color_accent: u.document_color_accent || DEFAULT_DOC_ACCENT,
         });
-        setLogoPreview(u.company_logo_url || "");
+        setLogoPreview(resolveAssetUrl(u.company_logo_url || ""));
         setLogoFile(null);
         setRemoveLogo(false);
         applyUserBranding(u);
@@ -218,13 +230,18 @@ export default function SettingsPage() {
         description={t("company.modalDesc")}
         wide
       >
-        <form className="app-modal-form account-form" onSubmit={saveCompany}>
-          <div className="app-modal-form__scroll">
+        <form className="app-modal-form" onSubmit={saveCompany}>
+          <div className="app-modal-form__scroll account-form">
           <div className="account-field account-field--full account-branding-logo">
-            <label htmlFor="company_logo">{t("company.logo")}</label>
+            <FieldLabel htmlFor="company_logo">{t("company.logo")}</FieldLabel>
             <div className="account-logo-row">
-              {logoPreview ? (
-                <img src={logoPreview} alt="" className="account-logo-preview" />
+              {logoPreview && !logoBroken ? (
+                <img
+                  src={logoPreview}
+                  alt=""
+                  className="account-logo-preview"
+                  onError={() => setLogoBroken(true)}
+                />
               ) : (
                 <div className="account-logo-placeholder" aria-hidden>
                   <i className="fa-regular fa-image" />
@@ -232,13 +249,24 @@ export default function SettingsPage() {
               )}
               <div className="account-logo-actions">
                 <input
+                  ref={logoInputRef}
                   id="company_logo"
                   type="file"
+                  className="account-logo-file"
                   accept="image/png,image/jpeg,image/webp,image/svg+xml"
                   onChange={onLogoPick}
                   disabled={loading || savingCompany}
                 />
-                {logoPreview ? (
+                <button
+                  type="button"
+                  className="account-btn account-btn--ghost"
+                  onClick={() => logoInputRef.current?.click()}
+                  disabled={loading || savingCompany}
+                >
+                  <i className="fa-solid fa-upload" aria-hidden />
+                  {t("company.logoChoose")}
+                </button>
+                {logoPreview && !logoBroken ? (
                   <button
                     type="button"
                     className="account-link-btn"
@@ -246,6 +274,8 @@ export default function SettingsPage() {
                       setLogoFile(null);
                       setLogoPreview("");
                       setRemoveLogo(true);
+                      setLogoBroken(false);
+                      if (logoInputRef.current) logoInputRef.current.value = "";
                     }}
                     disabled={loading || savingCompany}
                   >
@@ -258,14 +288,16 @@ export default function SettingsPage() {
           </div>
           <div className="account-field-row account-field-row--colors">
             <div className="account-field">
-              <label htmlFor="document_color_primary">{t("company.colorPrimary")}</label>
+              <FieldLabel htmlFor="document_color_primary">{t("company.colorPrimary")}</FieldLabel>
               <div className="account-color-input">
                 <input
                   id="document_color_primary"
-                  name="document_color_primary"
                   type="color"
+                  aria-label={t("company.colorPrimary")}
                   value={company.document_color_primary}
-                  onChange={onCompanyChange}
+                  onChange={(e) =>
+                    setCompany((prev) => ({ ...prev, document_color_primary: e.target.value.toUpperCase() }))
+                  }
                   disabled={loading}
                 />
                 <input
@@ -280,14 +312,16 @@ export default function SettingsPage() {
               </div>
             </div>
             <div className="account-field">
-              <label htmlFor="document_color_accent">{t("company.colorAccent")}</label>
+              <FieldLabel htmlFor="document_color_accent">{t("company.colorAccent")}</FieldLabel>
               <div className="account-color-input">
                 <input
                   id="document_color_accent"
-                  name="document_color_accent"
                   type="color"
+                  aria-label={t("company.colorAccent")}
                   value={company.document_color_accent}
-                  onChange={onCompanyChange}
+                  onChange={(e) =>
+                    setCompany((prev) => ({ ...prev, document_color_accent: e.target.value.toUpperCase() }))
+                  }
                   disabled={loading}
                 />
                 <input
@@ -302,9 +336,9 @@ export default function SettingsPage() {
               </div>
             </div>
           </div>
-          <p className="account-field-hint account-field-hint--block">{t("company.colorsHint")}</p>
+          <p className="account-field-hint account-field-hint--block account-field--full">{t("company.colorsHint")}</p>
           <div className="account-field account-field--full">
-            <label htmlFor="company_name">{t("company.name")}</label>
+            <FieldLabel htmlFor="company_name" required>{t("company.name")}</FieldLabel>
             <input
               id="company_name"
               name="company_name"
@@ -315,7 +349,7 @@ export default function SettingsPage() {
             />
           </div>
           <div className="account-field account-field--full">
-            <label htmlFor="company_address">{t("company.address")}</label>
+            <FieldLabel htmlFor="company_address">{t("company.address")}</FieldLabel>
             <textarea
               id="company_address"
               name="company_address"
@@ -326,7 +360,7 @@ export default function SettingsPage() {
             />
           </div>
           <div className="account-field">
-            <label htmlFor="company_phone">{t("company.phone")}</label>
+            <FieldLabel htmlFor="company_phone">{t("company.phone")}</FieldLabel>
             <input
               id="company_phone"
               name="company_phone"
@@ -337,7 +371,7 @@ export default function SettingsPage() {
             />
           </div>
           <div className="account-field">
-            <label htmlFor="company_email">{t("company.email")}</label>
+            <FieldLabel htmlFor="company_email" required>{t("company.email")}</FieldLabel>
             <input
               id="company_email"
               type="email"
@@ -349,7 +383,7 @@ export default function SettingsPage() {
             />
           </div>
           <div className="account-field account-field--full">
-            <label htmlFor="company_tax_id">{t("company.taxId")}</label>
+            <FieldLabel htmlFor="company_tax_id">{t("company.taxId")}</FieldLabel>
             <input
               id="company_tax_id"
               name="company_tax_id"
@@ -360,7 +394,7 @@ export default function SettingsPage() {
             />
           </div>
           <div className="account-field">
-            <label htmlFor="company_bank_name">{t("company.bank")}</label>
+            <FieldLabel htmlFor="company_bank_name">{t("company.bank")}</FieldLabel>
             <input
               id="company_bank_name"
               name="company_bank_name"
@@ -371,7 +405,7 @@ export default function SettingsPage() {
             />
           </div>
           <div className="account-field">
-            <label htmlFor="company_bank_iban">{t("company.iban")}</label>
+            <FieldLabel htmlFor="company_bank_iban">{t("company.iban")}</FieldLabel>
             <input
               id="company_bank_iban"
               name="company_bank_iban"
@@ -381,7 +415,7 @@ export default function SettingsPage() {
             />
           </div>
           <div className="account-field account-field--full">
-            <label htmlFor="company_bank_bic">{t("company.bic")}</label>
+            <FieldLabel htmlFor="company_bank_bic">{t("company.bic")}</FieldLabel>
             <input
               id="company_bank_bic"
               name="company_bank_bic"
@@ -391,7 +425,7 @@ export default function SettingsPage() {
             />
           </div>
           <div className="account-field account-field--full">
-            <label htmlFor="company_legal_footer">{t("company.legalFooter")}</label>
+            <FieldLabel htmlFor="company_legal_footer">{t("company.legalFooter")}</FieldLabel>
             <textarea
               id="company_legal_footer"
               name="company_legal_footer"
@@ -417,16 +451,17 @@ export default function SettingsPage() {
         title={t("preferences.modalTitle")}
         description={t("preferences.modalDesc")}
       >
-        <form className="account-form" onSubmit={savePreferences}>
+        <form className="app-modal-form" onSubmit={savePreferences}>
+          <div className="app-modal-form__scroll account-form">
           <div className="account-field account-field--full">
-            <label htmlFor="locale">{t("preferences.language")}</label>
+            <FieldLabel htmlFor="locale">{t("preferences.language")}</FieldLabel>
             <select id="locale" name="locale" value={prefs.locale} onChange={onPrefsChange} disabled={loading}>
               <option value="fr">{t("preferences.languageFr")}</option>
               <option value="en">{t("preferences.languageEn")}</option>
             </select>
           </div>
           <div className="account-field account-field--full">
-            <label htmlFor="timezone">{t("preferences.timezone")}</label>
+            <FieldLabel htmlFor="timezone">{t("preferences.timezone")}</FieldLabel>
             <select id="timezone" name="timezone" value={prefs.timezone} onChange={onPrefsChange} disabled={loading}>
               {TIMEZONE_KEYS.map((tz) => (
                 <option key={tz.value} value={tz.value}>
@@ -450,6 +485,7 @@ export default function SettingsPage() {
                 disabled={loading}
               />
             </label>
+          </div>
           </div>
           <FormActions
             onCancel={() => setPrefsOpen(false)}

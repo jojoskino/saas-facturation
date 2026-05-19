@@ -23,6 +23,7 @@
     "legalFooter": "Legal footer (PDF)",
     "legalFooterPlaceholder": "Share capital, registration number…",
     "logo": "Company logo",
+    "logoChoose": "Choose image",
     "logoHint": "PNG, JPG, WebP or SVG — max 2 MB. Shown on your PDFs.",
     "logoRemove": "Remove logo",
     "colorPrimary": "Primary color (documents)",

@@ -7,6 +7,7 @@ import DocumentPreviewModal from "../../components/DocumentPreviewModal";
 import { AppDateField, AppSelect, FieldLabel } from "../../components/AppFormControls";
 import InlineStatusSelect from "../../components/InlineStatusSelect";
 import DocumentLinesEditor, { computeLineTotals, createEmptyLine } from "../../components/DocumentLinesEditor";
+import ModalPortal from "../../components/ModalPortal";
 
 const defaultForm = {
   client_id: "",
@@ -581,6 +582,7 @@ export default function DevisPage() {
       </section>
 
       {modalOpen ? (
+        <ModalPortal>
         <div className="doc-modal-backdrop" role="dialog" aria-modal="true" onClick={closeModal}>
           <section className="doc-modal" onClick={(e) => e.stopPropagation()}>
             <div className="doc-modal-head">
@@ -655,6 +657,7 @@ export default function DevisPage() {
             </form>
           </section>
         </div>
+        </ModalPortal>
       ) : null}
 
       <DocumentPreviewModal
@@ -667,6 +670,7 @@ export default function DevisPage() {
       />
 
       {deleteTarget ? (
+        <ModalPortal>
         <div className="doc-modal-backdrop" role="dialog" aria-modal="true" onClick={() => setDeleteTarget(null)}>
           <section className="doc-modal" onClick={(e) => e.stopPropagation()}>
             <div className="doc-modal-head">
@@ -695,6 +699,7 @@ export default function DevisPage() {
             </form>
           </section>
         </div>
+        </ModalPortal>
       ) : null}
     </div>
   );

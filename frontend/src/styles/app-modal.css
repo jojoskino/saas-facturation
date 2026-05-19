@@ -1,7 +1,7 @@
 .app-modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: var(--z-modal, 500);
   background: rgba(20, 33, 61, 0.35);
   display: flex;
   align-items: center;
@@ -28,16 +28,18 @@
   min-height: 0;
 }
 
-.app-modal-form__scroll {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 0 20px;
+.app-modal-form__scroll.account-form {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.app-modal-form .form-actions {
+.app-modal-form > .form-actions {
   padding: 14px 20px 18px;
   margin-top: 0;
+  background: #fff;
+  border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
 }
 
 .app-modal--wide {
@@ -99,11 +101,6 @@
   overflow: hidden;
 }
 
-.app-modal-body .account-form {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
 
 .app-modal-form-wrap {
   display: flex;

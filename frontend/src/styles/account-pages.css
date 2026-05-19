@@ -420,10 +420,45 @@
   margin: -4px 0 12px;
 }
 
+.account-field-row {
+  grid-column: 1 / -1;
+}
+
 .account-field-row--colors {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+}
+
+.account-field-hint--block.account-field--full {
+  grid-column: 1 / -1;
+  margin-top: -4px;
+}
+
+.account-logo-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.account-btn--ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #f4f7fc;
+  border-color: var(--color-border-strong);
+  color: var(--color-text);
+}
+
+.account-btn--ghost:hover:not(:disabled) {
+  border-color: #fca311;
+  background: #fffaf2;
 }
 
 .account-color-input {
