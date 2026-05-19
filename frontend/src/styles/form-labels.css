@@ -1,0 +1,17 @@
+/* Labels de formulaire unifiés (taille « Devise » : petit, uppercase) */
+
+.field-label,
+.quo-field > label,
+.quo-field > .field-label,
+.inv-field > label,
+.inv-field > .field-label,
+.account-field > label,
+.account-field > .field-label,
+.clients-field > label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  line-height: 1.3;
+}

@@ -1,0 +1,34 @@
+{
+  "title": "My profile",
+  "subtitle": "Your sign-in details and account security.",
+  "personal": {
+    "tileTitle": "Personal information",
+    "tileDesc": "Sign-in name and email.",
+    "modalTitle": "Personal information",
+    "modalDesc": "Name and email used to sign in to Facturo.",
+    "title": "Personal information",
+    "desc": "Name and email used to sign in to Facturo.",
+    "name": "Full name",
+    "namePlaceholder": "e.g. Jane Doe",
+    "email": "Email",
+    "emailPlaceholder": "you@example.com",
+    "save": "Save profile",
+    "success": "Profile updated.",
+    "error": "Could not update profile."
+  },
+  "security": {
+    "tileTitle": "Security",
+    "tileDesc": "Password and account protection.",
+    "modalTitle": "Security",
+    "modalDesc": "Change your password regularly.",
+    "title": "Security",
+    "desc": "Change your password regularly.",
+    "current": "Current password",
+    "new": "New password",
+    "confirm": "Confirm password",
+    "hint": "At least 8 characters with a letter, a number and a symbol.",
+    "save": "Update password",
+    "success": "Password updated.",
+    "error": "Could not update password."
+  }
+}

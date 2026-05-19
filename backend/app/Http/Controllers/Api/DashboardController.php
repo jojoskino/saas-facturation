@@ -9,7 +9,9 @@ use App\Models\Quote;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 use OpenApi\Attributes as OA;
 
 class DashboardController extends Controller
@@ -26,6 +28,11 @@ class DashboardController extends Controller
     public function summary(Request $request): JsonResponse
     {
         $userId = (int) $request->user()->id;
+        $now = CarbonImmutable::now();
+        $currentMonthStart = $now->startOfMonth();
+        $currentMonthEnd = $now->endOfMonth();
+        $previousMonthStart = $currentMonthStart->subMonth();
+        $previousMonthEnd = $previousMonthStart->endOfMonth();
 
         $clientsCount = Client::query()->where('user_id', $userId)->count();
 
@@ -52,6 +59,66 @@ class DashboardController extends Controller
             ->where('user_id', $userId)
             ->whereIn('status', ['sent', 'overdue'])
             ->sum('total');
+
+        $paidCurrentMonth = (float) Invoice::query()
+            ->where('user_id', $userId)
+            ->where('status', 'paid')
+            ->whereBetween('paid_at', [$currentMonthStart, $currentMonthEnd])
+            ->sum('total');
+        $paidPreviousMonth = (float) Invoice::query()
+            ->where('user_id', $userId)
+            ->where('status', 'paid')
+            ->whereBetween('paid_at', [$previousMonthStart, $previousMonthEnd])
+            ->sum('total');
+
+        $outstandingCurrentMonth = (float) Invoice::query()
+            ->where('user_id', $userId)
+            ->whereIn('status', ['sent', 'overdue'])
+            ->whereBetween('created_at', [$currentMonthStart, $currentMonthEnd])
+            ->sum('total');
+        $outstandingPreviousMonth = (float) Invoice::query()
+            ->where('user_id', $userId)
+            ->whereIn('status', ['sent', 'overdue'])
+            ->whereBetween('created_at', [$previousMonthStart, $previousMonthEnd])
+            ->sum('total');
+
+        $clientsCurrentMonth = (int) Client::query()
+            ->where('user_id', $userId)
+            ->whereBetween('created_at', [$currentMonthStart, $currentMonthEnd])
+            ->count();
+        $clientsPreviousMonth = (int) Client::query()
+            ->where('user_id', $userId)
+            ->whereBetween('created_at', [$previousMonthStart, $previousMonthEnd])
+            ->count();
+
+        $overdueCurrentMonth = (int) Invoice::query()
+            ->where('user_id', $userId)
+            ->where('status', 'overdue')
+            ->whereBetween('created_at', [$currentMonthStart, $currentMonthEnd])
+            ->count();
+        $overduePreviousMonth = (int) Invoice::query()
+            ->where('user_id', $userId)
+            ->where('status', 'overdue')
+            ->whereBetween('created_at', [$previousMonthStart, $previousMonthEnd])
+            ->count();
+
+        $avgInvoiceCurrentMonth = (float) Invoice::query()
+            ->where('user_id', $userId)
+            ->where('status', 'paid')
+            ->whereBetween('paid_at', [$currentMonthStart, $currentMonthEnd])
+            ->avg('total');
+        $avgInvoicePreviousMonth = (float) Invoice::query()
+            ->where('user_id', $userId)
+            ->where('status', 'paid')
+            ->whereBetween('paid_at', [$previousMonthStart, $previousMonthEnd])
+            ->avg('total');
+
+        $recoveryCurrentMonth = $paidCurrentMonth + $outstandingCurrentMonth > 0
+            ? ($paidCurrentMonth / ($paidCurrentMonth + $outstandingCurrentMonth)) * 100
+            : 0.0;
+        $recoveryPreviousMonth = $paidPreviousMonth + $outstandingPreviousMonth > 0
+            ? ($paidPreviousMonth / ($paidPreviousMonth + $outstandingPreviousMonth)) * 100
+            : 0.0;
 
         $rangeStart = CarbonImmutable::now()->startOfMonth()->subMonths(5);
         $rangeEnd = CarbonImmutable::now()->endOfMonth();
@@ -85,6 +152,64 @@ class DashboardController extends Controller
             'revenue_paid_cfa' => $revenuePaid,
             'outstanding_cfa' => $outstanding,
             'monthly_revenue_cfa' => $monthlyRevenue,
+            'kpi_trends' => [
+                'revenue_paid_pct' => $this->pctChange($paidCurrentMonth, $paidPreviousMonth),
+                'outstanding_pct' => $this->pctChange($outstandingCurrentMonth, $outstandingPreviousMonth),
+                'recovery_rate_points' => round($recoveryCurrentMonth - $recoveryPreviousMonth, 1),
+                'avg_invoice_pct' => $this->pctChange($avgInvoiceCurrentMonth, $avgInvoicePreviousMonth),
+                'clients_pct' => $this->pctChange($clientsCurrentMonth, $clientsPreviousMonth),
+                'overdue_pct' => $this->pctChange($overdueCurrentMonth, $overduePreviousMonth),
+            ],
         ]);
+    }
+
+    public function exportCsv(Request $request): StreamedResponse|JsonResponse
+    {
+        $userId = (int) $request->user()->id;
+        $period = (string) $request->query('period', 'year');
+        $now = CarbonImmutable::now();
+
+        $start = match ($period) {
+            'week' => $now->startOfWeek(),
+            'month' => $now->startOfMonth(),
+            'quarter' => $now->firstOfQuarter(),
+            default => $now->startOfYear(),
+        };
+
+        $rows = Invoice::query()
+            ->where('user_id', $userId)
+            ->where('document_type', 'invoice')
+            ->where('status', 'paid')
+            ->whereBetween('paid_at', [$start, $now])
+            ->orderBy('paid_at')
+            ->get(['number', 'total', 'currency', 'paid_at', 'client_id']);
+
+        $filename = 'revenus-'.$period.'-'.$now->format('Y-m-d').'.csv';
+
+        return response()->streamDownload(function () use ($rows): void {
+            $out = fopen('php://output', 'w');
+            fputcsv($out, ['Numero', 'Montant', 'Devise', 'Date paiement', 'Client ID'], ';');
+            foreach ($rows as $row) {
+                fputcsv($out, [
+                    $row->number,
+                    $row->total,
+                    $row->currency,
+                    $row->paid_at?->format('Y-m-d'),
+                    $row->client_id,
+                ], ';');
+            }
+            fclose($out);
+        }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    private function pctChange(float|int $current, float|int $previous): float
+    {
+        $previousValue = (float) $previous;
+        $currentValue = (float) $current;
+        if ($previousValue <= 0.0) {
+            return $currentValue > 0.0 ? 100.0 : 0.0;
+        }
+
+        return round((($currentValue - $previousValue) / $previousValue) * 100, 1);
     }
 }

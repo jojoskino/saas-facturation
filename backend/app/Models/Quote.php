@@ -19,6 +19,7 @@ class Quote extends Model
         'subtotal',
         'tax_amount',
         'total',
+        'discount_percent',
         'notes',
     ];
 
@@ -30,6 +31,7 @@ class Quote extends Model
             'subtotal' => 'decimal:2',
             'tax_amount' => 'decimal:2',
             'total' => 'decimal:2',
+            'discount_percent' => 'decimal:2',
         ];
     }
 
@@ -46,5 +48,10 @@ class Quote extends Model
     public function items(): HasMany
     {
         return $this->hasMany(QuoteItem::class)->orderBy('sort_order');
+    }
+
+    public function invoices(): HasMany
+    {
+        return $this->hasMany(Invoice::class);
     }
 }

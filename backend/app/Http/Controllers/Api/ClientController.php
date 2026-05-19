@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Client;
+use App\Models\Invoice;
+use App\Models\Quote;
 use App\Support\Utf8;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -244,6 +246,103 @@ class ClientController extends Controller
         $client->delete();
 
         return response()->noContent();
+    }
+
+    public function documents(Request $request, string $id): JsonResponse
+    {
+        $userId = $request->user()->id;
+        $client = Client::query()->where('user_id', $userId)->findOrFail($id);
+
+        $quotes = Quote::query()
+            ->where('user_id', $userId)
+            ->where('client_id', $client->id)
+            ->orderByDesc('id')
+            ->limit(50)
+            ->get(['id', 'number', 'status', 'total', 'currency', 'issue_date', 'valid_until']);
+
+        $invoices = Invoice::query()
+            ->where('user_id', $userId)
+            ->where('client_id', $client->id)
+            ->orderByDesc('id')
+            ->limit(50)
+            ->get(['id', 'number', 'status', 'document_type', 'total', 'currency', 'issue_date', 'due_date']);
+
+        $revenuePaid = (float) Invoice::query()
+            ->where('user_id', $userId)
+            ->where('client_id', $client->id)
+            ->where('status', 'paid')
+            ->sum('total');
+
+        return response()->json([
+            'client' => $this->clientPayload($client),
+            'quotes' => $quotes,
+            'invoices' => $invoices,
+            'stats' => [
+                'quotes_count' => $quotes->count(),
+                'invoices_count' => $invoices->count(),
+                'revenue_paid_cfa' => $revenuePaid,
+            ],
+        ]);
+    }
+
+    public function importCsv(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'csv' => ['required', 'string', 'max:500000'],
+        ]);
+
+        $lines = preg_split('/\r\n|\r|\n/', $data['csv']) ?: [];
+        $header = null;
+        $created = 0;
+        $errors = [];
+
+        foreach ($lines as $index => $line) {
+            $line = trim($line);
+            if ($line === '') {
+                continue;
+            }
+            $cols = str_getcsv($line);
+            if ($header === null) {
+                $header = array_map(fn ($h) => mb_strtolower(trim((string) $h)), $cols);
+                continue;
+            }
+            if (count($cols) < 2) {
+                $errors[] = 'Ligne '.($index + 1).' : colonnes insuffisantes.';
+                continue;
+            }
+            $row = [];
+            foreach ($header as $i => $key) {
+                $row[$key] = $cols[$i] ?? '';
+            }
+            $first = trim((string) ($row['prenom'] ?? $row['first_name'] ?? ''));
+            $last = trim((string) ($row['nom'] ?? $row['last_name'] ?? $row['name'] ?? ''));
+            if ($first === '' && $last === '') {
+                $errors[] = 'Ligne '.($index + 1).' : nom manquant.';
+                continue;
+            }
+            try {
+                $payload = $this->sanitizePayload([
+                    'first_name' => $first,
+                    'last_name' => $last,
+                    'email' => trim((string) ($row['email'] ?? '')) ?: 'import-'.$index.'@facturo.local',
+                    'phone' => trim((string) ($row['telephone'] ?? $row['phone'] ?? '')),
+                    'company' => trim((string) ($row['entreprise'] ?? $row['company'] ?? '')),
+                    'address' => trim((string) ($row['adresse'] ?? $row['address'] ?? '')),
+                    'tax_id' => trim((string) ($row['siret'] ?? $row['tax_id'] ?? '')),
+                    'notes' => trim((string) ($row['notes'] ?? '')),
+                ]);
+                $request->user()->clients()->create($payload);
+                $created++;
+            } catch (\Throwable $e) {
+                $errors[] = 'Ligne '.($index + 1).' : '.$e->getMessage();
+            }
+        }
+
+        return response()->json([
+            'message' => "{$created} client(s) importé(s).",
+            'created' => $created,
+            'errors' => $errors,
+        ]);
     }
 
     /**

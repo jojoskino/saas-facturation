@@ -12,6 +12,8 @@ class Invoice extends Model
         'user_id',
         'client_id',
         'quote_id',
+        'document_type',
+        'parent_invoice_id',
         'number',
         'status',
         'issue_date',
@@ -49,6 +51,16 @@ class Invoice extends Model
     public function quote(): BelongsTo
     {
         return $this->belongsTo(Quote::class);
+    }
+
+    public function parentInvoice(): BelongsTo
+    {
+        return $this->belongsTo(Invoice::class, 'parent_invoice_id');
+    }
+
+    public function creditNotes(): HasMany
+    {
+        return $this->hasMany(Invoice::class, 'parent_invoice_id');
     }
 
     public function payments(): HasMany

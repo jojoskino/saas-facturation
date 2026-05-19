@@ -4,7 +4,11 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Quote;
+use App\Services\DocumentPdfService;
+use App\Services\QuoteToInvoiceService;
 use App\Support\DocumentMath;
+use App\Support\DocumentNumberGenerator;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -26,6 +30,9 @@ class QuoteController extends Controller
         $quotes = Quote::query()
             ->where('user_id', $request->user()->id)
             ->with(['client:id,name', 'items'])
+            ->withExists([
+                'invoices as has_invoice' => fn ($q) => $q->where('document_type', 'invoice'),
+            ])
             ->orderByDesc('id')
             ->paginate(25);
 
@@ -40,10 +47,10 @@ class QuoteController extends Controller
         requestBody: new OA\RequestBody(
             required: true,
             content: new OA\JsonContent(
-                required: ['number'],
+                required: [],
                 properties: [
                     new OA\Property(property: 'client_id', type: 'integer', nullable: true),
-                    new OA\Property(property: 'number', type: 'string'),
+                    new OA\Property(property: 'number', type: 'string', nullable: true),
                     new OA\Property(property: 'status', type: 'string', enum: ['draft', 'sent', 'accepted', 'rejected'], nullable: true),
                     new OA\Property(property: 'issue_date', type: 'string', format: 'date', nullable: true),
                     new OA\Property(property: 'valid_until', type: 'string', format: 'date', nullable: true),
@@ -77,8 +84,9 @@ class QuoteController extends Controller
 
         $data = $request->validate([
             'client_id' => ['nullable', Rule::exists('clients', 'id')->where('user_id', $userId)],
-            'number' => ['required', 'string', 'max:64', Rule::unique('quotes', 'number')->where('user_id', $userId)],
-            'status' => ['nullable', 'string', Rule::in(['draft', 'sent', 'accepted', 'rejected'])],
+            'number' => ['nullable', 'string', 'max:64', Rule::unique('quotes', 'number')->where('user_id', $userId)],
+            'status' => ['nullable', 'string', Rule::in(['draft', 'sent', 'accepted', 'rejected', 'expired'])],
+            'discount_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'issue_date' => ['nullable', 'date'],
             'valid_until' => ['nullable', 'date'],
             'currency' => ['nullable', 'string', 'max:8'],
@@ -91,20 +99,24 @@ class QuoteController extends Controller
         ]);
 
         $itemsInput = $data['items'] ?? [];
+        $discountPercent = (float) ($data['discount_percent'] ?? 0);
         $computed = count($itemsInput) > 0
-            ? DocumentMath::quoteLinesFromInput($itemsInput)
+            ? DocumentMath::quoteLinesFromInput($itemsInput, $discountPercent)
             : ['lines' => [], 'subtotal' => '0.00', 'tax_amount' => '0.00', 'total' => '0.00'];
 
         $quote = $request->user()->quotes()->create([
             'client_id' => $data['client_id'] ?? null,
-            'number' => $data['number'],
+            'number' => isset($data['number']) && trim((string) $data['number']) !== '' ? trim((string) $data['number']) : DocumentNumberGenerator::nextQuoteNumber($userId),
             'status' => $data['status'] ?? 'draft',
-            'issue_date' => $data['issue_date'] ?? null,
-            'valid_until' => $data['valid_until'] ?? null,
+            'issue_date' => isset($data['issue_date']) && $data['issue_date'] ? Carbon::parse($data['issue_date'])->toDateString() : now()->toDateString(),
+            'valid_until' => isset($data['valid_until']) && $data['valid_until']
+                ? Carbon::parse($data['valid_until'])->toDateString()
+                : now()->addDays(30)->toDateString(),
             'currency' => $data['currency'] ?? 'XOF',
             'subtotal' => $computed['subtotal'],
             'tax_amount' => $computed['tax_amount'],
             'total' => $computed['total'],
+            'discount_percent' => $discountPercent,
             'notes' => $data['notes'] ?? null,
         ]);
 
@@ -174,8 +186,9 @@ class QuoteController extends Controller
 
         $data = $request->validate([
             'client_id' => ['nullable', Rule::exists('clients', 'id')->where('user_id', $userId)],
-            'number' => ['sometimes', 'required', 'string', 'max:64', Rule::unique('quotes', 'number')->where('user_id', $userId)->ignore($quote->id)],
-            'status' => ['nullable', 'string', Rule::in(['draft', 'sent', 'accepted', 'rejected'])],
+            'number' => ['sometimes', 'nullable', 'string', 'max:64', Rule::unique('quotes', 'number')->where('user_id', $userId)->ignore($quote->id)],
+            'status' => ['nullable', 'string', Rule::in(['draft', 'sent', 'accepted', 'rejected', 'expired'])],
+            'discount_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'issue_date' => ['nullable', 'date'],
             'valid_until' => ['nullable', 'date'],
             'currency' => ['nullable', 'string', 'max:8'],
@@ -189,8 +202,11 @@ class QuoteController extends Controller
 
         $quote->fill([
             'client_id' => array_key_exists('client_id', $data) ? $data['client_id'] : $quote->client_id,
-            'number' => $data['number'] ?? $quote->number,
+            'number' => array_key_exists('number', $data)
+                ? (trim((string) ($data['number'] ?? '')) !== '' ? trim((string) $data['number']) : DocumentNumberGenerator::nextQuoteNumber($userId, $quote->id))
+                : $quote->number,
             'status' => $data['status'] ?? $quote->status,
+            'discount_percent' => array_key_exists('discount_percent', $data) ? (float) $data['discount_percent'] : $quote->discount_percent,
             'issue_date' => array_key_exists('issue_date', $data) ? $data['issue_date'] : $quote->issue_date,
             'valid_until' => array_key_exists('valid_until', $data) ? $data['valid_until'] : $quote->valid_until,
             'currency' => $data['currency'] ?? $quote->currency,
@@ -198,8 +214,9 @@ class QuoteController extends Controller
         ]);
 
         if (array_key_exists('items', $data)) {
+            $discountPercent = (float) ($quote->discount_percent ?? 0);
             $computed = count($data['items']) > 0
-                ? DocumentMath::quoteLinesFromInput($data['items'])
+                ? DocumentMath::quoteLinesFromInput($data['items'], $discountPercent)
                 : ['lines' => [], 'subtotal' => '0.00', 'tax_amount' => '0.00', 'total' => '0.00'];
 
             $quote->items()->delete();
@@ -215,6 +232,42 @@ class QuoteController extends Controller
         $quote->load(['client', 'items']);
 
         return response()->json($quote);
+    }
+
+    public function convertToInvoice(Request $request, string $id, QuoteToInvoiceService $converter): JsonResponse
+    {
+        $quote = Quote::query()
+            ->where('user_id', $request->user()->id)
+            ->findOrFail($id);
+
+        $result = $converter->convert($request->user(), $quote);
+
+        if ($result instanceof JsonResponse) {
+            return $result;
+        }
+
+        return response()->json([
+            'message' => 'Facture créée à partir du devis.',
+            'invoice' => $result,
+        ], 201);
+    }
+
+    public function preview(Request $request, string $id, DocumentPdfService $pdfService): \Symfony\Component\HttpFoundation\Response
+    {
+        $quote = Quote::query()
+            ->where('user_id', $request->user()->id)
+            ->findOrFail($id);
+
+        return $pdfService->quotePreview($quote, $request->user());
+    }
+
+    public function pdf(Request $request, string $id, DocumentPdfService $pdfService): \Symfony\Component\HttpFoundation\Response
+    {
+        $quote = Quote::query()
+            ->where('user_id', $request->user()->id)
+            ->findOrFail($id);
+
+        return $pdfService->quotePdf($quote, $request->user());
     }
 
     #[OA\Delete(

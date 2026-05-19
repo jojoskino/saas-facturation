@@ -3,11 +3,16 @@ import AppLayout from "./layout/AppLayout";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
+import LegalMentions from "./pages/LegalMentions";
+import LegalPrivacy from "./pages/LegalPrivacy";
 import ClientsPage from "./pages/app/ClientsPage";
 import DevisPage from "./pages/app/DevisPage";
 import FacturesPage from "./pages/app/FacturesPage";
 import ProfilePage from "./pages/app/ProfilePage";
+import SettingsPage from "./pages/app/SettingsPage";
 import NotFound from "./pages/NotFound";
 
 function App() {
@@ -17,10 +22,15 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/legal/mentions" element={<LegalMentions />} />
+        <Route path="/legal/confidentialite" element={<LegalPrivacy />} />
         <Route element={<AppLayout />}>
           <Route path="/app" element={<Dashboard />} />
           <Route path="/app/clients" element={<ClientsPage />} />
           <Route path="/app/profil" element={<ProfilePage />} />
+          <Route path="/app/parametres" element={<SettingsPage />} />
           <Route path="/app/devis" element={<DevisPage />} />
           <Route path="/app/factures" element={<FacturesPage />} />
           <Route path="/app/*" element={<NotFound inApp />} />

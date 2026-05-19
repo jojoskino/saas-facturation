@@ -1,0 +1,34 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "clients": "Clients",
+    "quotes": "Quotes",
+    "invoices": "Invoices",
+    "settings": "Settings",
+    "app": "Application"
+  },
+  "actions": {
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "close": "Close",
+    "edit": "Edit",
+    "configure": "Configure"
+  },
+  "profileMenu": {
+    "myProfile": "My profile",
+    "logout": "Log out"
+  },
+  "logout": {
+    "title": "Confirm log out",
+    "message": "Do you really want to log out?",
+    "confirm": "Confirm"
+  },
+  "greeting": "Hello,",
+  "plans": {
+    "current": "Your current plan",
+    "free": "Free",
+    "pro": "Pro",
+    "enterprise": "Enterprise"
+  }
+}

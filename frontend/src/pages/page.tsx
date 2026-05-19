@@ -1,26 +1,6 @@
-import React, { useEffect, useRef, useState } from "react";
-import { motion, useInView } from "framer-motion";
+import React, { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
-
-function useCountUp(target: number, start: boolean) {
-  const [value, setValue] = useState(0);
-  useEffect(() => {
-    if (!start) return;
-    let frame = 0;
-    let startTime = 0;
-    const duration = 1100;
-    const tick = (time: number) => {
-      if (!startTime) startTime = time;
-      const progress = Math.min((time - startTime) / duration, 1);
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setValue(Math.floor(target * eased));
-      if (progress < 1) frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [start, target]);
-  return value;
-}
 
 function Reveal({ children }: { children: React.ReactNode }) {
   return (
@@ -40,13 +20,6 @@ export default function Page() {
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [openFaq, setOpenFaq] = useState(0);
-  const trustRef = useRef<HTMLDivElement | null>(null);
-  const trustVisible = useInView(trustRef, { once: true, amount: 0.45 });
-
-  const enterprises = useCountUp(500, trustVisible);
-  const score = useCountUp(49, trustVisible);
-  const conformiteLocale = useCountUp(99, trustVisible);
-
   useEffect(() => {
     const onScroll = () => {
       const y = window.scrollY;
@@ -145,42 +118,73 @@ export default function Page() {
           position: fixed;
           inset: 0;
           pointer-events: none;
-          opacity: 0.08;
-          background-image: radial-gradient(rgba(20, 33, 61, 0.2) 0.6px, transparent 0.6px);
-          background-size: 3px 3px;
+          opacity: 0.05;
+          background-image: radial-gradient(rgba(20, 33, 61, 0.16) 0.55px, transparent 0.55px);
+          background-size: 4px 4px;
         }
         h1, h2, h3 { font-family: var(--heading); letter-spacing: -0.03em; margin: 0; color: var(--color-text); }
-        .container { width: min(1140px, 92vw); margin: 0 auto; }
+        .container { width: min(1120px, 92vw); margin: 0 auto; }
         .muted { color: var(--color-text-muted); line-height: 1.65; }
 
         .btn {
-          border-radius: 8px;
-          padding: 11px 16px;
+          border-radius: 12px;
+          padding: 11px 18px;
           text-decoration: none;
           font-weight: 700;
-          transition: transform .2s ease, filter .2s ease;
+          transition: transform .2s ease, filter .2s ease, box-shadow .2s ease;
           display: inline-flex;
           align-items: center;
           justify-content: center;
         }
-        .btn:hover { transform: translateY(-1px); filter: brightness(1.02); }
-        .btn-primary { background: var(--color-primary); color: var(--color-primary-contrast); border: 1px solid var(--color-primary); }
-        .btn-secondary { border: 1px solid var(--color-primary); color: var(--color-primary); background: var(--color-surface); }
+        .btn:hover { transform: translateY(-1px); filter: brightness(1.01); box-shadow: 0 8px 18px rgba(20, 33, 61, 0.1); }
+        .btn-primary { background: #162646; color: var(--color-primary-contrast); border: 1px solid #162646; }
+        .btn-secondary { border: 1px solid #cfd9ec; color: #1d2b4f; background: rgba(255, 255, 255, 0.75); }
 
         .navbar {
           position: sticky;
           top: 0;
           z-index: 40;
-          backdrop-filter: blur(10px);
-          background: ${scrolled ? "var(--color-overlay)" : "rgba(255,255,255,0.78)"};
-          border-bottom: 1px solid ${scrolled ? "rgba(20,33,61,0.18)" : "transparent"};
+          backdrop-filter: blur(14px);
+          background: ${scrolled ? "rgba(255,255,255,0.72)" : "rgba(255,255,255,0.56)"};
+          border-bottom: 1px solid ${scrolled ? "rgba(20,33,61,0.14)" : "transparent"};
           transition: border-color .2s ease, background-color .2s ease;
         }
-        .nav-wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; }
+        .nav-wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; }
         .logo { font-family: var(--heading); font-size: 24px; font-weight: 800; }
         .logo span { color: var(--color-accent); }
-        .links { display: flex; gap: 22px; }
-        .links a { color: var(--color-text); text-decoration: none; font-weight: 500; }
+        .links { display: flex; gap: 8px; align-items: center; }
+        .links a {
+          position: relative;
+          color: #4b5a74;
+          text-decoration: none;
+          font-weight: 600;
+          font-size: 14px;
+          padding: 8px 12px;
+          border-radius: 8px;
+          transition: color 0.2s ease, background 0.2s ease;
+        }
+        .links a::after {
+          content: "";
+          position: absolute;
+          left: 12px;
+          right: 12px;
+          bottom: 5px;
+          height: 2px;
+          border-radius: 2px;
+          background: #fca311;
+          transform: scaleX(0);
+          transform-origin: center;
+          transition: transform 0.22s ease;
+        }
+        .links a:hover,
+        .links a:focus-visible {
+          color: #14213d;
+          background: rgba(20, 33, 61, 0.05);
+        }
+        .links a:hover::after,
+        .links a:focus-visible::after {
+          transform: scaleX(1);
+        }
         .nav-actions { display: flex; align-items: center; gap: 10px; }
         .menu-toggle {
           display: none;
@@ -226,75 +230,185 @@ export default function Page() {
         }
         .mobile-menu a {
           display: block;
-          padding: 10px 0;
-          color: var(--color-text);
+          padding: 10px 12px;
+          margin: 0 -12px;
+          color: #4b5a74;
           text-decoration: none;
-          font-weight: 500;
+          font-weight: 600;
+          border-radius: 8px;
+          transition: color 0.2s ease, background 0.2s ease, padding-left 0.2s ease;
+        }
+        .mobile-menu a:hover,
+        .mobile-menu a:focus-visible {
+          color: #14213d;
+          background: rgba(20, 33, 61, 0.06);
+          padding-left: 18px;
         }
 
-        .hero { padding: 76px 0 42px; }
+        .hero {
+          position: relative;
+          padding: clamp(56px, 9vw, 108px) 0 clamp(64px, 7vw, 96px);
+          overflow: hidden;
+        }
+        .hero::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          background:
+            radial-gradient(ellipse 90% 70% at 88% 12%, rgba(252, 163, 17, 0.14), transparent 52%),
+            radial-gradient(ellipse 60% 50% at 8% 92%, rgba(20, 33, 61, 0.07), transparent 50%),
+            linear-gradient(165deg, #f8faff 0%, #eef3fc 48%, #f4f7ff 100%);
+        }
         .hero-grid {
           display: grid;
-          grid-template-columns: 1.08fr 0.92fr;
-          gap: 30px;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr);
+          gap: clamp(28px, 5vw, 56px);
           align-items: center;
           position: relative;
+          z-index: 1;
         }
-        .orb {
-          position: absolute;
-          top: -160px;
-          left: -130px;
-          width: 500px;
-          height: 500px;
-          border-radius: 999px;
-          filter: blur(40px);
-          background:
-            radial-gradient(circle at 35% 30%, rgba(252,163,17,0.35), transparent 55%),
-            radial-gradient(circle at 70% 40%, rgba(20,33,61,0.18), transparent 45%);
+        .hero-copy {
+          max-width: 34rem;
         }
-        .badge {
+        .hero-eyebrow {
           display: inline-flex;
+          align-items: center;
           gap: 8px;
-          border-radius: 8px;
-          border: 1px solid rgba(20,33,61,0.2);
-          background: var(--color-surface);
-          color: var(--color-text);
-          padding: 8px 12px;
-          font-size: 13px;
+          padding: 6px 12px 6px 8px;
+          border-radius: 999px;
+          border: 1px solid rgba(252, 163, 17, 0.45);
+          background: rgba(255, 255, 255, 0.85);
+          color: #14213d;
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.02em;
           margin-bottom: 20px;
         }
-        .hero h1 { font-size: clamp(40px, 7vw, 72px); line-height: 0.95; max-width: 12ch; }
-        .cta { display: flex; gap: 12px; margin-top: 24px; flex-wrap: wrap; }
-
-        .trust { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin-top: 24px; }
-        .trust-item {
-          padding: 12px;
-          border-radius: 10px;
-          background: #FFFFFF;
-          border: 1px solid #E5E5E5;
+        .hero-eyebrow i {
+          width: 22px;
+          height: 22px;
+          border-radius: 999px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          background: #fca311;
+          color: #14213d;
+          font-size: 10px;
         }
-        .trust-item strong { display: block; font-size: 20px; color: #14213D; }
-        .trust-item span { color: #4b5a74; font-size: 13px; }
-
-        .mockup {
+        .hero h1 {
+          font-size: clamp(38px, 6.8vw, 68px);
+          line-height: 1.02;
+          max-width: 11ch;
+          font-weight: 800;
+        }
+        .hero h1 em {
+          font-style: normal;
+          color: #fca311;
+        }
+        .hero-lead {
+          margin-top: 22px;
+          font-size: clamp(16px, 2vw, 19px);
+          line-height: 1.6;
+          max-width: 38ch;
+          color: #4b5a74;
+        }
+        .cta { display: flex; gap: 12px; margin-top: 28px; flex-wrap: wrap; }
+        .hero-metrics {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          margin-top: 32px;
+          padding-top: 28px;
+          border-top: 1px solid rgba(20, 33, 61, 0.1);
+        }
+        .hero-metric {
+          flex: 1 1 140px;
+          min-width: 0;
+          padding: 12px 14px;
           border-radius: 12px;
-          background: #FFFFFF;
-          border: 1px solid #E5E5E5;
-          box-shadow: var(--shadow-soft);
-          padding: 16px;
+          background: rgba(255, 255, 255, 0.9);
+          border: 1px solid rgba(20, 33, 61, 0.1);
+          box-shadow: 0 8px 20px rgba(20, 33, 61, 0.06);
         }
-        .screen {
-          border-radius: 10px;
-          border: 1px solid #E5E5E5;
-          background: #FAFBFD;
-          padding: 16px;
+        .hero-metric strong {
+          display: block;
+          font-size: 18px;
+          color: #14213d;
+          font-family: var(--heading);
+          letter-spacing: -0.02em;
         }
-        .row { display: flex; gap: 10px; margin-bottom: 10px; }
-        .block { height: 12px; border-radius: 4px; background: #D7DCE5; }
+        .hero-metric span {
+          display: block;
+          margin-top: 2px;
+          font-size: 12px;
+          color: #4b5a74;
+          line-height: 1.35;
+        }
 
-        .section { padding: 72px 0; }
-        .section-head { margin-bottom: 20px; }
-        .section-head h2 { font-size: clamp(28px, 4.6vw, 46px); }
+        .hero-visual-wrap {
+          position: relative;
+        }
+        .hero-visual-glow {
+          position: absolute;
+          inset: 8% -6% -8% -6%;
+          border-radius: 28px;
+          background: linear-gradient(135deg, rgba(252, 163, 17, 0.35), rgba(20, 33, 61, 0.12));
+          filter: blur(40px);
+          z-index: 0;
+        }
+        .hero-visual {
+          position: relative;
+          z-index: 1;
+          border-radius: 22px;
+          overflow: hidden;
+          border: 1px solid rgba(255, 255, 255, 0.9);
+          box-shadow:
+            0 0 0 1px rgba(20, 33, 61, 0.08),
+            0 32px 64px rgba(20, 33, 61, 0.16);
+          background: #fff;
+          transform: perspective(1200px) rotateY(-4deg) rotateX(2deg);
+          transition: transform 0.4s ease;
+        }
+        .hero-visual-wrap:hover .hero-visual {
+          transform: perspective(1200px) rotateY(-2deg) rotateX(1deg) translateY(-4px);
+        }
+        .hero-visual img {
+          display: block;
+          width: 100%;
+          height: auto;
+          object-fit: cover;
+          aspect-ratio: 16 / 11;
+        }
+        .hero-float {
+          position: absolute;
+          z-index: 2;
+          padding: 10px 14px;
+          border-radius: 12px;
+          background: rgba(255, 255, 255, 0.96);
+          border: 1px solid rgba(20, 33, 61, 0.1);
+          box-shadow: 0 12px 28px rgba(20, 33, 61, 0.12);
+          font-size: 12px;
+          font-weight: 700;
+          color: #14213d;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          backdrop-filter: blur(8px);
+        }
+        .hero-float i { color: #fca311; }
+        .hero-float--top {
+          top: 16px;
+          right: -8px;
+        }
+        .hero-float--bottom {
+          bottom: 20px;
+          left: -12px;
+        }
+
+        .section { padding: 74px 0; }
+        .section-head { margin-bottom: 24px; }
+        .section-head h2 { font-size: clamp(30px, 4.2vw, 44px); }
 
         .logos-marquee-wrap { margin-top: 8px; }
         .marquee {
@@ -327,7 +441,7 @@ export default function Page() {
 
         .features, .steps, .pricing-grid, .testimonials {
           display: grid;
-          gap: 16px;
+          gap: 18px;
         }
         .features, .steps, .testimonials { grid-template-columns: repeat(3, minmax(0,1fr)); }
         .pricing-grid {
@@ -336,16 +450,18 @@ export default function Page() {
           gap: 20px;
         }
         .card, .step, .testimonial, .faq-item, .cta-band {
-          border-radius: 10px;
-          background: #FFFFFF;
-          border: 1px solid #E5E5E5;
+          border-radius: 16px;
+          background: rgba(255, 255, 255, 0.72);
+          border: 1px solid #d9e2f2;
+          backdrop-filter: blur(10px);
+          box-shadow: 0 12px 28px rgba(20, 33, 61, 0.08);
         }
-        .card, .step, .testimonial { padding: 18px; }
+        .card, .step, .testimonial { padding: 20px; }
         .price-card {
           position: relative;
-          border-radius: 16px;
-          background: var(--color-surface);
-          border: 1px solid var(--color-border);
+          border-radius: 18px;
+          background: rgba(255, 255, 255, 0.76);
+          border: 1px solid #d7e1f2;
           padding: 24px 22px 22px;
           display: flex;
           flex-direction: column;
@@ -354,8 +470,8 @@ export default function Page() {
         .price-card.featured {
           border-color: rgba(252, 163, 17, 0.65);
           box-shadow:
-            0 0 0 1px rgba(252, 163, 17, 0.12),
-            0 18px 40px rgba(20, 33, 61, 0.1);
+            0 0 0 1px rgba(252, 163, 17, 0.1),
+            0 16px 34px rgba(20, 33, 61, 0.11);
           background:
             radial-gradient(120% 80% at 10% 0%, rgba(252, 163, 17, 0.12), transparent 55%),
             var(--color-surface);
@@ -488,14 +604,14 @@ export default function Page() {
 
         .cta-band {
           text-align: center;
-          padding: 30px;
+          padding: 34px;
           background:
             radial-gradient(circle at 20% 20%, rgba(252,163,17,0.2), transparent 40%),
             radial-gradient(circle at 80% 20%, rgba(20,33,61,0.12), transparent 36%),
             var(--color-surface);
         }
 
-        footer { margin-top: 66px; padding: 26px 0 40px; border-top: 1px solid #E5E5E5; }
+        footer { margin-top: 74px; padding: 34px 0 44px; border-top: 1px solid #d8e2f3; }
         .foot { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 18px; color: #4b5a74; }
         .foot-title { color: var(--color-text); font-weight: 700; margin-bottom: 8px; }
         .socials { display: flex; gap: 8px; }
@@ -551,7 +667,11 @@ export default function Page() {
         }
         @media (max-width: 720px) {
           .hero, .section { padding-top: 42px; }
-          .hero-grid, .features, .steps, .pricing-grid, .testimonials, .foot, .trust { grid-template-columns: 1fr; }
+          .hero-grid, .features, .steps, .pricing-grid, .testimonials, .foot { grid-template-columns: 1fr; }
+          .hero-visual { transform: none; }
+          .hero-visual-wrap:hover .hero-visual { transform: translateY(-4px); }
+          .hero-float--top { right: 8px; }
+          .hero-float--bottom { left: 8px; }
           .cta-band { text-align: left; }
           .btn { width: 100%; }
           .nav-actions .btn { width: auto; }
@@ -566,14 +686,14 @@ export default function Page() {
           <nav className="links">
             <a href="#features">Fonctionnalites</a>
             <a href="#pricing">Tarifs</a>
-            <a href="#testimonials">Temoignages</a>
+            <a href="#faq">FAQ</a>
           </nav>
           <div className="nav-actions">
             <Link className="btn btn-secondary" to="/login">
-              Connexion
+              Se connecter
             </Link>
             <Link className="btn btn-primary" to="/register">
-              Commencer gratuitement
+              Commencer
             </Link>
             <button
               type="button"
@@ -593,7 +713,7 @@ export default function Page() {
         <div className={`container mobile-menu ${menuOpen ? "open" : ""}`}>
           <a href="#features" onClick={() => setMenuOpen(false)}>Fonctionnalites</a>
           <a href="#pricing" onClick={() => setMenuOpen(false)}>Tarifs</a>
-          <a href="#testimonials" onClick={() => setMenuOpen(false)}>Temoignages</a>
+          <a href="#faq" onClick={() => setMenuOpen(false)}>FAQ</a>
           <Link to="/login" onClick={() => setMenuOpen(false)}>Connexion</Link>
           <Link to="/register" onClick={() => setMenuOpen(false)}>Creer un compte</Link>
         </div>
@@ -602,22 +722,18 @@ export default function Page() {
       <main>
       <section className="hero">
         <div className="container hero-grid">
-          <div className="orb" />
           <Reveal>
-            <div>
-              <motion.div
-                className="badge"
-                initial={{ opacity: 0, y: 8 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-              >
-                ✦ Nouveau - Export Sage & QuickBooks
-              </motion.div>
+            <div className="hero-copy">
+              <span className="hero-eyebrow">
+                <i className="fa-solid fa-bolt" aria-hidden />
+                Facturation pour freelances & TPE
+              </span>
+              <h1>
+                Facturez en <em>30 secondes</em>.
+              </h1>
 
-              <h1>Facturez en 30 secondes.</h1>
-
-              <p className="muted" style={{ marginTop: 20 }}>
-                Devis, factures et relances automatiques pour freelances et TPE.
+              <p className="hero-lead">
+                Devis, factures et relances automatiques — tout votre suivi commercial au même endroit.
               </p>
 
               <div className="cta">
@@ -625,46 +741,46 @@ export default function Page() {
                   Commencer gratuitement
                 </a>
                 <a className="btn btn-secondary" href="#how">
-                  Voir une demo
+                  Voir comment ça marche
                 </a>
               </div>
 
-              <div className="trust" ref={trustRef}>
-                <div className="trust-item">
-                  <strong>{enterprises}+</strong>
-                  <span>entreprises actives</span>
+              <div className="hero-metrics">
+                <div className="hero-metric">
+                  <strong>30 s</strong>
+                  <span>pour créer une facture</span>
                 </div>
-                <div className="trust-item">
-                  <strong>{score}/5</strong>
-                  <span>satisfaction client</span>
+                <div className="hero-metric">
+                  <strong>100 %</strong>
+                  <span>mentions légales intégrées</span>
                 </div>
-                <div className="trust-item">
-                  <strong>{conformiteLocale}%</strong>
-                  <span>conforme fiscalite locale (OHADA)</span>
+                <div className="hero-metric">
+                  <strong>24/7</strong>
+                  <span>suivi des paiements</span>
                 </div>
               </div>
             </div>
           </Reveal>
 
           <Reveal>
-            <div className="mockup">
-              <div className="screen">
-                <div className="row">
-                  <div className="block" style={{ width: "45%" }} />
-                  <div className="block" style={{ width: "22%" }} />
-                  <div className="block" style={{ width: "21%" }} />
-                </div>
-                <div className="row">
-                  <div className="block" style={{ width: "100%", height: 120 }} />
-                </div>
-                <div className="row">
-                  <div className="block" style={{ width: "58%" }} />
-                  <div className="block" style={{ width: "37%" }} />
-                </div>
-                <div className="row">
-                  <div className="block" style={{ width: "100%", height: 90 }} />
-                </div>
+            <div className="hero-visual-wrap">
+              <div className="hero-visual-glow" aria-hidden />
+              <div className="hero-visual">
+                <img
+                  src="/images/hero-app.png"
+                  alt="Aperçu du tableau de bord Facturo : devis, factures et suivi des paiements"
+                  loading="eager"
+                  decoding="async"
+                />
               </div>
+              <span className="hero-float hero-float--top">
+                <i className="fa-solid fa-chart-line" aria-hidden />
+                Tableau de bord live
+              </span>
+              <span className="hero-float hero-float--bottom">
+                <i className="fa-solid fa-file-invoice-dollar" aria-hidden />
+                Devis → Facture en 1 clic
+              </span>
             </div>
           </Reveal>
         </div>
@@ -760,7 +876,7 @@ export default function Page() {
                     eyebrow: "Le plus choisi",
                     name: "Pro",
                     desc: "Pour les indépendants et TPE qui facturent chaque semaine.",
-                    amount: "19 000",
+                    amount: "5 000",
                     suffix: "F CFA",
                     period: "par mois · facturation locale",
                     cta: "Choisir Pro",
@@ -811,46 +927,7 @@ export default function Page() {
           </div>
         </section>
 
-        <section className="section" id="testimonials">
-          <div className="container">
-            <Reveal>
-              <div className="section-head">
-                <h2>Temoignages</h2>
-              </div>
-              <div className="testimonials">
-                {[
-                  [
-                    "ML",
-                    "Marie Leroy",
-                    "Fondatrice - Nova Conseil",
-                    "Nous avons reduit de 70% le temps passe sur la facturation.",
-                  ],
-                  [
-                    "TB",
-                    "Thomas Brun",
-                    "Dirigeant - Atelier Pixel",
-                    "Conversion devis-facture ultra rapide, sans erreur de saisie.",
-                  ],
-                  [
-                    "SR",
-                    "Sophie Richard",
-                    "Operations - Lyra Studio",
-                    "Vision claire des revenus et des impayes chaque semaine.",
-                  ],
-                ].map(([initials, name, role, quote]) => (
-                  <article className="testimonial" key={String(name)}>
-                    <div className="avatar">{initials}</div>
-                    <h3>{name}</h3>
-                    <p className="muted">{role}</p>
-                    <p>"{quote}"</p>
-                  </article>
-                ))}
-              </div>
-            </Reveal>
-          </div>
-        </section>
-
-        <section className="section">
+        <section className="section" id="faq">
           <div className="container">
             <Reveal>
               <div className="section-head">
@@ -895,34 +972,6 @@ export default function Page() {
           </div>
         </section>
 
-        <section className="section">
-          <div className="container">
-            <Reveal>
-              <div className="section-head">
-                <h2>Ils nous font confiance</h2>
-                <p className="muted" style={{ marginTop: 10 }}>
-                  Marques fictives d’illustration — défilement continu pour prévisualiser un bandeau premium.
-                </p>
-              </div>
-              <div className="logos-marquee-wrap" aria-hidden>
-                <div className="marquee">
-                  <div className="marquee-track">
-                    {[
-                      ...["NOVA", "KYRO", "HEXA", "PIXORA", "ALTED", "MINTA", "BLOOM", "CIRCE", "VELUM", "ORIA"],
-                      ...["NOVA", "KYRO", "HEXA", "PIXORA", "ALTED", "MINTA", "BLOOM", "CIRCE", "VELUM", "ORIA"],
-                    ].map((name, i) => (
-                      <div className="marquee-item" key={`${name}-${i}`}>
-                        {name}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </Reveal>
-          </div>
-        </section>
-
-
       </main>
 
       <footer>
@@ -947,16 +996,17 @@ export default function Page() {
           </div>
           <div>
             <p className="foot-title">Legal</p>
-            <p>Mentions legales</p>
-            <p>Confidentialite</p>
+            <Link to="/legal/mentions">Mentions legales</Link>
+            <br />
+            <Link to="/legal/confidentialite">Confidentialite</Link>
             <div className="socials">
-              <a href="#" aria-label="LinkedIn">
+              <a href="https://www.linkedin.com" target="_blank" rel="noreferrer" aria-label="LinkedIn">
                 <i className="fa-brands fa-linkedin-in" />
               </a>
-              <a href="#" aria-label="X">
+              <a href="https://x.com" target="_blank" rel="noreferrer" aria-label="X">
                 <i className="fa-brands fa-x-twitter" />
               </a>
-              <a href="#" aria-label="GitHub">
+              <a href="https://github.com" target="_blank" rel="noreferrer" aria-label="GitHub">
                 <i className="fa-brands fa-github" />
               </a>
             </div>

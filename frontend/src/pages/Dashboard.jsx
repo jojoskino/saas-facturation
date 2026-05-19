@@ -1,85 +1,90 @@
 ﻿import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiFetch, getStoredToken } from "../api/client";
-
-const mockQuotes = [
-  { id: "D-1042", client: "Nova Conseil", amount: "2 400 000 F CFA", status: "Envoyé" },
-  { id: "D-1041", client: "Atelier Pixel", amount: "890 000 F CFA", status: "Brouillon" },
-  { id: "D-1040", client: "Lyra Studio", amount: "1 120 000 F CFA", status: "Accepté" },
-];
-
-const mockInvoices = [
-  { id: "F-2208", client: "Hexa Log", amount: "450 000 F CFA", due: "12 mai 2026", status: "Payée" },
-  { id: "F-2207", client: "Minta Retail", amount: "310 000 F CFA", due: "18 mai 2026", status: "En attente" },
-  { id: "F-2206", client: "Alted SaaS", amount: "1 050 000 F CFA", due: "03 mai 2026", status: "En retard" },
-];
+import { apiDownload, getStoredToken } from "../api/client";
+import { useApiQuery } from "../hooks/useApiQuery";
+import AppModal from "../components/AppModal";
+import { FieldLabel } from "../components/AppFormControls";
+import FormActions from "../components/FormActions";
+import DashboardSkeleton from "../components/skeleton/DashboardSkeleton";
+import TableSkeleton from "../components/skeleton/TableSkeleton";
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const [summary, setSummary] = useState(() => {
-    try {
-      const cached = sessionStorage.getItem("facturo_dashboard_summary");
-      return cached ? JSON.parse(cached) : null;
-    } catch {
-      return null;
-    }
+  const { data: summary, error: summaryError, loading: summaryLoading } = useApiQuery("/api/dashboard/summary", {
+    enabled: Boolean(getStoredToken()),
   });
-  const [summaryError, setSummaryError] = useState("");
+  const { data: quotesData, loading: quotesLoading } = useApiQuery("/api/quotes?per_page=5", {
+    enabled: Boolean(getStoredToken()),
+  });
+  const { data: invoicesData, loading: invoicesLoading } = useApiQuery("/api/invoices?per_page=5", {
+    enabled: Boolean(getStoredToken()),
+  });
+  const showDashboardSkeleton = summaryLoading && !summary;
+  const recentQuotes = Array.isArray(quotesData?.data) ? quotesData.data : [];
+  const recentInvoices = Array.isArray(invoicesData?.data) ? invoicesData.data : [];
   const [amountsVisible, setAmountsVisible] = useState(localStorage.getItem("facturo_amounts_visible") === "1");
   const [unlockOpen, setUnlockOpen] = useState(false);
   const [unlockingFor, setUnlockingFor] = useState("");
   const [codeInput, setCodeInput] = useState("");
   const [codeError, setCodeError] = useState("");
 
-  useEffect(() => {
-    if (!getStoredToken()) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const data = await apiFetch("/api/dashboard/summary");
-        if (!cancelled) {
-          setSummary(data);
-          sessionStorage.setItem("facturo_dashboard_summary", JSON.stringify(data));
-          setSummaryError("");
-        }
-      } catch {
-        if (!cancelled) {
-          setSummary(null);
-          setSummaryError(
-            "Synthèse API indisponible (vérifiez le backend). Données d'exemple affichées à côté."
-          );
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const clientsCount = Number(summary?.clients_count ?? 0);
+  const revenuePaid = Number(summary?.revenue_paid_cfa ?? 0);
+  const outstanding = Number(summary?.outstanding_cfa ?? 0);
+  const quotesByStatus = summary?.quotes_by_status ?? { draft: 0, sent: 0, accepted: 0, rejected: 0 };
+  const invoicesByStatus = summary?.invoices_by_status ?? { draft: 0, sent: 0, overdue: 0, paid: 0 };
 
-  const clientsCount = Number(summary?.clients_count ?? 24);
-  const revenuePaid = Number(summary?.revenue_paid_cfa ?? 18400000);
-  const outstanding = Number(summary?.outstanding_cfa ?? 1410000);
-  const quotesByStatus = summary?.quotes_by_status ?? { draft: 2, sent: 4, accepted: 6, rejected: 1 };
-  const invoicesByStatus = summary?.invoices_by_status ?? { draft: 1, sent: 3, overdue: 1, paid: 8 };
-
-  const totalInvoices = sumObject(invoicesByStatus);
   const paidInvoices = Number(invoicesByStatus?.paid ?? 0);
   const overdueInvoices = Number(invoicesByStatus?.overdue ?? 0);
-  const quoteTotal = sumObject(quotesByStatus);
   const recoveryRate = revenuePaid + outstanding > 0 ? Math.round((revenuePaid / (revenuePaid + outstanding)) * 100) : 0;
   const avgInvoice = paidInvoices > 0 ? Math.round(revenuePaid / paidInvoices) : 0;
+  const trends = summary?.kpi_trends || {};
 
   function shown(v) {
     return amountsVisible ? formatCfa(v) : "******";
   }
 
   const kpis = [
-    { label: "Chiffre d'affaires encaissé", value: shown(revenuePaid), trend: "+12.4%", tone: "up", isMoney: true },
-    { label: "Encours clients", value: shown(outstanding), trend: "-4.1%", tone: "down", isMoney: true },
-    { label: "Taux de recouvrement", value: `${recoveryRate}%`, trend: "+1.8%", tone: "up", isMoney: false },
-    { label: "Facture moyenne payée", value: avgInvoice > 0 ? shown(avgInvoice) : "—", trend: "+3.2%", tone: "up", isMoney: true },
-    { label: "Clients actifs", value: String(clientsCount), trend: "+6.0%", tone: "up" },
-    { label: "Factures en retard", value: String(overdueInvoices), trend: "-2.6%", tone: "down" },
+    {
+      label: "Chiffre d'affaires encaissé",
+      value: shown(revenuePaid),
+      trend: formatTrendValue(trends.revenue_paid_pct, "%"),
+      tone: Number(trends.revenue_paid_pct ?? 0) >= 0 ? "up" : "down",
+      isMoney: true,
+    },
+    {
+      label: "Encours clients",
+      value: shown(outstanding),
+      trend: formatTrendValue(trends.outstanding_pct, "%"),
+      tone: Number(trends.outstanding_pct ?? 0) <= 0 ? "up" : "down",
+      isMoney: true,
+    },
+    {
+      label: "Taux de recouvrement",
+      value: `${recoveryRate}%`,
+      trend: formatTrendValue(trends.recovery_rate_points, " pts"),
+      tone: Number(trends.recovery_rate_points ?? 0) >= 0 ? "up" : "down",
+      isMoney: false,
+    },
+    {
+      label: "Facture moyenne payée",
+      value: avgInvoice > 0 ? shown(avgInvoice) : "—",
+      trend: formatTrendValue(trends.avg_invoice_pct, "%"),
+      tone: Number(trends.avg_invoice_pct ?? 0) >= 0 ? "up" : "down",
+      isMoney: true,
+    },
+    {
+      label: "Clients actifs",
+      value: String(clientsCount),
+      trend: formatTrendValue(trends.clients_pct, "%"),
+      tone: Number(trends.clients_pct ?? 0) >= 0 ? "up" : "down",
+    },
+    {
+      label: "Factures en retard",
+      value: String(overdueInvoices),
+      trend: formatTrendValue(trends.overdue_pct, "%"),
+      tone: Number(trends.overdue_pct ?? 0) <= 0 ? "up" : "down",
+    },
   ];
 
   const monthlyTrendRaw = summary?.monthly_revenue_cfa;
@@ -88,14 +93,7 @@ export default function Dashboard() {
         label: item?.label || "",
         value: Number(item?.total || 0),
       }))
-    : [
-        { label: "Jan", value: 9800000 },
-        { label: "Fév", value: 11300000 },
-        { label: "Mar", value: 12600000 },
-        { label: "Avr", value: 15100000 },
-        { label: "Mai", value: 16700000 },
-        { label: "Jun", value: 18400000 },
-      ];
+    : [];
 
   const chartYMax = Math.max(...monthlyTrend.map((p) => p.value), 1);
   const chartTicks = [1, 0.75, 0.5, 0.25, 0].map((r) => Math.round(chartYMax * r));
@@ -173,7 +171,7 @@ export default function Dashboard() {
         .dash-kpi {
           border-radius: 14px;
           padding: 16px;
-          background: #fff;
+          background: var(--glass-surface-strong);
           border: 1px solid var(--color-border);
           border-top: 3px solid #fca311;
           box-shadow: 0 8px 18px rgba(252, 163, 17, 0.08);
@@ -230,7 +228,7 @@ export default function Dashboard() {
         }
         .dash-chart {
           border-radius: 14px;
-          background: #fff;
+          background: var(--glass-surface-strong);
           border: 1px solid var(--color-border);
           padding: 18px;
         }
@@ -244,6 +242,29 @@ export default function Dashboard() {
           margin: 0;
           font-family: var(--heading);
           font-size: 1.05rem;
+        }
+        .dash-chart-head-actions {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .dash-export-link {
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          padding: 4px 8px;
+          border: none;
+          border-radius: 8px;
+          background: transparent;
+          color: var(--color-text-muted);
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: color 0.18s ease, background 0.18s ease;
+        }
+        .dash-export-link:hover {
+          color: var(--color-primary);
+          background: #eef2f8;
         }
         .dash-line-wrap {
           border-radius: 12px;
@@ -304,7 +325,7 @@ export default function Dashboard() {
         }
         .dash-metrics {
           border-radius: 14px;
-          background: #fff;
+          background: var(--glass-surface-strong);
           border: 1px solid var(--color-border);
           padding: 18px;
           display: grid;
@@ -352,7 +373,7 @@ export default function Dashboard() {
         }
         .dash-quick-panel {
           border-radius: 14px;
-          background: #fff;
+          background: var(--glass-surface-strong);
           border: 1px solid var(--color-border);
           padding: 14px;
           margin-bottom: 16px;
@@ -382,7 +403,7 @@ export default function Dashboard() {
         }
         .dash-panel {
           border-radius: 14px;
-          background: var(--color-surface);
+          background: var(--glass-surface-strong);
           border: 1px solid var(--color-border);
           padding: 20px;
         }
@@ -448,55 +469,27 @@ export default function Dashboard() {
           align-items: center;
           gap: 5px;
         }
-        .dash-unlock-backdrop {
-          position: fixed;
-          inset: 0;
-          background: rgba(20, 33, 61, 0.35);
-          z-index: 90;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 18px;
-        }
-        .dash-unlock-modal {
-          width: min(360px, 100%);
-          border-radius: 12px;
-          background: #fff;
-          border: 1px solid var(--color-border);
-          box-shadow: var(--shadow-soft);
+        .dash-subtle {
+          font-size: 13px;
+          color: var(--color-text-muted);
+          border: 1px dashed var(--color-border-strong);
+          border-radius: 10px;
           padding: 14px;
-          display: grid;
-          gap: 10px;
+          background: rgba(255, 255, 255, 0.6);
         }
-        .dash-unlock-modal h3 {
+        .dash-unlock-field input {
+          width: 100%;
+          box-sizing: border-box;
+          border-radius: 10px;
+          border: 1px solid var(--color-border-strong);
+          height: 40px;
+          padding: 0 12px;
+          font: 14px/1.2 var(--sans);
+        }
+        .dash-unlock-error {
           margin: 0;
-          font-size: 1rem;
-          font-family: var(--heading);
-        }
-        .dash-unlock-modal input {
-          border-radius: 8px;
-          border: 1px solid var(--color-border-strong);
-          height: 38px;
-          padding: 0 10px;
-        }
-        .dash-unlock-actions {
-          display: flex;
-          justify-content: flex-end;
-          gap: 8px;
-        }
-        .dash-unlock-btn {
-          border: 1px solid var(--color-border-strong);
-          border-radius: 8px;
-          padding: 8px 10px;
-          background: #fff;
-          cursor: pointer;
-          font-weight: 700;
-          font-size: 12px;
-        }
-        .dash-unlock-btn--primary {
-          background: var(--color-primary);
-          border-color: var(--color-primary);
-          color: #fff;
+          font-size: 13px;
+          color: #b91c1c;
         }
         .dash-panel--quotes,
         .dash-panel--invoices { border-top: 0; }
@@ -516,6 +509,10 @@ export default function Dashboard() {
 
       {summaryError ? <div className="dash-banner">{summaryError}</div> : null}
 
+      {showDashboardSkeleton ? (
+        <DashboardSkeleton />
+      ) : (
+        <>
       <div className="dash-grid">
         {kpis.map((k) => (
           <div key={k.label} className="dash-kpi">
@@ -537,7 +534,7 @@ export default function Dashboard() {
             <div className="dash-kpi-foot">
               <span className={`dash-trend ${k.tone}`}>
                 <i className={`fa-solid ${k.tone === "up" ? "fa-arrow-trend-up" : "fa-arrow-trend-down"}`} />
-                {k.trend}
+                {k.trend || "—"}
               </span>
             </div>
           </div>
@@ -548,8 +545,22 @@ export default function Dashboard() {
         <section className="dash-chart">
           <div className="dash-chart-head">
             <h3>Évolution du chiffre d'affaires encaissé</h3>
-            <strong>{shown(revenuePaid)}</strong>
+            <div className="dash-chart-head-actions">
+              <strong>{shown(revenuePaid)}</strong>
+              <button
+                type="button"
+                className="dash-export-link"
+                title="Exporter les revenus (CSV)"
+                onClick={() => apiDownload("/api/dashboard/export?period=year", "revenus.csv", "text/csv")}
+              >
+                <i className="fa-solid fa-file-csv" aria-hidden />
+                <span>CSV</span>
+              </button>
+            </div>
           </div>
+          {monthlyTrend.length === 0 ? (
+            <p className="dash-subtle">Aucune donnée de paiement disponible pour les 6 derniers mois.</p>
+          ) : (
           <div className="dash-line-wrap">
             <svg viewBox="0 0 620 250" className="dash-line-svg" role="img" aria-label="Courbe du chiffre d'affaires mensuel">
               {chartTicks.map((tick, idx) => {
@@ -583,6 +594,7 @@ export default function Dashboard() {
               })}
             </svg>
           </div>
+          )}
         </section>
 
         <section className="dash-metrics">
@@ -629,7 +641,7 @@ export default function Dashboard() {
       <div className="dash-panels">
         <section className="dash-panel dash-panel--quotes">
           <div className="dash-chart-head">
-            <h2>Devis récents (démonstration)</h2>
+            <h2>Devis récents</h2>
             <button type="button" className="dash-see-all" onClick={() => navigate("/app/devis")}>voir tout <i className="fa-solid fa-arrow-right-long" /></button>
           </div>
           <table className="dash-table">
@@ -642,13 +654,19 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody>
-              {mockQuotes.map((row) => (
+              {quotesLoading && recentQuotes.length === 0 ? (
+                <TableSkeleton rows={4} columns={4} />
+              ) : recentQuotes.length === 0 ? (
+                <tr>
+                  <td colSpan={4}>Aucun devis récent.</td>
+                </tr>
+              ) : recentQuotes.map((row) => (
                 <tr key={row.id}>
-                  <td>{row.id}</td>
-                  <td>{row.client}</td>
-                  <td>{amountsVisible ? row.amount : "******"}</td>
+                  <td>{row.number || `DEV-${row.id}`}</td>
+                  <td>{row.client?.name || "—"}</td>
+                  <td>{amountsVisible ? formatCfa(row.total) : "******"}</td>
                   <td>
-                    <span className="dash-pill" style={getStatusStyle(row.status, "quote")}>{row.status}</span>
+                    <span className="dash-pill" style={getStatusStyle(row.status, "quote")}>{toFrenchStatus(row.status, "quote")}</span>
                   </td>
                 </tr>
               ))}
@@ -658,7 +676,7 @@ export default function Dashboard() {
 
         <section className="dash-panel dash-panel--invoices">
           <div className="dash-chart-head">
-            <h2>Factures (démonstration)</h2>
+            <h2>Factures récentes</h2>
             <button type="button" className="dash-see-all" onClick={() => navigate("/app/factures")}>voir tout <i className="fa-solid fa-arrow-right-long" /></button>
           </div>
           <table className="dash-table">
@@ -671,13 +689,19 @@ export default function Dashboard() {
               </tr>
             </thead>
             <tbody>
-              {mockInvoices.map((row) => (
+              {invoicesLoading && recentInvoices.length === 0 ? (
+                <TableSkeleton rows={4} columns={4} />
+              ) : recentInvoices.length === 0 ? (
+                <tr>
+                  <td colSpan={4}>Aucune facture récente.</td>
+                </tr>
+              ) : recentInvoices.map((row) => (
                 <tr key={row.id}>
-                  <td>{row.id}</td>
-                  <td>{row.client}</td>
-                  <td>{row.due}</td>
+                  <td>{row.number || `FAC-${row.id}`}</td>
+                  <td>{row.client?.name || "—"}</td>
+                  <td>{formatDate(row.due_date)}</td>
                   <td>
-                    <span className="dash-pill" style={getStatusStyle(row.status, "invoice")}>{row.status}</span>
+                    <span className="dash-pill" style={getStatusStyle(row.status, "invoice")}>{toFrenchStatus(row.status, "invoice")}</span>
                   </td>
                 </tr>
               ))}
@@ -685,27 +709,50 @@ export default function Dashboard() {
           </table>
         </section>
       </div>
+        </>
+      )}
 
-      {unlockOpen ? (
-        <div className="dash-unlock-backdrop" role="dialog" aria-modal="true" onClick={() => setUnlockOpen(false)}>
-          <div className="dash-unlock-modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Afficher le montant</h3>
-            <small>{unlockingFor}</small>
+      <AppModal
+        open={unlockOpen}
+        onClose={() => {
+          setUnlockOpen(false);
+          setCodeError("");
+        }}
+        title="Afficher le montant"
+        description={unlockingFor}
+      >
+        <form
+          className="account-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            requestUnlock();
+          }}
+        >
+          <div className="account-field account-field--full dash-unlock-field">
+            <FieldLabel htmlFor="dash-unlock-password" required>
+              Mot de passe
+            </FieldLabel>
             <input
+              id="dash-unlock-password"
               type="password"
               value={codeInput}
               onChange={(e) => setCodeInput(e.target.value)}
-              placeholder="Mot de passe"
+              placeholder="Saisissez votre mot de passe"
+              autoComplete="current-password"
+              required
               autoFocus
             />
-            {codeError ? <small style={{ color: "#b91c1c" }}>{codeError}</small> : null}
-            <div className="dash-unlock-actions">
-              <button className="dash-unlock-btn" type="button" onClick={() => setUnlockOpen(false)}>Annuler</button>
-              <button className="dash-unlock-btn dash-unlock-btn--primary" type="button" onClick={requestUnlock}>Valider</button>
-            </div>
           </div>
-        </div>
-      ) : null}
+          {codeError ? <p className="dash-unlock-error">{codeError}</p> : null}
+          <FormActions
+            onCancel={() => {
+              setUnlockOpen(false);
+              setCodeError("");
+            }}
+            submitLabel="Valider"
+          />
+        </form>
+      </AppModal>
     </div>
   );
 }
@@ -716,9 +763,18 @@ function formatCfa(n) {
   return `${rounded.toLocaleString("fr-FR")} F CFA`;
 }
 
-function sumObject(obj) {
-  if (!obj || typeof obj !== "object") return 0;
-  return Object.values(obj).reduce((a, b) => a + Number(b), 0);
+function formatDate(value) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString("fr-FR");
+}
+
+function formatTrendValue(value, suffix = "%") {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return "";
+  const sign = num > 0 ? "+" : "";
+  return `${sign}${num.toFixed(1)}${suffix}`;
 }
 
 function shortCfa(n) {
@@ -747,15 +803,34 @@ function getLinePoints(values, width, height, padding) {
 function getStatusStyle(status, type) {
   const value = String(status || "").toLowerCase();
   if (type === "quote") {
-    if (value.includes("brouillon")) return { background: "#f3f4f6", borderColor: "#d1d5db", color: "#4b5563" };
-    if (value.includes("envoy")) return { background: "#e8f1ff", borderColor: "#bfdbfe", color: "#1d4ed8" };
-    if (value.includes("accept")) return { background: "#e9fbe8", borderColor: "#bbf7d0", color: "#15803d" };
-    if (value.includes("refus")) return { background: "#fff1f1", borderColor: "#fecaca", color: "#b91c1c" };
+    if (value.includes("draft") || value.includes("brouillon")) return { background: "#f3f4f6", borderColor: "#d1d5db", color: "#4b5563" };
+    if (value.includes("sent") || value.includes("envoy")) return { background: "#e8f1ff", borderColor: "#bfdbfe", color: "#1d4ed8" };
+    if (value.includes("accepted") || value.includes("accept")) return { background: "#e9fbe8", borderColor: "#bbf7d0", color: "#15803d" };
+    if (value.includes("rejected") || value.includes("refus")) return { background: "#fff1f1", borderColor: "#fecaca", color: "#b91c1c" };
   }
   if (type === "invoice") {
-    if (value.includes("pay")) return { background: "#e9fbe8", borderColor: "#bbf7d0", color: "#15803d" };
-    if (value.includes("attente")) return { background: "#fff8e8", borderColor: "#fde68a", color: "#b45309" };
-    if (value.includes("retard")) return { background: "#fff1f1", borderColor: "#fecaca", color: "#b91c1c" };
+    if (value.includes("paid") || value.includes("pay")) return { background: "#e9fbe8", borderColor: "#bbf7d0", color: "#15803d" };
+    if (value.includes("sent") || value.includes("attente")) return { background: "#fff8e8", borderColor: "#fde68a", color: "#b45309" };
+    if (value.includes("overdue") || value.includes("retard")) return { background: "#fff1f1", borderColor: "#fecaca", color: "#b91c1c" };
+    if (value.includes("cancelled") || value.includes("annul")) return { background: "#f3f4f6", borderColor: "#d1d5db", color: "#4b5563" };
   }
   return { background: "#f3f4f6", borderColor: "#d1d5db", color: "#4b5563" };
+}
+
+function toFrenchStatus(status, type) {
+  const value = String(status || "").toLowerCase();
+  if (type === "quote") {
+    if (value === "draft") return "Brouillon";
+    if (value === "sent") return "Envoye";
+    if (value === "accepted") return "Accepte";
+    if (value === "rejected") return "Refuse";
+  }
+  if (type === "invoice") {
+    if (value === "draft") return "Brouillon";
+    if (value === "sent") return "Envoyee";
+    if (value === "paid") return "Payee";
+    if (value === "overdue") return "En retard";
+    if (value === "cancelled") return "Annulee";
+  }
+  return status || "—";
 }

@@ -1,0 +1,34 @@
+{
+  "nav": {
+    "dashboard": "Tableau de bord",
+    "clients": "Clients",
+    "quotes": "Devis",
+    "invoices": "Factures",
+    "settings": "Paramètres",
+    "app": "Application"
+  },
+  "actions": {
+    "save": "Enregistrer",
+    "saving": "Enregistrement…",
+    "cancel": "Annuler",
+    "close": "Fermer",
+    "edit": "Modifier",
+    "configure": "Configurer"
+  },
+  "profileMenu": {
+    "myProfile": "Mon profil",
+    "logout": "Déconnexion"
+  },
+  "logout": {
+    "title": "Confirmer la déconnexion",
+    "message": "Voulez-vous vraiment vous déconnecter ?",
+    "confirm": "Confirmer"
+  },
+  "greeting": "Bonjour,",
+  "plans": {
+    "current": "Votre offre actuelle",
+    "free": "Gratuit",
+    "pro": "Pro",
+    "enterprise": "Entreprise"
+  }
+}

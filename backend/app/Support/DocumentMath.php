@@ -5,10 +5,10 @@ namespace App\Support;
 class DocumentMath
 {
     /**
-     * @param  array<int, array{quantity: float|int|string, unit_price: float|int|string, tax_rate?: float|int|string}>  $rows
+     * @param  array<int, array{quantity: float|int|string, unit_price: float|int|string, tax_rate?: float|int|string, description?: string}>  $rows
      * @return array{lines: list<array{description: string, quantity: string, unit_price: string, tax_rate: string, line_total: string, sort_order: int}>, subtotal: string, tax_amount: string, total: string}
      */
-    public static function quoteLinesFromInput(array $rows): array
+    public static function quoteLinesFromInput(array $rows, float $discountPercent = 0.0): array
     {
         $lines = [];
         $subtotal = 0.0;
@@ -34,7 +34,10 @@ class DocumentMath
 
         $subtotal = round($subtotal, 2);
         $taxAmount = round($taxAmount, 2);
-        $total = round($subtotal + $taxAmount, 2);
+        $gross = round($subtotal + $taxAmount, 2);
+        $discountPercent = max(0, min(100, $discountPercent));
+        $discountAmount = round($gross * ($discountPercent / 100), 2);
+        $total = round($gross - $discountAmount, 2);
 
         return [
             'lines' => $lines,

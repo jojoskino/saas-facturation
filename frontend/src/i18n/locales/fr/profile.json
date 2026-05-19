@@ -1,0 +1,34 @@
+{
+  "title": "Mon profil",
+  "subtitle": "Vos informations de connexion et la sécurité de votre compte.",
+  "personal": {
+    "tileTitle": "Informations personnelles",
+    "tileDesc": "Nom et e-mail de connexion.",
+    "modalTitle": "Informations personnelles",
+    "modalDesc": "Nom et e-mail utilisés pour vous connecter à Facturo.",
+    "title": "Informations personnelles",
+    "desc": "Nom et e-mail utilisés pour vous connecter à Facturo.",
+    "name": "Nom complet",
+    "namePlaceholder": "Ex : Amina Traoré",
+    "email": "E-mail",
+    "emailPlaceholder": "vous@exemple.com",
+    "save": "Enregistrer le profil",
+    "success": "Profil mis à jour.",
+    "error": "Impossible de mettre à jour le profil."
+  },
+  "security": {
+    "tileTitle": "Sécurité",
+    "tileDesc": "Mot de passe et protection du compte.",
+    "modalTitle": "Sécurité",
+    "modalDesc": "Modifiez votre mot de passe régulièrement.",
+    "title": "Sécurité",
+    "desc": "Modifiez votre mot de passe régulièrement.",
+    "current": "Mot de passe actuel",
+    "new": "Nouveau mot de passe",
+    "confirm": "Confirmation",
+    "hint": "8 caractères minimum, avec une lettre, un chiffre et un symbole.",
+    "save": "Mettre à jour le mot de passe",
+    "success": "Mot de passe mis à jour.",
+    "error": "Impossible de mettre à jour le mot de passe."
+  }
+}

@@ -1,4 +1,5 @@
 import { useId, useState } from "react";
+import { FieldLabel } from "./AppFormControls";
 
 export default function PasswordField({
   label,
@@ -19,7 +20,9 @@ export default function PasswordField({
 
   return (
     <div className="auth-field">
-      <label htmlFor={inputId}>{label}</label>
+      <FieldLabel htmlFor={inputId} required={required}>
+        {label}
+      </FieldLabel>
       <div className="auth-pass-wrap">
         <i className={`fa-solid ${leadingIcon} auth-input-icon`} aria-hidden />
         <input

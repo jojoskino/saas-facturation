@@ -1,0 +1,58 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\Invoice;
+use App\Models\Quote;
+use App\Models\User;
+use App\Support\DocumentNumberGenerator;
+use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
+
+class QuoteToInvoiceService
+{
+    public function convert(User $user, Quote $quote): Invoice|JsonResponse
+    {
+        $quote->loadMissing(['items', 'client']);
+
+        if ($quote->status !== 'accepted') {
+            return response()->json([
+                'message' => 'Seuls les devis au statut « accepté » peuvent être convertis en facture.',
+            ], 422);
+        }
+
+        $existing = Invoice::query()
+            ->where('user_id', $user->id)
+            ->where('quote_id', $quote->id)
+            ->where('document_type', 'invoice')
+            ->first();
+
+        if ($existing) {
+            return response()->json([
+                'message' => 'Une facture existe déjà pour ce devis.',
+                'invoice' => $existing->load(['client:id,name', 'quote:id,number']),
+            ], 422);
+        }
+
+        $issueDate = now()->toDateString();
+        $dueDate = Carbon::parse($issueDate)->addDays(30)->toDateString();
+        $number = DocumentNumberGenerator::nextInvoiceNumber($user->id);
+
+        $invoice = $user->invoices()->create([
+            'client_id' => $quote->client_id,
+            'quote_id' => $quote->id,
+            'document_type' => 'invoice',
+            'number' => $number,
+            'status' => 'draft',
+            'issue_date' => $issueDate,
+            'due_date' => $dueDate,
+            'currency' => $quote->currency,
+            'subtotal' => $quote->subtotal,
+            'tax_amount' => $quote->tax_amount,
+            'total' => $quote->total,
+            'notes' => $quote->notes,
+        ]);
+
+        return $invoice->load(['client:id,name', 'quote:id,number', 'payments']);
+    }
+}

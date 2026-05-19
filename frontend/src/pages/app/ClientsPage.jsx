@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { apiFetch } from "../../api/client";
+import { apiFetch, peekCache } from "../../api/client";
+import TableSkeleton from "../../components/skeleton/TableSkeleton";
+import FormActions from "../../components/FormActions";
+import { AppSelect } from "../../components/AppFormControls";
 
 const emptyForm = {
   first_name: "",
@@ -18,7 +21,10 @@ export default function ClientsPage() {
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    const q = new URLSearchParams({ page: "1", per_page: "12" });
+    return peekCache(`/api/clients?${q.toString()}`) == null;
+  });
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [error, setError] = useState("");
@@ -28,6 +34,10 @@ export default function ClientsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [viewTarget, setViewTarget] = useState(null);
+  const [clientDocs, setClientDocs] = useState(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importCsv, setImportCsv] = useState("");
+  const [importing, setImporting] = useState(false);
   const [confirmSubmitOpen, setConfirmSubmitOpen] = useState(false);
   const [pendingPayload, setPendingPayload] = useState(null);
   const [toasts, setToasts] = useState([]);
@@ -36,16 +46,56 @@ export default function ClientsPage() {
 
   const isEditing = editingId !== null;
 
-  async function loadClients({ requestedPage = page, requestedSearch = search } = {}) {
-    setLoading(true);
+  useEffect(() => {
+    if (!viewTarget?.id) {
+      setClientDocs(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch(`/api/clients/${viewTarget.id}/documents`);
+        if (!cancelled) setClientDocs(res);
+      } catch {
+        if (!cancelled) setClientDocs(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [viewTarget?.id]);
+
+  async function submitImport(e) {
+    e.preventDefault();
+    setImporting(true);
     setError("");
     try {
-      const query = new URLSearchParams({
-        page: String(requestedPage),
-        per_page: "12",
+      const res = await apiFetch("/api/clients/import", {
+        method: "POST",
+        body: JSON.stringify({ csv: importCsv }),
       });
-      if (requestedSearch.trim()) query.set("q", requestedSearch.trim());
-      const data = await apiFetch(`/api/clients?${query.toString()}`);
+      setSuccess(res?.message || "Import termine.");
+      setImportOpen(false);
+      setImportCsv("");
+      await loadClients({ requestedPage: 1, requestedSearch: search });
+    } catch (err) {
+      setError(err?.body?.message || err?.message || "Import impossible.");
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  async function loadClients({ requestedPage = page, requestedSearch = search } = {}) {
+    const query = new URLSearchParams({
+      page: String(requestedPage),
+      per_page: "12",
+    });
+    if (requestedSearch.trim()) query.set("q", requestedSearch.trim());
+    const url = `/api/clients?${query.toString()}`;
+    if (peekCache(url) == null) setLoading(true);
+    setError("");
+    try {
+      const data = await apiFetch(url);
       setClients(Array.isArray(data?.data) ? data.data : []);
       setMeta({
         current_page: Number(data?.current_page || requestedPage || 1),
@@ -218,6 +268,19 @@ export default function ClientsPage() {
     return list;
   }, [clients, filterCompany, sortBy]);
 
+  const companyFilterOptions = useMemo(
+    () => [{ value: "all", label: "Toutes" }, ...companyOptions.map((option) => ({ value: option, label: option }))],
+    [companyOptions]
+  );
+  const sortOptions = useMemo(
+    () => [
+      { value: "recent", label: "Plus recents" },
+      { value: "name_asc", label: "Nom A-Z" },
+      { value: "name_desc", label: "Nom Z-A" },
+    ],
+    []
+  );
+
   return (
     <div className="clients">
       <style>{`
@@ -233,9 +296,10 @@ export default function ClientsPage() {
         }
         .clients-search-card {
           border-radius: 14px;
-          border: 1px solid #f1e2be;
-          background: linear-gradient(120deg, #fff9ef 0%, #fff 72%);
+          border: 1px solid #dde5f2;
+          background: linear-gradient(180deg, #fbfcff 0%, #ffffff 100%);
           padding: 12px;
+          box-shadow: 0 4px 14px rgba(20, 33, 61, 0.04);
         }
         .clients-filter-row {
           display: grid;
@@ -550,20 +614,6 @@ export default function ClientsPage() {
             overflow-x: auto;
             overflow-y: hidden;
             -webkit-overflow-scrolling: touch;
-          scrollbar-width: thin;
-          scrollbar-color: #b7c1d8 #eef1f7;
-        }
-        .clients-table-wrap::-webkit-scrollbar {
-          height: 8px;
-        }
-        .clients-table-wrap::-webkit-scrollbar-track {
-          background: #eef1f7;
-          border-radius: 999px;
-        }
-        .clients-table-wrap::-webkit-scrollbar-thumb {
-          background: #b7c1d8;
-          border-radius: 999px;
-          }
           .clients-table { min-width: 760px; }
           .clients-table th,
           .clients-table td { padding: 10px 6px; }
@@ -600,22 +650,11 @@ export default function ClientsPage() {
             </div>
             <div className="clients-filter-item">
               <label>Entreprise:</label>
-              <select className="clients-select" value={filterCompany} onChange={(e) => setFilterCompany(e.target.value)}>
-                <option value="all">Toutes</option>
-                {companyOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
+              <AppSelect value={filterCompany} onChange={setFilterCompany} options={companyFilterOptions} />
             </div>
             <div className="clients-filter-item">
               <label>Tri:</label>
-              <select className="clients-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-                <option value="recent">Plus récents</option>
-                <option value="name_asc">Nom A-Z</option>
-                <option value="name_desc">Nom Z-A</option>
-              </select>
+              <AppSelect value={sortBy} onChange={setSortBy} options={sortOptions} />
             </div>
             <button
               className="clients-btn clients-btn--primary clients-filter-cta"
@@ -634,9 +673,14 @@ export default function ClientsPage() {
         <section className="clients-card">
           <div className="clients-topbar">
             <h2>Liste des clients</h2>
-            <button className="clients-btn clients-btn--accent" type="button" onClick={startCreate}>
-              <i className="fa-solid fa-plus" /> Nouveau client
-            </button>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="clients-btn" type="button" onClick={() => setImportOpen(true)}>
+                <i className="fa-solid fa-file-import" /> Import CSV
+              </button>
+              <button className="clients-btn clients-btn--accent" type="button" onClick={startCreate}>
+                <i className="fa-solid fa-plus" /> Nouveau client
+              </button>
+            </div>
           </div>
 
           <div className="clients-table-wrap">
@@ -652,9 +696,7 @@ export default function ClientsPage() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr>
-                    <td colSpan={5}>Chargement...</td>
-                  </tr>
+                  <TableSkeleton rows={8} columns={5} withActions actionColumnIndex={4} />
                 ) : displayedClients.length === 0 ? (
                   <tr>
                     <td colSpan={5}>Aucun client trouvé.</td>
@@ -771,14 +813,11 @@ export default function ClientsPage() {
               <Field label="Adresse" name="address" value={form.address} onChange={onChangeField} placeholder="Ex: Cocody, Abidjan" as="textarea" />
               <Field label="Notes" name="notes" value={form.notes} onChange={onChangeField} placeholder="Information utile sur le client..." as="textarea" />
 
-              <div className="clients-actions">
-                <button className="clients-btn clients-btn--primary" type="submit" disabled={saving}>
-                  {saving ? "Enregistrement..." : isEditing ? "Mettre à jour" : "Ajouter"}
-                </button>
-                <button className="clients-btn clients-btn--soft-danger" type="button" onClick={closeModal} disabled={saving}>
-                  Annuler
-                </button>
-              </div>
+              <FormActions
+                onCancel={closeModal}
+                submitLabel={isEditing ? "Mettre à jour" : "Ajouter"}
+                saving={saving}
+              />
             </form>
           </section>
         </div>
@@ -851,6 +890,51 @@ export default function ClientsPage() {
               <li><strong>NIF:</strong> {viewTarget.tax_id || "—"}</li>
               <li><strong>Notes:</strong> {viewTarget.notes || "—"}</li>
             </ul>
+            {clientDocs ? (
+              <div style={{ marginTop: 14 }}>
+                <h3 style={{ fontSize: 14, marginBottom: 8 }}>Historique</h3>
+                <p className="clients-sub">
+                  CA encaisse : {Number(clientDocs?.stats?.revenue_paid_cfa || 0).toLocaleString("fr-FR")} CFA
+                </p>
+                <p className="clients-sub">
+                  <strong>Devis :</strong>{" "}
+                  {(clientDocs?.quotes || []).map((q) => q.number).join(", ") || "—"}
+                </p>
+                <p className="clients-sub">
+                  <strong>Factures :</strong>{" "}
+                  {(clientDocs?.invoices || []).map((i) => i.number).join(", ") || "—"}
+                </p>
+              </div>
+            ) : null}
+          </section>
+        </div>
+      ) : null}
+
+      {importOpen ? (
+        <div className="clients-modal-backdrop" role="dialog" aria-modal="true" onClick={() => setImportOpen(false)}>
+          <section className="clients-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="clients-modal-head">
+              <h2>Importer des clients (CSV)</h2>
+              <button className="clients-icon-btn" type="button" onClick={() => setImportOpen(false)} aria-label="Fermer">
+                <i className="fa-solid fa-xmark" />
+              </button>
+            </div>
+            <p className="clients-sub">En-tetes : prenom, nom, email, telephone, entreprise, adresse, siret, notes</p>
+            <form onSubmit={submitImport}>
+              <textarea
+                className="clients-textarea"
+                rows={8}
+                value={importCsv}
+                onChange={(e) => setImportCsv(e.target.value)}
+                placeholder="prenom,nom,email..."
+                required
+              />
+              <div className="clients-modal-actions">
+                <button className="clients-btn clients-btn--primary" type="submit" disabled={importing}>
+                  {importing ? "Import..." : "Importer"}
+                </button>
+              </div>
+            </form>
           </section>
         </div>
       ) : null}
