@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\InvoiceQuotaService;
 use App\Models\Invoice;
 use App\Services\DocumentPdfService;
 use App\Support\DocumentNumberGenerator;
@@ -62,8 +63,10 @@ class InvoiceController extends Controller
             new OA\Response(response: 201, description: 'Facture créée'),
         ]
     )]
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, InvoiceQuotaService $quota): JsonResponse
     {
+        $quota->assertCanCreate($request->user());
+
         $userId = $request->user()->id;
 
         $data = $request->validate([

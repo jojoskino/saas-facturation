@@ -10,31 +10,66 @@ class ApiAuthTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_register_returns_token(): void
+    public function test_register_does_not_return_token(): void
     {
         $response = $this->postJson('/api/register', [
             'name' => 'Test User',
             'email' => 'test@example.com',
-            'password' => 'password123',
-            'password_confirmation' => 'password123',
+            'password' => 'Password1!',
+            'password_confirmation' => 'Password1!',
         ]);
 
         $response->assertCreated()
-            ->assertJsonStructure(['user' => ['id', 'name', 'email'], 'token', 'token_type']);
+            ->assertJsonStructure(['message', 'user' => ['id', 'name', 'email', 'plan', 'plan_features']])
+            ->assertJsonMissing(['token']);
 
-        $this->assertDatabaseHas('users', ['email' => 'test@example.com']);
+        $this->assertDatabaseHas('users', ['email' => 'test@example.com', 'plan' => 'free']);
+    }
+
+    public function test_verify_password(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'verify@example.com',
+            'password' => 'Secret1!ab',
+        ]);
+
+        $login = $this->postJson('/api/login', [
+            'email' => 'verify@example.com',
+            'password' => 'Secret1!ab',
+        ]);
+        $token = $login->json('token');
+
+        $this->postJson('/api/me/verify-password', ['password' => 'wrong'], [
+            'Authorization' => 'Bearer '.$token,
+        ])->assertUnprocessable();
+
+        $this->postJson('/api/me/verify-password', ['password' => 'Secret1!ab'], [
+            'Authorization' => 'Bearer '.$token,
+        ])->assertOk()->assertJsonPath('valid', true);
+    }
+
+    public function test_register_rejects_weak_password(): void
+    {
+        $this->postJson('/api/register', [
+            'name' => 'Test User',
+            'email' => 'weak@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['password']);
     }
 
     public function test_login_and_me(): void
     {
         $user = User::factory()->create([
             'email' => 'auth@example.com',
-            'password' => 'secret4567',
+            'password' => 'Secret1!ab',
         ]);
 
         $login = $this->postJson('/api/login', [
             'email' => 'auth@example.com',
-            'password' => 'secret4567',
+            'password' => 'Secret1!ab',
         ]);
 
         $login->assertOk()->assertJsonStructure(['token']);
@@ -50,12 +85,12 @@ class ApiAuthTest extends TestCase
     {
         $user = User::factory()->create([
             'email' => 'company@example.com',
-            'password' => 'secret4567',
+            'password' => 'Secret1!ab',
         ]);
 
         $login = $this->postJson('/api/login', [
             'email' => 'company@example.com',
-            'password' => 'secret4567',
+            'password' => 'Secret1!ab',
         ]);
         $token = $login->json('token');
 

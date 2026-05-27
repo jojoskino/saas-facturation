@@ -6,6 +6,7 @@ import FormActions from "../../components/FormActions";
 import DocumentPreviewModal from "../../components/DocumentPreviewModal";
 import { AppDateField, AppSelect, FieldLabel } from "../../components/AppFormControls";
 import InlineStatusSelect from "../../components/InlineStatusSelect";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import DocumentLinesEditor, { computeLineTotals, createEmptyLine } from "../../components/DocumentLinesEditor";
 import ModalPortal from "../../components/ModalPortal";
 
@@ -50,6 +51,9 @@ export default function DevisPage() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [previewTarget, setPreviewTarget] = useState(null);
   const [form, setForm] = useState(defaultForm);
+  const [confirmState, setConfirmState] = useState(null);
+  const [confirmLoading, setConfirmLoading] = useState(false);
+  const [editingSnapshot, setEditingSnapshot] = useState(null);
 
   const isEditing = editingId !== null;
 
@@ -93,6 +97,7 @@ export default function DevisPage() {
 
   function resetForm() {
     setEditingId(null);
+    setEditingSnapshot(null);
     setForm(defaultForm);
   }
 
@@ -131,6 +136,7 @@ export default function DevisPage() {
       discount_percent: String(full.discount_percent ?? "0"),
       items,
     });
+    setEditingSnapshot({ number: full.number || `#${full.id}`, status: full.status || "draft" });
     setModalOpen(true);
   }
 
@@ -138,30 +144,45 @@ export default function DevisPage() {
     setPreviewTarget(quote);
   }
 
-  async function convertToInvoice(quote) {
+  function requestStatusChange(quote, status) {
+    if (status === quote.status) return;
+    setConfirmState({ type: "status", quote, toStatus: status });
+  }
+
+  function requestConvertToInvoice(quote) {
     if (quote.has_invoice) return;
+    setConfirmState({ type: "convert", quote });
+  }
+
+  async function confirmPendingAction() {
+    if (!confirmState) return;
+    setConfirmLoading(true);
     setError("");
     setSuccess("");
     try {
-      const res = await apiFetch(`/api/quotes/${quote.id}/convert-to-invoice`, { method: "POST" });
-      setSuccess(res?.message || "Facture creee.");
-      await loadQuotes(page);
+      if (confirmState.type === "status") {
+        const { quote, toStatus } = confirmState;
+        if (modalOpen && editingId === quote.id) {
+          setForm((prev) => ({ ...prev, status: toStatus }));
+          setEditingSnapshot((prev) => (prev ? { ...prev, status: toStatus } : prev));
+        } else {
+          await apiFetch(`/api/quotes/${quote.id}`, {
+            method: "PUT",
+            body: JSON.stringify({ status: toStatus }),
+          });
+          setQuotes((prev) => prev.map((q) => (q.id === quote.id ? { ...q, status: toStatus } : q)));
+        }
+      } else if (confirmState.type === "convert") {
+        const { quote } = confirmState;
+        const res = await apiFetch(`/api/quotes/${quote.id}/convert-to-invoice`, { method: "POST" });
+        setSuccess(res?.message || "Facture creee.");
+        await loadQuotes(page);
+      }
+      setConfirmState(null);
     } catch (err) {
-      setError(extractApiMessage(err, "Conversion impossible."));
-    }
-  }
-
-  async function updateQuoteStatus(quote, status) {
-    if (status === quote.status) return;
-    setError("");
-    try {
-      await apiFetch(`/api/quotes/${quote.id}`, {
-        method: "PUT",
-        body: JSON.stringify({ status }),
-      });
-      setQuotes((prev) => prev.map((q) => (q.id === quote.id ? { ...q, status } : q)));
-    } catch (err) {
-      setError(extractApiMessage(err, "Impossible de modifier le statut."));
+      setError(extractApiMessage(err, "Action impossible."));
+    } finally {
+      setConfirmLoading(false);
     }
   }
 
@@ -173,6 +194,15 @@ export default function DevisPage() {
   function onChangeField(e) {
     const { name, value } = e.target;
     setForm((prev) => {
+      if (name === "status" && editingId && value !== prev.status) {
+        const quoteRef = {
+          id: editingId,
+          number: editingSnapshot?.number || (editingId ? `#${editingId}` : "—"),
+          status: prev.status,
+        };
+        setConfirmState({ type: "status", quote: quoteRef, toStatus: value });
+        return prev;
+      }
       const next = { ...prev, [name]: value };
       if (name === "issue_date" && value && !next.valid_until) {
         const start = new Date(value);
@@ -286,12 +316,6 @@ export default function DevisPage() {
           background: linear-gradient(180deg, #fbfcff 0%, #ffffff 100%);
           padding: 12px;
           box-shadow: 0 4px 14px rgba(20, 33, 61, 0.04);
-          position: relative;
-          z-index: 20;
-        }
-        .quo-card.doc-list-card {
-          position: relative;
-          z-index: 1;
         }
         .quo-toolbar {
           display: grid;
@@ -518,7 +542,7 @@ export default function DevisPage() {
                       <InlineStatusSelect
                         value={quote.status || "draft"}
                         options={statusOptions}
-                        onChange={(next) => updateQuoteStatus(quote, next)}
+                        onChange={(next) => requestStatusChange(quote, next)}
                       />
                     </td>
                     <td>
@@ -531,7 +555,7 @@ export default function DevisPage() {
                             className="quo-icon-btn"
                             type="button"
                             title={quote.has_invoice ? "Facture deja creee pour ce devis" : "Convertir en facture"}
-                            onClick={() => convertToInvoice(quote)}
+                            onClick={() => requestConvertToInvoice(quote)}
                             disabled={Boolean(quote.has_invoice)}
                           >
                             <i className="fa-solid fa-file-invoice" />
@@ -670,39 +694,47 @@ export default function DevisPage() {
       />
 
       {deleteTarget ? (
-        <ModalPortal>
-        <div className="doc-modal-backdrop" role="dialog" aria-modal="true" onClick={() => setDeleteTarget(null)}>
-          <section className="doc-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="doc-modal-head">
-              <h2>Supprimer le devis</h2>
-              <button className="doc-modal-close" type="button" onClick={() => setDeleteTarget(null)} aria-label="Fermer">
-                <i className="fa-solid fa-xmark" />
-              </button>
-            </div>
-            <form
-              className="doc-modal-form"
-              onSubmit={(e) => {
-                e.preventDefault();
-                confirmDelete();
-              }}
-            >
-              <div className="doc-modal-body">
-                <p className="quo-sub">
-                  Confirmer la suppression de <strong>{deleteTarget.number}</strong> ?
-                </p>
-              </div>
-              <FormActions
-                onCancel={() => setDeleteTarget(null)}
-                submitLabel={deletingId ? "Suppression..." : "Confirmer"}
-                saving={deletingId !== null}
-              />
-            </form>
-          </section>
-        </div>
-        </ModalPortal>
+        <ConfirmDialog
+          open
+          title={t("quotes.deleteModal")}
+          description={t("quotes.deleteConfirm", { number: deleteTarget.number })}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={confirmDelete}
+          saving={deletingId !== null}
+        />
+      ) : null}
+
+      {confirmState?.type === "status" ? (
+        <ConfirmDialog
+          open
+          title={t("quotes.confirmStatusTitle")}
+          description={t("quotes.confirmStatusDesc", {
+            number: confirmState.quote.number,
+            from: statusLabel(statusOptions, confirmState.quote.status),
+            to: statusLabel(statusOptions, confirmState.toStatus),
+          })}
+          onClose={() => setConfirmState(null)}
+          onConfirm={confirmPendingAction}
+          saving={confirmLoading}
+        />
+      ) : null}
+
+      {confirmState?.type === "convert" ? (
+        <ConfirmDialog
+          open
+          title={t("quotes.confirmConvertTitle")}
+          description={t("quotes.confirmConvertDesc", { number: confirmState.quote.number })}
+          onClose={() => setConfirmState(null)}
+          onConfirm={confirmPendingAction}
+          saving={confirmLoading}
+        />
       ) : null}
     </div>
   );
+}
+
+function statusLabel(options, value) {
+  return options.find((opt) => opt.value === value)?.label || value || "—";
 }
 
 function validateQuoteForm(form) {

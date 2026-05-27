@@ -1,6 +1,7 @@
-﻿import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { apiDownload, getStoredToken } from "../api/client";
+import { useEffect, useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { apiDownload, apiFetch, getStoredToken } from "../api/client";
+import { canExportCsv, invoiceQuotaFromUser, normalizePlan } from "../utils/planFeatures";
 import { useApiQuery } from "../hooks/useApiQuery";
 import AppModal from "../components/AppModal";
 import { FieldLabel } from "../components/AppFormControls";
@@ -19,14 +20,29 @@ export default function Dashboard() {
   const { data: invoicesData, loading: invoicesLoading } = useApiQuery("/api/invoices?per_page=5", {
     enabled: Boolean(getStoredToken()),
   });
+  const { data: me } = useApiQuery("/api/me", { enabled: Boolean(getStoredToken()) });
   const showDashboardSkeleton = summaryLoading && !summary;
   const recentQuotes = Array.isArray(quotesData?.data) ? quotesData.data : [];
   const recentInvoices = Array.isArray(invoicesData?.data) ? invoicesData.data : [];
-  const [amountsVisible, setAmountsVisible] = useState(localStorage.getItem("facturo_amounts_visible") === "1");
+  const [amountsVisible, setAmountsVisible] = useState(
+    () => sessionStorage.getItem("facturo_amounts_unlocked") === "1",
+  );
   const [unlockOpen, setUnlockOpen] = useState(false);
   const [unlockingFor, setUnlockingFor] = useState("");
   const [codeInput, setCodeInput] = useState("");
   const [codeError, setCodeError] = useState("");
+  const [unlockLoading, setUnlockLoading] = useState(false);
+  const [exportError, setExportError] = useState("");
+
+  const planFeatures = summary?.plan_features || me?.plan_features;
+  const plan = normalizePlan(planFeatures?.plan || me?.plan);
+  const csvExportEnabled = canExportCsv(planFeatures || plan);
+  const invoiceQuota = invoiceQuotaFromUser({ plan_features: planFeatures, plan });
+
+  useEffect(() => {
+    localStorage.removeItem("facturo_amounts_visible");
+    localStorage.removeItem("facturo_money_code");
+  }, []);
 
   const clientsCount = Number(summary?.clients_count ?? 0);
   const revenuePaid = Number(summary?.revenue_paid_cfa ?? 0);
@@ -107,35 +123,50 @@ export default function Dashboard() {
   ];
   const quoteMax = Math.max(...quoteBars.map((b) => b.value), 1);
 
-  function requestUnlock() {
-    const existingCode = localStorage.getItem("facturo_money_code");
+  async function requestUnlock() {
     const typed = codeInput.trim();
     if (!typed) {
-      setCodeError("Veuillez saisir votre code.");
+      setCodeError("Veuillez saisir votre mot de passe.");
       return;
     }
-    if (!existingCode) {
-      localStorage.setItem("facturo_money_code", typed);
-      localStorage.setItem("facturo_amounts_visible", "1");
+    setUnlockLoading(true);
+    setCodeError("");
+    try {
+      await apiFetch("/api/me/verify-password", {
+        method: "POST",
+        body: JSON.stringify({ password: typed }),
+      });
+      sessionStorage.setItem("facturo_amounts_unlocked", "1");
       setAmountsVisible(true);
       setCodeInput("");
-      setCodeError("");
-      return;
+      setUnlockOpen(false);
+    } catch (err) {
+      const msg =
+        err.body?.errors?.password?.[0] ||
+        err.body?.message ||
+        "Mot de passe incorrect.";
+      setCodeError(msg);
+    } finally {
+      setUnlockLoading(false);
     }
-    if (typed !== existingCode) {
-      setCodeError("Code incorrect.");
-      return;
-    }
-    localStorage.setItem("facturo_amounts_visible", "1");
-    setAmountsVisible(true);
-    setCodeInput("");
-    setCodeError("");
-    setUnlockOpen(false);
   }
 
   function hideAmounts() {
-    localStorage.removeItem("facturo_amounts_visible");
+    sessionStorage.removeItem("facturo_amounts_unlocked");
     setAmountsVisible(false);
+  }
+
+  async function handleExportCsv() {
+    setExportError("");
+    if (!csvExportEnabled) {
+      setExportError("L'export CSV est réservé à l'offre Pro.");
+      return;
+    }
+    try {
+      await apiDownload("/api/dashboard/export?period=year", "revenus.csv", "text/csv");
+    } catch (err) {
+      setExportError(err?.body?.message || err?.message || "Export impossible.");
+    }
   }
 
   function openUnlock(label) {
@@ -265,6 +296,22 @@ export default function Dashboard() {
         .dash-export-link:hover {
           color: var(--color-primary);
           background: #eef2f8;
+        }
+        .dash-export-link.is-locked {
+          opacity: 0.55;
+          cursor: not-allowed;
+        }
+        .dash-export-link.is-locked:hover {
+          color: inherit;
+          background: transparent;
+        }
+        .dash-banner--plan {
+          border-color: rgba(252, 163, 17, 0.35);
+          background: rgba(252, 163, 17, 0.08);
+        }
+        .dash-banner--warn {
+          border-color: rgba(239, 68, 68, 0.35);
+          color: #b91c1c;
         }
         .dash-line-wrap {
           border-radius: 12px;
@@ -508,6 +555,18 @@ export default function Dashboard() {
       `}</style>
 
       {summaryError ? <div className="dash-banner">{summaryError}</div> : null}
+      {exportError ? <div className="dash-banner dash-banner--warn">{exportError}</div> : null}
+      {plan === "free" && invoiceQuota.limit != null ? (
+        <div className="dash-banner dash-banner--plan">
+          Offre Gratuite : {invoiceQuota.used}/{invoiceQuota.limit} factures ce mois-ci.
+          {invoiceQuota.remaining === 0
+            ? " Passez à Pro pour des factures illimitées et l'export CSV."
+            : " Passez à Pro pour l'export CSV et le tableau de bord analytique complet."}{" "}
+          <Link to="/app/abonnement?plan=pro&checkout=start" style={{ fontWeight: 700, color: "#14213d" }}>
+            Passer à Pro →
+          </Link>
+        </div>
+      ) : null}
 
       {showDashboardSkeleton ? (
         <DashboardSkeleton />
@@ -549,9 +608,9 @@ export default function Dashboard() {
               <strong>{shown(revenuePaid)}</strong>
               <button
                 type="button"
-                className="dash-export-link"
-                title="Exporter les revenus (CSV)"
-                onClick={() => apiDownload("/api/dashboard/export?period=year", "revenus.csv", "text/csv")}
+                className={`dash-export-link${csvExportEnabled ? "" : " is-locked"}`}
+                title={csvExportEnabled ? "Exporter les revenus (CSV)" : "Réservé à l'offre Pro"}
+                onClick={handleExportCsv}
               >
                 <i className="fa-solid fa-file-csv" aria-hidden />
                 <span>CSV</span>
@@ -634,7 +693,7 @@ export default function Dashboard() {
           <button type="button" onClick={() => navigate("/app/clients")}><i className="fa-solid fa-user-plus" /> Nouveau client</button>
           <button type="button" onClick={() => navigate("/app/devis")}><i className="fa-solid fa-file-signature" /> Nouveau devis</button>
           <button type="button" onClick={() => navigate("/app/factures")}><i className="fa-solid fa-file-invoice-dollar" /> Nouvelle facture</button>
-          <button type="button" onClick={() => navigate("/app/devis")}><i className="fa-solid fa-chart-line" /> Voir les rapports</button>
+          <button type="button" onClick={() => navigate("/app/rapports")}><i className="fa-solid fa-chart-line" /> Voir les rapports</button>
         </div>
       </section>
 
@@ -749,7 +808,8 @@ export default function Dashboard() {
               setUnlockOpen(false);
               setCodeError("");
             }}
-            submitLabel="Valider"
+            submitLabel={unlockLoading ? "Vérification..." : "Valider"}
+            submitDisabled={unlockLoading}
           />
         </form>
       </AppModal>

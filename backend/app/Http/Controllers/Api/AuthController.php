@@ -4,6 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Support\PasswordRules;
+use App\Support\BillingPayload;
+use App\Support\PlanFeatures;
 use App\Support\Utf8;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\JsonResponse;
@@ -12,7 +15,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password as PasswordBroker;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Validation\Rules\Password as PasswordRule;
 use Illuminate\Validation\ValidationException;
 use OpenApi\Attributes as OA;
 
@@ -35,7 +37,7 @@ class AuthController extends Controller
             )
         ),
         responses: [
-            new OA\Response(response: 201, description: 'Compte créé — renvoie user + token'),
+            new OA\Response(response: 201, description: 'Compte créé — connexion requise après vérification e-mail'),
             new OA\Response(response: 422, description: 'Erreur de validation'),
         ]
     )]
@@ -44,7 +46,7 @@ class AuthController extends Controller
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:8', 'regex:/^(?=.*[A-Za-z])(?=.*\\d)(?=.*[^A-Za-z\\d]).+$/', 'confirmed'],
+            'password' => PasswordRules::attributeRules(),
         ], [
             'name.required' => 'Le nom est obligatoire.',
             'name.max' => 'Le nom ne doit pas dépasser :max caractères.',
@@ -52,10 +54,7 @@ class AuthController extends Controller
             'email.email' => "L'adresse e-mail n'est pas valide.",
             'email.max' => "L'adresse e-mail ne doit pas dépasser :max caractères.",
             'email.unique' => 'Cette adresse e-mail est déjà utilisée.',
-            'password.required' => 'Le mot de passe est obligatoire.',
-            'password.min' => 'Le mot de passe doit contenir au moins :min caractères.',
-            'password.regex' => 'Le mot de passe doit contenir au moins une lettre, un chiffre et un symbole.',
-            'password.confirmed' => 'La confirmation du mot de passe ne correspond pas.',
+            ...PasswordRules::messages(),
         ], [
             'name' => 'nom',
             'email' => 'adresse e-mail',
@@ -69,18 +68,15 @@ class AuthController extends Controller
             'name' => $data['name'],
             'email' => $data['email'],
             'password' => $data['password'],
+            'plan' => 'free',
         ]);
 
         $user->sendEmailVerificationNotification();
 
-        $user->tokens()->delete();
-        $token = $user->createToken('api')->plainTextToken;
-
         return response()->json(
             [
+                'message' => 'Compte créé. Vérifiez votre e-mail puis connectez-vous.',
                 'user' => $this->userPayload($user),
-                'token' => $token,
-                'token_type' => 'Bearer',
             ],
             201,
             [],
@@ -169,6 +165,25 @@ class AuthController extends Controller
             new OA\Response(response: 200, description: 'Utilisateur'),
         ]
     )]
+    public function verifyPassword(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'password' => ['required', 'string'],
+        ], [
+            'password.required' => 'Le mot de passe est obligatoire.',
+        ], [
+            'password' => 'mot de passe',
+        ]);
+
+        if (! Hash::check($data['password'], (string) $request->user()->password)) {
+            throw ValidationException::withMessages([
+                'password' => ['Mot de passe incorrect.'],
+            ]);
+        }
+
+        return response()->json(['valid' => true]);
+    }
+
     public function me(Request $request): JsonResponse
     {
         return response()->json(
@@ -310,8 +325,8 @@ class AuthController extends Controller
         $request->validate([
             'token' => ['required', 'string'],
             'email' => ['required', 'email'],
-            'password' => ['required', 'confirmed', PasswordRule::min(8)->letters()->numbers()->symbols()],
-        ]);
+            'password' => PasswordRules::attributeRules(),
+        ], PasswordRules::messages());
 
         $status = PasswordBroker::reset(
             $request->only('email', 'password', 'password_confirmation', 'token'),
@@ -363,11 +378,10 @@ class AuthController extends Controller
 
         $data = $request->validate([
             'current_password' => ['required', 'string'],
-            'password' => ['required', 'confirmed', PasswordRule::min(8)->letters()->numbers()->symbols()],
+            'password' => PasswordRules::attributeRules(),
         ], [
             'current_password.required' => 'Le mot de passe actuel est obligatoire.',
-            'password.required' => 'Le nouveau mot de passe est obligatoire.',
-            'password.confirmed' => 'La confirmation du mot de passe ne correspond pas.',
+            ...PasswordRules::messages(),
         ]);
 
         if (! Hash::check($data['current_password'], $user->password)) {
@@ -421,7 +435,9 @@ class AuthController extends Controller
             'locale' => $user->locale ?? 'fr',
             'timezone' => $user->timezone ?? 'Africa/Abidjan',
             'notifications_email' => (bool) ($user->notifications_email ?? true),
-            'plan' => $user->plan ?? 'free',
+            'plan' => PlanFeatures::normalize($user->plan),
+            'plan_features' => PlanFeatures::forUser($user),
+            'billing' => BillingPayload::forUser($user),
         ];
     }
 

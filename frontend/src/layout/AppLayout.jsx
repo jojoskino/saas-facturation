@@ -10,18 +10,21 @@ import ModalPortal from "../components/ModalPortal";
 
 const navItems = [
   { to: "/app", labelKey: "nav.dashboard", icon: "fa-chart-pie", end: true },
-  { to: "/app/clients", labelKey: "nav.clients", icon: "fa-address-book" },
-  { to: "/app/devis", labelKey: "nav.quotes", icon: "fa-file-signature" },
   { to: "/app/factures", labelKey: "nav.invoices", icon: "fa-file-invoice-dollar" },
+  { to: "/app/devis", labelKey: "nav.quotes", icon: "fa-file-signature" },
+  { to: "/app/clients", labelKey: "nav.clients", icon: "fa-address-book" },
+  { to: "/app/rapports", labelKey: "nav.reports", icon: "fa-chart-line" },
   { to: "/app/parametres", labelKey: "nav.settings", icon: "fa-sliders" },
 ];
 
 const titleKeys = {
   "/app": "nav.dashboard",
-  "/app/clients": "nav.clients",
-  "/app/devis": "nav.quotes",
   "/app/factures": "nav.invoices",
+  "/app/devis": "nav.quotes",
+  "/app/clients": "nav.clients",
+  "/app/rapports": "nav.reports",
   "/app/profil": "profileMenu.myProfile",
+  "/app/abonnement": "nav.billing",
   "/app/parametres": "nav.settings",
 };
 
@@ -91,7 +94,6 @@ export default function AppLayout() {
     <div className="app-shell">
       <I18nSync />
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Syne:wght@600;700;800&display=swap');
         .app-shell {
           min-height: 100vh;
           display: flex;
@@ -120,7 +122,7 @@ export default function AppLayout() {
           top: 0;
           align-self: flex-start;
           height: 100vh;
-          z-index: 30;
+          z-index: var(--z-sidebar, 50);
           transition: width 0.2s ease;
           box-shadow: inset -1px 0 0 rgba(20, 33, 61, 0.03);
         }
@@ -355,7 +357,8 @@ export default function AppLayout() {
           border-bottom: 1px solid var(--color-border);
           position: sticky;
           top: 0;
-          z-index: var(--z-header, 20);
+          z-index: var(--z-header, 40);
+          isolation: isolate;
         }
         .app-shell__header-left {
           display: flex;
@@ -454,6 +457,8 @@ export default function AppLayout() {
           width: 100%;
           margin: 0 auto;
           box-sizing: border-box;
+          position: relative;
+          z-index: var(--z-page-content);
         }
         .app-shell__confirm-backdrop {
           position: fixed;
@@ -614,6 +619,9 @@ export default function AppLayout() {
                   ) : null}
                   <button type="button" className="app-shell__profile-item" onClick={() => goTo("/app/profil")}>
                     <i className="fa-solid fa-user" /> {t("profileMenu.myProfile")}
+                  </button>
+                  <button type="button" className="app-shell__profile-item" onClick={() => goTo("/app/abonnement")}>
+                    <i className="fa-solid fa-gem" /> {t("nav.billing")}
                   </button>
                   <button type="button" className="app-shell__profile-item" onClick={() => setConfirmLogoutOpen(true)}>
                     <i className="fa-solid fa-right-from-bracket" /> {t("profileMenu.logout")}

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Client;
+use App\Support\PlanFeatures;
 use App\Models\Invoice;
 use App\Models\Quote;
 use Carbon\CarbonImmutable;
@@ -160,11 +161,18 @@ class DashboardController extends Controller
                 'clients_pct' => $this->pctChange($clientsCurrentMonth, $clientsPreviousMonth),
                 'overdue_pct' => $this->pctChange($overdueCurrentMonth, $overduePreviousMonth),
             ],
+            'plan_features' => PlanFeatures::forUser($request->user()),
         ]);
     }
 
     public function exportCsv(Request $request): StreamedResponse|JsonResponse
     {
+        if (! PlanFeatures::canExportCsv($request->user()->plan)) {
+            return response()->json([
+                'message' => "L'export CSV est réservé à l'offre Pro.",
+            ], 403);
+        }
+
         $userId = (int) $request->user()->id;
         $period = (string) $request->query('period', 'year');
         $now = CarbonImmutable::now();

@@ -1,13 +1,18 @@
-﻿import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import "../styles/auth-pages.css";
 import { apiFetch, setStoredToken } from "../api/client";
 import { AuthBrand } from "../components/AuthShell";
 import PasswordField from "../components/PasswordField";
 import { FieldLabel } from "../components/AppFormControls";
 
+import { authRedirectPath } from "../utils/billingFlow";
+
 export default function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const registered = searchParams.get("registered") === "1";
+  const planIntent = searchParams.get("plan");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(false);
@@ -24,7 +29,7 @@ export default function Login() {
         body: JSON.stringify({ email, password }),
       });
       setStoredToken(data.token);
-      navigate("/app", { replace: true });
+      navigate(authRedirectPath(searchParams), { replace: true });
     } catch (err) {
       const msg =
         err.body?.errors?.email?.[0] ||
@@ -47,6 +52,13 @@ export default function Login() {
         </>
       }
     >
+      {registered ? (
+        <div className="auth-success" role="status">
+          {planIntent === "pro"
+            ? "Compte créé. Connectez-vous pour finaliser votre abonnement Pro."
+            : "Compte créé. Vérifiez votre e-mail puis connectez-vous."}
+        </div>
+      ) : null}
       {error ? <div className="auth-error">{error}</div> : null}
 
       <form onSubmit={onSubmit} className="auth-form-box">

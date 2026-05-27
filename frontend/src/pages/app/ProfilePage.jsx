@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { apiFetch } from "../../api/client";
 import AppModal from "../../components/AppModal";
 import FormActions from "../../components/FormActions";
 import PlanBadge from "../../components/PlanBadge";
 import { FieldLabel } from "../../components/AppFormControls";
+import PasswordRequirements from "../../components/PasswordRequirements";
+import { evaluatePassword, passwordsMatch } from "../../utils/passwordPolicy";
+import { canExportCsv, canImportClientsCsv, invoiceQuotaFromUser, normalizePlan } from "../../utils/planFeatures";
 import AccountAlerts from "../../components/account/AccountAlerts";
 import ProfileSkeleton from "../../components/skeleton/ProfileSkeleton";
 import { extractApiMessage, useAccountMe } from "../../hooks/useAccountMe";
@@ -16,6 +20,7 @@ export default function ProfilePage() {
   const [success, setSuccess] = useState("");
   const [personalOpen, setPersonalOpen] = useState(false);
   const [securityOpen, setSecurityOpen] = useState(false);
+  const [planOpen, setPlanOpen] = useState(false);
   const [savingPersonal, setSavingPersonal] = useState(false);
   const [savingSecurity, setSavingSecurity] = useState(false);
   const [form, setForm] = useState({
@@ -65,8 +70,16 @@ export default function ProfilePage() {
     }
   }
 
+  const newPasswordValid = evaluatePassword(form.password).valid;
+  const newPasswordMatch = passwordsMatch(form.password, form.password_confirmation);
+  const canSavePassword = Boolean(form.current_password) && newPasswordValid && newPasswordMatch;
+
   async function savePassword(e) {
     e.preventDefault();
+    if (!canSavePassword) {
+      setError(t("security.hint"));
+      return;
+    }
     setSavingSecurity(true);
     setError("");
     setSuccess("");
@@ -90,6 +103,10 @@ export default function ProfilePage() {
   }
 
   const initial = (form.name || "U").trim().charAt(0).toUpperCase();
+  const plan = normalizePlan(user?.plan);
+  const planFeatures = user?.plan_features;
+  const quota = invoiceQuotaFromUser(user);
+  const proFeatures = canExportCsv(planFeatures || plan);
 
   if (loading && !user) {
     return <ProfileSkeleton />;
@@ -125,6 +142,17 @@ export default function ProfilePage() {
           <i className="fa-solid fa-chevron-right profile-row-chevron" aria-hidden />
         </button>
 
+        <Link to="/app/abonnement" className="profile-row">
+          <span className="profile-row-icon" aria-hidden>
+            <i className="fa-solid fa-gem" />
+          </span>
+          <span className="profile-row-text">
+            <strong>{t("plan.tileTitle")}</strong>
+            <span>{t("plan.tileDesc")}</span>
+          </span>
+          <i className="fa-solid fa-chevron-right profile-row-chevron" aria-hidden />
+        </Link>
+
         <button type="button" className="profile-row" onClick={() => setSecurityOpen(true)}>
           <span className="profile-row-icon" aria-hidden>
             <i className="fa-solid fa-shield-halved" />
@@ -136,6 +164,48 @@ export default function ProfilePage() {
           <i className="fa-solid fa-chevron-right profile-row-chevron" aria-hidden />
         </button>
       </div>
+
+      <AppModal
+        open={planOpen}
+        onClose={() => setPlanOpen(false)}
+        title={t("plan.modalTitle")}
+        description={t("plan.modalDesc")}
+      >
+        <div className="account-plan-modal">
+          {user?.plan ? <PlanBadge plan={user.plan} /> : null}
+          <ul className="account-plan-features">
+            <li>
+              <i className={`fa-solid ${quota.limit == null ? "fa-check" : "fa-circle-info"}`} aria-hidden />
+              {quota.limit == null
+                ? t("plan.unlimited")
+                : t("plan.freeLimit", { used: quota.used, limit: quota.limit })}
+            </li>
+            <li className={proFeatures ? "is-included" : "is-locked"}>
+              <i className={`fa-solid ${proFeatures ? "fa-check" : "fa-lock"}`} aria-hidden />
+              {t("plan.csvExport")}
+            </li>
+            <li className={canImportClientsCsv(planFeatures || plan) ? "is-included" : "is-locked"}>
+              <i
+                className={`fa-solid ${canImportClientsCsv(planFeatures || plan) ? "fa-check" : "fa-lock"}`}
+                aria-hidden
+              />
+              {t("plan.csvImport")}
+            </li>
+          </ul>
+          {plan === "free" ? (
+            <p className="account-plan-upgrade-hint">{t("plan.upgradeHint")}</p>
+          ) : null}
+          {plan === "free" ? (
+            <Link className="account-plan-upgrade-btn" to="/app/abonnement?plan=pro&checkout=start" onClick={() => setPlanOpen(false)}>
+              {t("plan.upgrade")}
+            </Link>
+          ) : (
+            <Link className="account-plan-upgrade-btn account-btn--secondary" to="/app/abonnement" onClick={() => setPlanOpen(false)}>
+              {t("plan.manageBilling")}
+            </Link>
+          )}
+        </div>
+      </AppModal>
 
       <AppModal
         open={personalOpen}
@@ -203,7 +273,7 @@ export default function ProfilePage() {
               required
             />
           </div>
-          <div className="account-field">
+          <div className="account-field account-field--full">
             <FieldLabel htmlFor="password" required>
               {t("security.new")}
             </FieldLabel>
@@ -218,7 +288,7 @@ export default function ProfilePage() {
               minLength={8}
             />
           </div>
-          <div className="account-field">
+          <div className="account-field account-field--full">
             <FieldLabel htmlFor="password_confirmation" required>
               {t("security.confirm")}
             </FieldLabel>
@@ -233,13 +303,17 @@ export default function ProfilePage() {
               minLength={8}
             />
           </div>
-          <p className="account-field account-field--full" style={{ margin: 0, fontSize: 12, color: "var(--color-text-muted)" }}>
-            {t("security.hint")}
-          </p>
+          <PasswordRequirements
+            className="account-field--full"
+            password={form.password}
+            confirmPassword={form.password_confirmation}
+            showConfirmation
+          />
           <FormActions
             onCancel={() => setSecurityOpen(false)}
             submitLabel={t("security.save")}
             saving={savingSecurity}
+            submitDisabled={loading || !canSavePassword}
           />
         </form>
       </AppModal>

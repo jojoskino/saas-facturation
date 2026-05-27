@@ -35,6 +35,11 @@ use Laravel\Sanctum\HasApiTokens;
     'timezone',
     'notifications_email',
     'plan',
+    'stripe_customer_id',
+    'stripe_subscription_id',
+    'billing_status',
+    'plan_period_end',
+    'billing_payment_method',
 ])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements MustVerifyEmail
@@ -75,6 +80,8 @@ class User extends Authenticatable implements MustVerifyEmail
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'notifications_email' => 'boolean',
+            'plan_period_end' => 'datetime',
+            'billing_payment_method' => 'array',
         ];
     }
 

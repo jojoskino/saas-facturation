@@ -18,8 +18,8 @@
             </p>
         </td>
         <td class="doc-issuer" style="width:45%;">
-            @if(!empty($branding['logoPath']))
-                <img src="{{ $branding['logoPath'] }}" alt="" class="doc-logo">
+            @if(!empty($branding['logoSrc']))
+                <img src="{{ $branding['logoSrc'] }}" alt="" class="doc-logo">
             @endif
             <div class="doc-issuer-name">{{ $issuer['name'] }}</div>
             @if($issuer['address'])<div>{{ $issuer['address'] }}</div>@endif

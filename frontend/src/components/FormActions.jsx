@@ -30,7 +30,7 @@ export default function FormActions({
         className="form-actions__btn form-actions__btn--primary"
         disabled={submitDisabled || saving}
       >
-        {saving ? savingLabel ?? t("actions.saving") : submitLabel}
+        {saving ? savingLabel ?? t("actions.saving") : submitLabel ?? t("actions.save")}
       </button>
     </div>
   );

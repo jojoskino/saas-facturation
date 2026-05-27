@@ -4,6 +4,8 @@ import "../styles/auth-pages.css";
 import { apiFetch } from "../api/client";
 import { AuthBrand } from "../components/AuthShell";
 import PasswordField from "../components/PasswordField";
+import PasswordRequirements from "../components/PasswordRequirements";
+import { evaluatePassword, passwordsMatch, PASSWORD_POLICY_HINT } from "../utils/passwordPolicy";
 
 export default function ResetPassword() {
   const [params] = useSearchParams();
@@ -15,8 +17,16 @@ export default function ResetPassword() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
+  const passwordValid = evaluatePassword(password).valid;
+  const confirmationValid = passwordsMatch(password, passwordConfirmation);
+  const canSubmit = passwordValid && confirmationValid && Boolean(token) && Boolean(email);
+
   async function onSubmit(e) {
     e.preventDefault();
+    if (!canSubmit) {
+      setError(PASSWORD_POLICY_HINT);
+      return;
+    }
     setLoading(true);
     setError("");
     setMessage("");
@@ -54,8 +64,14 @@ export default function ResetPassword() {
           label="Mot de passe"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          placeholder="Ex. : MonSecret1!"
           autoComplete="new-password"
           minLength={8}
+        />
+        <PasswordRequirements
+          password={password}
+          confirmPassword={passwordConfirmation}
+          showConfirmation
         />
         <PasswordField
           id="reset-password2"
@@ -65,7 +81,7 @@ export default function ResetPassword() {
           autoComplete="new-password"
           minLength={8}
         />
-        <button className="auth-submit" type="submit" disabled={loading || !token || !email}>
+        <button className="auth-submit" type="submit" disabled={loading || !canSubmit}>
           {loading ? "Enregistrement..." : "Réinitialiser"}
         </button>
       </form>

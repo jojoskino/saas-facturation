@@ -5,14 +5,29 @@ namespace App\Services;
 use App\Models\Invoice;
 use App\Models\Quote;
 use App\Models\User;
+use App\Services\InvoiceQuotaService;
 use App\Support\DocumentNumberGenerator;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Validation\ValidationException;
 
 class QuoteToInvoiceService
 {
+    public function __construct(
+        private readonly InvoiceQuotaService $quota,
+    ) {}
+
     public function convert(User $user, Quote $quote): Invoice|JsonResponse
     {
+        try {
+            $this->quota->assertCanCreate($user);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'message' => collect($e->errors())->flatten()->first() ?: $e->getMessage(),
+                'errors' => $e->errors(),
+            ], 422);
+        }
+
         $quote->loadMissing(['items', 'client']);
 
         if ($quote->status !== 'accepted') {

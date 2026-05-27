@@ -98,25 +98,53 @@ class DocumentPdfService
     }
 
     /**
-     * @return array{primary: string, accent: string, logoPath: string|null}
+     * @return array{primary: string, accent: string, logoSrc: string|null}
      */
     private function branding(User $user): array
     {
         $primary = $user->document_color_primary ?: '#14213d';
         $accent = $user->document_color_accent ?: '#fca311';
-        $logoPath = null;
-        if ($user->company_logo_path) {
-            $absolute = storage_path('app/public/'.$user->company_logo_path);
-            if (is_file($absolute)) {
-                $logoPath = $absolute;
-            }
-        }
 
         return [
             'primary' => $primary,
             'accent' => $accent,
-            'logoPath' => $logoPath,
+            'logoSrc' => $this->logoDataUri($user->company_logo_path),
         ];
+    }
+
+    private function logoDataUri(?string $relativePath): ?string
+    {
+        if (! $relativePath) {
+            return null;
+        }
+
+        $absolute = storage_path('app/public/'.ltrim($relativePath, '/'));
+        if (! is_file($absolute) || ! is_readable($absolute)) {
+            return null;
+        }
+
+        $binary = file_get_contents($absolute);
+        if ($binary === false) {
+            return null;
+        }
+
+        $mime = mime_content_type($absolute) ?: $this->guessImageMime($absolute);
+        if (! is_string($mime) || ! str_starts_with($mime, 'image/')) {
+            return null;
+        }
+
+        return 'data:'.$mime.';base64,'.base64_encode($binary);
+    }
+
+    private function guessImageMime(string $absolutePath): string
+    {
+        return match (strtolower(pathinfo($absolutePath, PATHINFO_EXTENSION))) {
+            'jpg', 'jpeg' => 'image/jpeg',
+            'gif' => 'image/gif',
+            'webp' => 'image/webp',
+            'svg' => 'image/svg+xml',
+            default => 'image/png',
+        };
     }
 
     /**

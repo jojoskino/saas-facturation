@@ -6,6 +6,7 @@ import DocumentPreviewModal from "../../components/DocumentPreviewModal";
 import { useTranslation } from "react-i18next";
 import { AppDateField, AppSelect, FieldLabel } from "../../components/AppFormControls";
 import InlineStatusSelect from "../../components/InlineStatusSelect";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import ModalPortal from "../../components/ModalPortal";
 
 const defaultForm = {
@@ -61,6 +62,9 @@ export default function FacturesPage() {
   const [paymentForm, setPaymentForm] = useState({ amount: "", method: "", reference: "", paid_at: "" });
   const [paymentSaving, setPaymentSaving] = useState(false);
   const [previewTarget, setPreviewTarget] = useState(null);
+  const [confirmState, setConfirmState] = useState(null);
+  const [confirmLoading, setConfirmLoading] = useState(false);
+  const [editingSnapshot, setEditingSnapshot] = useState(null);
 
   const isEditing = editingId !== null;
 
@@ -108,6 +112,7 @@ export default function FacturesPage() {
 
   function resetForm() {
     setEditingId(null);
+    setEditingSnapshot(null);
     setForm(defaultForm);
   }
 
@@ -136,6 +141,7 @@ export default function FacturesPage() {
       paid_at: toDateInput(invoice.paid_at),
       notes: invoice.notes || "",
     });
+    setEditingSnapshot({ number: invoice.number || `#${invoice.id}`, status: invoice.status || "draft" });
     setModalOpen(true);
   }
 
@@ -147,6 +153,15 @@ export default function FacturesPage() {
   function onChangeField(e) {
     const { name, value } = e.target;
     setForm((prev) => {
+      if (name === "status" && editingId && value !== prev.status) {
+        const invoiceRef = {
+          id: editingId,
+          number: editingSnapshot?.number || (editingId ? `#${editingId}` : "—"),
+          status: prev.status,
+        };
+        setConfirmState({ type: "status", invoice: invoiceRef, toStatus: value });
+        return prev;
+      }
       const next = { ...prev, [name]: value };
       if (name === "subtotal" || name === "tax_amount") {
         const subtotal = Number.parseFloat(next.subtotal);
@@ -223,27 +238,51 @@ export default function FacturesPage() {
     }
   }
 
-  async function updateInvoiceStatus(invoice, status) {
+  function requestStatusChange(invoice, status) {
     if (status === invoice.status) return;
-    setError("");
-    try {
-      await apiFetch(`/api/invoices/${invoice.id}`, {
-        method: "PUT",
-        body: JSON.stringify({ status }),
-      });
-      setInvoices((prev) => prev.map((inv) => (inv.id === invoice.id ? { ...inv, status } : inv)));
-    } catch (err) {
-      setError(extractApiMessage(err, "Impossible de modifier le statut."));
-    }
+    setConfirmState({ type: "status", invoice, toStatus: status });
   }
 
-  async function createCreditNote(invoice) {
+  function requestCreditNote(invoice) {
+    setConfirmState({ type: "creditNote", invoice });
+  }
+
+  async function confirmPendingAction() {
+    if (!confirmState) return;
+    setConfirmLoading(true);
+    setError("");
+    setSuccess("");
     try {
-      await apiFetch(`/api/invoices/${invoice.id}/credit-note`, { method: "POST" });
-      setSuccess("Avoir cree.");
-      await loadInvoices(page);
+      if (confirmState.type === "status") {
+        const { invoice, toStatus } = confirmState;
+        if (modalOpen && editingId === invoice.id) {
+          setForm((prev) => {
+            const next = { ...prev, status: toStatus };
+            if (toStatus !== "paid") next.paid_at = "";
+            if (toStatus === "paid" && !next.paid_at) {
+              next.paid_at = new Date().toISOString().slice(0, 10);
+            }
+            return next;
+          });
+          setEditingSnapshot((prev) => (prev ? { ...prev, status: toStatus } : prev));
+        } else {
+          await apiFetch(`/api/invoices/${invoice.id}`, {
+            method: "PUT",
+            body: JSON.stringify({ status: toStatus }),
+          });
+          setInvoices((prev) => prev.map((inv) => (inv.id === invoice.id ? { ...inv, status: toStatus } : inv)));
+        }
+      } else if (confirmState.type === "creditNote") {
+        const { invoice } = confirmState;
+        await apiFetch(`/api/invoices/${invoice.id}/credit-note`, { method: "POST" });
+        setSuccess("Avoir cree.");
+        await loadInvoices(page);
+      }
+      setConfirmState(null);
     } catch (err) {
-      setError(extractApiMessage(err, "Impossible de creer l'avoir."));
+      setError(extractApiMessage(err, "Action impossible."));
+    } finally {
+      setConfirmLoading(false);
     }
   }
 
@@ -361,10 +400,7 @@ export default function FacturesPage() {
           background: linear-gradient(180deg, #fbfcff 0%, #ffffff 100%);
           padding: 12px;
           box-shadow: 0 4px 14px rgba(20, 33, 61, 0.04);
-          position: relative;
-          z-index: 20;
         }
-        .inv-card.doc-list-card { position: relative; z-index: 1; }
         .inv-toolbar {
           display: grid;
           grid-template-columns: minmax(300px, 1.35fr) 170px auto;
@@ -639,7 +675,7 @@ export default function FacturesPage() {
                       <InlineStatusSelect
                         value={invoice.status || "draft"}
                         options={statusOptions}
-                        onChange={(next) => updateInvoiceStatus(invoice, next)}
+                        onChange={(next) => requestStatusChange(invoice, next)}
                       />
                     </td>
                     <td>
@@ -652,7 +688,7 @@ export default function FacturesPage() {
                             <button className="inv-icon-btn" type="button" onClick={() => openPayments(invoice)} title="Paiements">
                               <i className="fa-solid fa-coins" />
                             </button>
-                            <button className="inv-icon-btn" type="button" onClick={() => createCreditNote(invoice)} title="Creer un avoir">
+                            <button className="inv-icon-btn" type="button" onClick={() => requestCreditNote(invoice)} title="Creer un avoir">
                               <i className="fa-solid fa-rotate-left" />
                             </button>
                           </>
@@ -867,32 +903,47 @@ export default function FacturesPage() {
       ) : null}
 
       {deleteTarget ? (
-        <ModalPortal>
-        <div className="inv-modal-backdrop" role="dialog" aria-modal="true" onClick={() => setDeleteTarget(null)}>
-          <section className="inv-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="inv-modal-head">
-              <h2>Supprimer la facture</h2>
-              <button className="inv-icon-btn" type="button" onClick={() => setDeleteTarget(null)} aria-label="Fermer">
-                <i className="fa-solid fa-xmark" />
-              </button>
-            </div>
-            <p className="inv-sub">
-              Confirmer la suppression de <strong>{deleteTarget.number}</strong> ?
-            </p>
-            <div className="inv-form-actions">
-              <button className="inv-btn inv-btn--primary" type="button" onClick={confirmDelete} disabled={deletingId !== null}>
-                {deletingId ? "Suppression..." : "Confirmer"}
-              </button>
-              <button className="inv-btn inv-btn--danger-soft" type="button" onClick={() => setDeleteTarget(null)} disabled={deletingId !== null}>
-                Annuler
-              </button>
-            </div>
-          </section>
-        </div>
-        </ModalPortal>
+        <ConfirmDialog
+          open
+          title="Supprimer la facture"
+          description={`Confirmer la suppression de ${deleteTarget.number} ?`}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={confirmDelete}
+          saving={deletingId !== null}
+        />
+      ) : null}
+
+      {confirmState?.type === "status" ? (
+        <ConfirmDialog
+          open
+          title={t("invoices.confirmStatusTitle")}
+          description={t("invoices.confirmStatusDesc", {
+            number: confirmState.invoice.number,
+            from: statusLabel(statusOptions, confirmState.invoice.status),
+            to: statusLabel(statusOptions, confirmState.toStatus),
+          })}
+          onClose={() => setConfirmState(null)}
+          onConfirm={confirmPendingAction}
+          saving={confirmLoading}
+        />
+      ) : null}
+
+      {confirmState?.type === "creditNote" ? (
+        <ConfirmDialog
+          open
+          title={t("invoices.confirmCreditNoteTitle")}
+          description={t("invoices.confirmCreditNoteDesc", { number: confirmState.invoice.number })}
+          onClose={() => setConfirmState(null)}
+          onConfirm={confirmPendingAction}
+          saving={confirmLoading}
+        />
       ) : null}
     </div>
   );
+}
+
+function statusLabel(options, value) {
+  return options.find((opt) => opt.value === value)?.label || value || "—";
 }
 
 function validateInvoiceForm(form) {

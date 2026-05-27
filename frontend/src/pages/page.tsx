@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
+import { getStoredToken } from "../api/client";
+import { isExternalHref, publicPlanCtaHref } from "../utils/billingFlow";
 
 function Reveal({ children }: { children: React.ReactNode }) {
   return (
@@ -20,7 +22,10 @@ export default function Page() {
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [openFaq, setOpenFaq] = useState(0);
+  const [isLoggedIn, setIsLoggedIn] = useState(() => Boolean(getStoredToken()));
+
   useEffect(() => {
+    setIsLoggedIn(Boolean(getStoredToken()));
     const onScroll = () => {
       const y = window.scrollY;
       setScrolled(y > 8);
@@ -103,13 +108,12 @@ export default function Page() {
   return (
     <div className="facturo">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Syne:wght@600;700;800&display=swap');
         html { scroll-behavior: smooth; }
         .facturo {
           min-height: 100vh;
-          background: var(--color-bg);
+          background: linear-gradient(165deg, #f8faff 0%, #eef3fc 50%, #f4f7ff 100%);
           color: var(--color-text);
-          font-family: "DM Sans", system-ui, sans-serif;
+          font-family: var(--sans);
           position: relative;
           overflow-x: hidden;
         }
@@ -137,21 +141,62 @@ export default function Page() {
           justify-content: center;
         }
         .btn:hover { transform: translateY(-1px); filter: brightness(1.01); box-shadow: 0 8px 18px rgba(20, 33, 61, 0.1); }
-        .btn-primary { background: #162646; color: var(--color-primary-contrast); border: 1px solid #162646; }
-        .btn-secondary { border: 1px solid #cfd9ec; color: #1d2b4f; background: rgba(255, 255, 255, 0.75); }
+        .btn-primary { background: #14213d; color: #fff; border: 1px solid #14213d; }
+        .btn-secondary { border: 1px solid #cfd9ec; color: #14213d; background: rgba(255, 255, 255, 0.92); }
+        .btn-pill-nav {
+          border-radius: 999px;
+          padding: 10px 20px;
+          font-size: 14px;
+        }
 
         .navbar {
           position: sticky;
           top: 0;
           z-index: 40;
-          backdrop-filter: blur(14px);
-          background: ${scrolled ? "rgba(255,255,255,0.72)" : "rgba(255,255,255,0.56)"};
-          border-bottom: 1px solid ${scrolled ? "rgba(20,33,61,0.14)" : "transparent"};
-          transition: border-color .2s ease, background-color .2s ease;
+          padding: max(12px, env(safe-area-inset-top, 0px)) clamp(12px, 3vw, 20px) 10px;
+          margin-bottom: 0;
+          background: transparent;
+          border: none;
         }
-        .nav-wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; }
-        .logo { font-family: var(--heading); font-size: 24px; font-weight: 800; }
-        .logo span { color: var(--color-accent); }
+        .nav-pill {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          width: min(1120px, 100%);
+          margin: 0 auto;
+          padding: 8px 10px 8px 22px;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.94);
+          box-shadow:
+            0 18px 48px rgba(26, 24, 64, 0.08),
+            0 0 0 1px rgba(26, 24, 64, 0.05);
+          backdrop-filter: blur(16px);
+          transition: box-shadow 0.25s ease, transform 0.25s ease;
+        }
+        .navbar.is-scrolled .nav-pill {
+          box-shadow:
+            0 14px 36px rgba(26, 24, 64, 0.12),
+            0 0 0 1px rgba(26, 24, 64, 0.07);
+        }
+        .nav-wrap { display: contents; }
+        .logo {
+          font-family: var(--heading);
+          font-size: 22px;
+          font-weight: 800;
+          color: #14213d;
+          letter-spacing: -0.03em;
+          flex-shrink: 0;
+        }
+        .logo span { color: #fca311; }
+        a.logo { text-decoration: none; color: inherit; }
+        .nav-pill .links {
+          display: flex;
+          gap: 4px;
+          align-items: center;
+          flex: 1;
+          justify-content: center;
+        }
         .links { display: flex; gap: 8px; align-items: center; }
         .links a {
           position: relative;
@@ -185,7 +230,10 @@ export default function Page() {
         .links a:focus-visible::after {
           transform: scaleX(1);
         }
-        .nav-actions { display: flex; align-items: center; gap: 10px; }
+        .nav-pill .links a::after {
+          background: #fca311;
+        }
+        .nav-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
         .menu-toggle {
           display: none;
           border: 1px solid var(--color-border-strong);
@@ -247,8 +295,9 @@ export default function Page() {
 
         .hero {
           position: relative;
-          padding: clamp(56px, 9vw, 108px) 0 clamp(64px, 7vw, 96px);
+          padding: 0 0 clamp(56px, 6vw, 80px);
           overflow: hidden;
+          min-height: min(78vh, 720px);
         }
         .hero::before {
           content: "";
@@ -256,138 +305,120 @@ export default function Page() {
           inset: 0;
           pointer-events: none;
           background:
-            radial-gradient(ellipse 90% 70% at 88% 12%, rgba(252, 163, 17, 0.14), transparent 52%),
-            radial-gradient(ellipse 60% 50% at 8% 92%, rgba(20, 33, 61, 0.07), transparent 50%),
-            linear-gradient(165deg, #f8faff 0%, #eef3fc 48%, #f4f7ff 100%);
+            radial-gradient(ellipse 55% 45% at 82% 8%, rgba(252, 163, 17, 0.18), transparent 55%),
+            radial-gradient(ellipse 45% 40% at 6% 78%, rgba(20, 33, 61, 0.06), transparent 50%),
+            linear-gradient(165deg, #f8faff 0%, #eef3fc 50%, #f4f7ff 100%);
+        }
+        .hero-blob {
+          position: absolute;
+          border-radius: 50%;
+          filter: blur(48px);
+          pointer-events: none;
+          z-index: 0;
+          animation: hero-float 9s ease-in-out infinite;
+        }
+        .hero-blob--1 {
+          width: min(320px, 50vw);
+          height: min(320px, 50vw);
+          top: 8%;
+          right: 12%;
+          background: rgba(252, 163, 17, 0.22);
+        }
+        .hero-blob--2 {
+          width: min(240px, 40vw);
+          height: min(240px, 40vw);
+          bottom: 12%;
+          left: 4%;
+          background: rgba(20, 33, 61, 0.08);
+          animation-delay: -3s;
+        }
+        @keyframes hero-float {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          50% { transform: translate(8px, -12px) scale(1.04); }
         }
         .hero-grid {
           display: grid;
-          grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr);
-          gap: clamp(28px, 5vw, 56px);
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+          gap: clamp(28px, 4vw, 52px);
           align-items: center;
           position: relative;
           z-index: 1;
         }
         .hero-copy {
-          max-width: 34rem;
-        }
-        .hero-eyebrow {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          padding: 6px 12px 6px 8px;
-          border-radius: 999px;
-          border: 1px solid rgba(252, 163, 17, 0.45);
-          background: rgba(255, 255, 255, 0.85);
-          color: #14213d;
-          font-size: 12px;
-          font-weight: 700;
-          letter-spacing: 0.02em;
-          margin-bottom: 20px;
-        }
-        .hero-eyebrow i {
-          width: 22px;
-          height: 22px;
-          border-radius: 999px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          background: #fca311;
-          color: #14213d;
-          font-size: 10px;
+          max-width: 32rem;
+          padding-top: clamp(8px, 2vw, 20px);
         }
         .hero h1 {
-          font-size: clamp(38px, 6.8vw, 68px);
-          line-height: 1.02;
-          max-width: 11ch;
+          font-size: clamp(34px, 5.2vw, 56px);
+          line-height: 1.08;
+          max-width: 12ch;
           font-weight: 800;
+          color: #14213d;
+          letter-spacing: -0.035em;
         }
         .hero h1 em {
           font-style: normal;
           color: #fca311;
         }
         .hero-lead {
-          margin-top: 22px;
-          font-size: clamp(16px, 2vw, 19px);
-          line-height: 1.6;
-          max-width: 38ch;
+          margin-top: 16px;
+          font-size: clamp(16px, 1.9vw, 18px);
+          line-height: 1.55;
+          max-width: 36ch;
           color: #4b5a74;
         }
-        .cta { display: flex; gap: 12px; margin-top: 28px; flex-wrap: wrap; }
-        .hero-metrics {
+        .hero-cta {
           display: flex;
           flex-wrap: wrap;
-          gap: 10px;
-          margin-top: 32px;
-          padding-top: 28px;
-          border-top: 1px solid rgba(20, 33, 61, 0.1);
+          gap: 12px;
+          margin-top: 28px;
+          align-items: center;
         }
-        .hero-metric {
-          flex: 1 1 140px;
-          min-width: 0;
-          padding: 12px 14px;
-          border-radius: 12px;
-          background: rgba(255, 255, 255, 0.9);
-          border: 1px solid rgba(20, 33, 61, 0.1);
-          box-shadow: 0 8px 20px rgba(20, 33, 61, 0.06);
+        .btn-hero-primary {
+          border-radius: 999px;
+          padding: 14px 28px;
+          font-size: 15px;
+          box-shadow: 0 12px 28px rgba(20, 33, 61, 0.18);
         }
-        .hero-metric strong {
-          display: block;
-          font-size: 18px;
-          color: #14213d;
-          font-family: var(--heading);
-          letter-spacing: -0.02em;
+        .btn-hero-secondary {
+          border-radius: 999px;
+          padding: 14px 22px;
+          font-size: 15px;
         }
-        .hero-metric span {
-          display: block;
-          margin-top: 2px;
-          font-size: 12px;
-          color: #4b5a74;
-          line-height: 1.35;
-        }
-
         .hero-visual-wrap {
           position: relative;
+          min-height: clamp(280px, 38vw, 420px);
         }
-        .hero-visual-glow {
-          position: absolute;
-          inset: 8% -6% -8% -6%;
-          border-radius: 28px;
-          background: linear-gradient(135deg, rgba(252, 163, 17, 0.35), rgba(20, 33, 61, 0.12));
-          filter: blur(40px);
-          z-index: 0;
-        }
-        .hero-visual {
+        .hero-visual-card {
           position: relative;
-          z-index: 1;
-          border-radius: 22px;
+          border-radius: 20px;
           overflow: hidden;
-          border: 1px solid rgba(255, 255, 255, 0.9);
+          border: 1px solid rgba(255, 255, 255, 0.95);
           box-shadow:
             0 0 0 1px rgba(20, 33, 61, 0.08),
-            0 32px 64px rgba(20, 33, 61, 0.16);
+            0 28px 56px rgba(20, 33, 61, 0.14);
           background: #fff;
-          transform: perspective(1200px) rotateY(-4deg) rotateX(2deg);
-          transition: transform 0.4s ease;
+          transform: perspective(900px) rotateY(-3deg) rotateX(1deg);
+          transition: transform 0.35s ease;
         }
-        .hero-visual-wrap:hover .hero-visual {
-          transform: perspective(1200px) rotateY(-2deg) rotateX(1deg) translateY(-4px);
+        .hero-visual-wrap:hover .hero-visual-card {
+          transform: perspective(900px) rotateY(-1deg) translateY(-6px);
         }
-        .hero-visual img {
+        .hero-visual-card img {
           display: block;
           width: 100%;
           height: auto;
-          object-fit: cover;
           aspect-ratio: 16 / 11;
+          object-fit: cover;
         }
-        .hero-float {
+        .hero-chip {
           position: absolute;
           z-index: 2;
           padding: 10px 14px;
           border-radius: 12px;
           background: rgba(255, 255, 255, 0.96);
           border: 1px solid rgba(20, 33, 61, 0.1);
-          box-shadow: 0 12px 28px rgba(20, 33, 61, 0.12);
+          box-shadow: 0 12px 28px rgba(20, 33, 61, 0.1);
           font-size: 12px;
           font-weight: 700;
           color: #14213d;
@@ -395,15 +426,25 @@ export default function Page() {
           align-items: center;
           gap: 8px;
           backdrop-filter: blur(8px);
+          animation: hero-float 7s ease-in-out infinite;
         }
-        .hero-float i { color: #fca311; }
-        .hero-float--top {
-          top: 16px;
-          right: -8px;
+        .hero-chip i { color: #fca311; }
+        .hero-chip--top { top: 12%; right: -4%; animation-delay: -1s; }
+        .hero-chip--bottom { bottom: 14%; left: -6%; animation-delay: -4s; }
+        .hero-ring {
+          position: absolute;
+          width: 120px;
+          height: 120px;
+          border-radius: 50%;
+          border: 2px dashed rgba(252, 163, 17, 0.35);
+          top: 50%;
+          left: -20px;
+          transform: translateY(-50%);
+          pointer-events: none;
+          animation: hero-spin 24s linear infinite;
         }
-        .hero-float--bottom {
-          bottom: 20px;
-          left: -12px;
+        @keyframes hero-spin {
+          to { transform: translateY(-50%) rotate(360deg); }
         }
 
         .section { padding: 74px 0; }
@@ -611,9 +652,99 @@ export default function Page() {
             var(--color-surface);
         }
 
-        footer { margin-top: 74px; padding: 34px 0 44px; border-top: 1px solid #d8e2f3; }
-        .foot { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 18px; color: #4b5a74; }
-        .foot-title { color: var(--color-text); font-weight: 700; margin-bottom: 8px; }
+        .site-footer {
+          margin-top: 64px;
+          background: #14213d;
+          color: rgba(255, 255, 255, 0.82);
+        }
+        .site-footer a {
+          color: rgba(255, 255, 255, 0.88);
+          text-decoration: none;
+          transition: color 0.2s ease;
+        }
+        .site-footer a:hover { color: #fca311; }
+        .foot {
+          display: grid;
+          grid-template-columns: 1.35fr repeat(3, minmax(0, 1fr));
+          gap: clamp(24px, 4vw, 40px);
+          padding: clamp(40px, 5vw, 52px) 0 32px;
+        }
+        .foot-brand .logo { color: #fff; font-size: 26px; }
+        .foot-brand .logo span { color: #fca311; }
+        .foot-brand p {
+          margin: 12px 0 0;
+          max-width: 28ch;
+          line-height: 1.55;
+          font-size: 14px;
+          color: rgba(255, 255, 255, 0.72);
+        }
+        .foot-cta {
+          display: inline-flex;
+          margin-top: 16px;
+          padding: 10px 18px;
+          border-radius: 999px;
+          background: #fca311;
+          color: #14213d !important;
+          font-weight: 700;
+          font-size: 14px;
+        }
+        .foot-cta:hover { filter: brightness(1.05); color: #14213d !important; }
+        .foot-title {
+          margin: 0 0 12px;
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: #fca311;
+        }
+        .foot-links {
+          list-style: none;
+          margin: 0;
+          padding: 0;
+          display: grid;
+          gap: 8px;
+        }
+        .foot-links a { font-size: 14px; font-weight: 500; }
+        .foot-contact {
+          margin: 0;
+          font-size: 14px;
+          line-height: 1.5;
+        }
+        .socials {
+          display: flex;
+          gap: 8px;
+          margin-top: 14px;
+        }
+        .socials a {
+          width: 38px;
+          height: 38px;
+          border-radius: 10px;
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          display: grid;
+          place-items: center;
+          color: #fff !important;
+        }
+        .socials a:hover {
+          border-color: #fca311;
+          background: rgba(252, 163, 17, 0.15);
+          color: #fca311 !important;
+        }
+        .foot-bottom {
+          border-top: 1px solid rgba(255, 255, 255, 0.12);
+          padding: 18px 0 24px;
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          font-size: 13px;
+          color: rgba(255, 255, 255, 0.55);
+        }
+        .foot-bottom-links {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 16px;
+        }
         .socials { display: flex; gap: 8px; }
         .socials a {
           width: 30px;
@@ -666,120 +797,106 @@ export default function Page() {
           .mobile-menu.open { display: block; }
         }
         @media (max-width: 720px) {
+          .hero { min-height: auto; padding-bottom: 48px; }
           .hero, .section { padding-top: 42px; }
           .hero-grid, .features, .steps, .pricing-grid, .testimonials, .foot { grid-template-columns: 1fr; }
-          .hero-visual { transform: none; }
-          .hero-visual-wrap:hover .hero-visual { transform: translateY(-4px); }
-          .hero-float--top { right: 8px; }
-          .hero-float--bottom { left: 8px; }
+          .hero-visual-wrap { min-height: 240px; }
+          .hero-chip--top { right: 4px; }
+          .hero-chip--bottom { left: 4px; }
+          .foot-bottom { flex-direction: column; align-items: flex-start; }
           .cta-band { text-align: left; }
           .btn { width: 100%; }
           .nav-actions .btn { width: auto; }
         }
       `}</style>
 
-      <header className="navbar">
-        <div className="container nav-wrap">
-          <div className="logo">
-            Factu<span>ro</span>
-          </div>
-          <nav className="links">
-            <a href="#features">Fonctionnalites</a>
-            <a href="#pricing">Tarifs</a>
-            <a href="#faq">FAQ</a>
-          </nav>
-          <div className="nav-actions">
-            <Link className="btn btn-secondary" to="/login">
-              Se connecter
-            </Link>
-            <Link className="btn btn-primary" to="/register">
-              Commencer
-            </Link>
-            <button
-              type="button"
-              className={`menu-toggle ${menuOpen ? "is-open" : ""}`}
-              aria-expanded={menuOpen}
-              aria-label={menuOpen ? "Fermer le menu" : "Ouvrir le menu"}
-              onClick={() => setMenuOpen((prev) => !prev)}
-            >
-              <span className="menu-burger" aria-hidden="true">
-                <span />
-                <span />
-                <span />
-              </span>
-            </button>
-          </div>
-        </div>
-        <div className={`container mobile-menu ${menuOpen ? "open" : ""}`}>
-          <a href="#features" onClick={() => setMenuOpen(false)}>Fonctionnalites</a>
-          <a href="#pricing" onClick={() => setMenuOpen(false)}>Tarifs</a>
-          <a href="#faq" onClick={() => setMenuOpen(false)}>FAQ</a>
-          <Link to="/login" onClick={() => setMenuOpen(false)}>Connexion</Link>
-          <Link to="/register" onClick={() => setMenuOpen(false)}>Creer un compte</Link>
-        </div>
-      </header>
-
       <main>
       <section className="hero">
+        <header className={`navbar ${scrolled ? "is-scrolled" : ""}`}>
+          <div className="nav-pill">
+            <div className="nav-wrap">
+            <Link className="logo" to="/">
+              Factu<span>ro</span>
+            </Link>
+            <nav className="links">
+              <a href="#features">Fonctionnalités</a>
+              <a href="#pricing">Tarifs</a>
+              <a href="#faq">FAQ</a>
+            </nav>
+            <div className="nav-actions">
+              <Link className="btn btn-secondary btn-pill-nav" to={isLoggedIn ? "/app" : "/login"}>
+                {isLoggedIn ? "Mon espace" : "Connexion"}
+              </Link>
+              <Link className="btn btn-primary btn-pill-nav" to={isLoggedIn ? "/app/abonnement?plan=pro&checkout=start" : "/register"}>
+                {isLoggedIn ? "Passer à Pro" : "Commencer"}
+              </Link>
+              <button
+                type="button"
+                className={`menu-toggle ${menuOpen ? "is-open" : ""}`}
+                aria-expanded={menuOpen}
+                aria-label={menuOpen ? "Fermer le menu" : "Ouvrir le menu"}
+                onClick={() => setMenuOpen((prev) => !prev)}
+              >
+                <span className="menu-burger" aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                </span>
+              </button>
+            </div>
+            </div>
+          </div>
+          <div className={`container mobile-menu ${menuOpen ? "open" : ""}`}>
+            <a href="#features" onClick={() => setMenuOpen(false)}>Fonctionnalites</a>
+            <a href="#pricing" onClick={() => setMenuOpen(false)}>Tarifs</a>
+            <a href="#faq" onClick={() => setMenuOpen(false)}>FAQ</a>
+            <Link to="/login" onClick={() => setMenuOpen(false)}>Connexion</Link>
+            <Link to="/register" onClick={() => setMenuOpen(false)}>Creer un compte</Link>
+          </div>
+        </header>
+        <div className="hero-blob hero-blob--1" aria-hidden />
+        <div className="hero-blob hero-blob--2" aria-hidden />
         <div className="container hero-grid">
           <Reveal>
             <div className="hero-copy">
-              <span className="hero-eyebrow">
-                <i className="fa-solid fa-bolt" aria-hidden />
-                Facturation pour freelances & TPE
-              </span>
               <h1>
-                Facturez en <em>30 secondes</em>.
+                Facturez <em>simple</em>, vite.
               </h1>
-
               <p className="hero-lead">
-                Devis, factures et relances automatiques — tout votre suivi commercial au même endroit.
+                Devis et factures conformes pour freelances et TPE — gratuit pour démarrer.
               </p>
-
-              <div className="cta">
-                <a className="btn btn-primary" href="#pricing">
+              <div className="hero-cta">
+                <Link
+                  className="btn btn-primary btn-hero-primary"
+                  to={isLoggedIn ? "/app" : "/register"}
+                >
                   Commencer gratuitement
+                </Link>
+                <a className="btn btn-secondary btn-hero-secondary" href="#pricing">
+                  Voir les tarifs
                 </a>
-                <a className="btn btn-secondary" href="#how">
-                  Voir comment ça marche
-                </a>
-              </div>
-
-              <div className="hero-metrics">
-                <div className="hero-metric">
-                  <strong>30 s</strong>
-                  <span>pour créer une facture</span>
-                </div>
-                <div className="hero-metric">
-                  <strong>100 %</strong>
-                  <span>mentions légales intégrées</span>
-                </div>
-                <div className="hero-metric">
-                  <strong>24/7</strong>
-                  <span>suivi des paiements</span>
-                </div>
               </div>
             </div>
           </Reveal>
 
           <Reveal>
             <div className="hero-visual-wrap">
-              <div className="hero-visual-glow" aria-hidden />
-              <div className="hero-visual">
+              <div className="hero-ring" aria-hidden />
+              <div className="hero-visual-card">
                 <img
                   src="/images/hero-app.png"
-                  alt="Aperçu du tableau de bord Facturo : devis, factures et suivi des paiements"
+                  alt="Tableau de bord Facturo"
                   loading="eager"
                   decoding="async"
                 />
               </div>
-              <span className="hero-float hero-float--top">
-                <i className="fa-solid fa-chart-line" aria-hidden />
-                Tableau de bord live
+              <span className="hero-chip hero-chip--top">
+                <i className="fa-solid fa-file-invoice" aria-hidden />
+                Factures conformes
               </span>
-              <span className="hero-float hero-float--bottom">
-                <i className="fa-solid fa-file-invoice-dollar" aria-hidden />
-                Devis → Facture en 1 clic
+              <span className="hero-chip hero-chip--bottom">
+                <i className="fa-solid fa-bolt" aria-hidden />
+                Devis → facture en 1 clic
               </span>
             </div>
           </Reveal>
@@ -847,7 +964,7 @@ export default function Page() {
         </section>
 
         <section className="section" id="pricing">
-          <div className="container">
+          <div className="container" id="tarifs">
             <Reveal>
               <div className="section-head" style={{ maxWidth: 720 }}>
                 <p className="muted" style={{ fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", fontSize: 11, marginBottom: 10 }}>
@@ -861,6 +978,7 @@ export default function Page() {
               <div className="pricing-grid">
                 {[
                   {
+                    id: "free" as const,
                     eyebrow: "Démarrage",
                     name: "Gratuit",
                     desc: "Idéal pour valider le produit et vos premiers flux documentaires.",
@@ -873,6 +991,7 @@ export default function Page() {
                     items: ["10 factures / mois", "Export PDF", "Suivi client basique", "Support communautaire"],
                   },
                   {
+                    id: "pro" as const,
                     eyebrow: "Le plus choisi",
                     name: "Pro",
                     desc: "Pour les indépendants et TPE qui facturent chaque semaine.",
@@ -891,6 +1010,7 @@ export default function Page() {
                     ],
                   },
                   {
+                    id: "enterprise" as const,
                     eyebrow: "Équipes",
                     name: "Entreprise",
                     desc: "Multi-utilisateurs, gouvernance et accompagnement dédié.",
@@ -902,7 +1022,12 @@ export default function Page() {
                     badge: null as string | null,
                     items: ["Gestion multi-utilisateurs", "SLA 99,5 %", "Onboarding dédié", "Intégrations sur mesure"],
                   },
-                ].map((plan) => (
+                ].map((plan) => {
+                  const ctaHref = publicPlanCtaHref(plan.id);
+                  const ctaClass = `btn ${plan.primary ? "btn-primary" : "btn-secondary"}`;
+                  const ctaLabel = plan.id === "pro" && isLoggedIn ? "Passer à Pro" : plan.cta;
+
+                  return (
                   <article key={plan.name} className={`price-card ${plan.primary ? "featured" : ""}`}>
                     {plan.badge ? <span className="price-badge">{plan.badge}</span> : null}
                     <div className="price-eyebrow">{plan.eyebrow}</div>
@@ -917,11 +1042,14 @@ export default function Page() {
                         <li key={item}>{item}</li>
                       ))}
                     </ul>
-                    <Link className={`btn ${plan.primary ? "btn-primary" : "btn-secondary"}`} to="/register">
-                      {plan.cta}
-                    </Link>
+                    {isExternalHref(ctaHref) ? (
+                      <a className={ctaClass} href={ctaHref}>{ctaLabel}</a>
+                    ) : (
+                      <Link className={ctaClass} to={ctaHref}>{ctaLabel}</Link>
+                    )}
                   </article>
-                ))}
+                  );
+                })}
               </div>
             </Reveal>
           </div>
@@ -974,42 +1102,58 @@ export default function Page() {
 
       </main>
 
-      <footer>
+      <footer className="site-footer">
         <div className="container foot">
-          <div>
+          <div className="foot-brand">
             <div className="logo">
               Factu<span>ro</span>
             </div>
-            <p className="muted">Facturation B2B simple, moderne et orientee performance.</p>
+            <p>Facturation claire pour freelances et petites entreprises en Afrique de l&apos;Ouest.</p>
+            <Link className="foot-cta" to={isLoggedIn ? "/app" : "/register"}>
+              {isLoggedIn ? "Ouvrir l'application" : "Créer un compte gratuit"}
+            </Link>
           </div>
           <div>
             <p className="foot-title">Produit</p>
-            <p>Fonctionnalites</p>
-            <p>Tarifs</p>
-            <p>Tableau de bord</p>
+            <ul className="foot-links">
+              <li><a href="#features">Fonctionnalités</a></li>
+              <li><a href="#how">Comment ça marche</a></li>
+              <li><a href="#pricing">Tarifs</a></li>
+              <li><a href="#faq">FAQ</a></li>
+            </ul>
           </div>
           <div>
-            <p className="foot-title">Ressources</p>
-            <p>Documentation</p>
-            <p>Centre d'aide</p>
-            <p>Guide de demarrage</p>
+            <p className="foot-title">Compte</p>
+            <ul className="foot-links">
+              <li><Link to="/login">Connexion</Link></li>
+              <li><Link to="/register">Inscription</Link></li>
+              <li><Link to={isLoggedIn ? "/app" : "/register"}>Espace app</Link></li>
+            </ul>
           </div>
           <div>
-            <p className="foot-title">Legal</p>
-            <Link to="/legal/mentions">Mentions legales</Link>
-            <br />
-            <Link to="/legal/confidentialite">Confidentialite</Link>
+            <p className="foot-title">Contact & légal</p>
+            <p className="foot-contact">
+              <a href="mailto:contact@facturo.app">contact@facturo.app</a>
+            </p>
+            <ul className="foot-links" style={{ marginTop: 12 }}>
+              <li><Link to="/legal/mentions">Mentions légales</Link></li>
+              <li><Link to="/legal/confidentialite">Confidentialité</Link></li>
+            </ul>
             <div className="socials">
               <a href="https://www.linkedin.com" target="_blank" rel="noreferrer" aria-label="LinkedIn">
                 <i className="fa-brands fa-linkedin-in" />
               </a>
-              <a href="https://x.com" target="_blank" rel="noreferrer" aria-label="X">
-                <i className="fa-brands fa-x-twitter" />
-              </a>
-              <a href="https://github.com" target="_blank" rel="noreferrer" aria-label="GitHub">
-                <i className="fa-brands fa-github" />
+              <a href="mailto:contact@facturo.app" aria-label="E-mail">
+                <i className="fa-solid fa-envelope" />
               </a>
             </div>
+          </div>
+        </div>
+        <div className="container foot-bottom">
+          <span>© {new Date().getFullYear()} Facturo. Tous droits réservés.</span>
+          <div className="foot-bottom-links">
+            <Link to="/legal/mentions">Mentions légales</Link>
+            <Link to="/legal/confidentialite">Confidentialité</Link>
           </div>
         </div>
       </footer>

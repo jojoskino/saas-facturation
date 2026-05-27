@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import ModalPortal from "./ModalPortal";
 
 /** Astérisque rouge pour champs obligatoires (usage cohérent dans toute l'app). */
 export function FieldLabel({ children, htmlFor, required = false, className = "" }) {
@@ -20,19 +21,62 @@ export function FieldLabel({ children, htmlFor, required = false, className = ""
 export function AppSelect({ value, onChange, options, placeholder = "Selectionner", disabled = false }) {
   const [open, setOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [menuStyle, setMenuStyle] = useState(null);
   const rootRef = useRef(null);
   const triggerRef = useRef(null);
+  const menuRef = useRef(null);
   const selected = options.find((option) => option.value === value) || null;
+
+  const updateMenuPosition = useCallback(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    const viewportPadding = 12;
+    const maxWidth = Math.min(rect.width, window.innerWidth - viewportPadding * 2);
+    const left = Math.min(
+      Math.max(viewportPadding, rect.left),
+      window.innerWidth - maxWidth - viewportPadding,
+    );
+    const spaceBelow = window.innerHeight - rect.bottom - viewportPadding;
+    const spaceAbove = rect.top - viewportPadding;
+    const openUp = spaceBelow < 180 && spaceAbove > spaceBelow;
+    setMenuStyle({
+      position: "fixed",
+      left,
+      width: maxWidth,
+      top: openUp ? undefined : rect.bottom + 6,
+      bottom: openUp ? window.innerHeight - rect.top + 6 : undefined,
+      zIndex: "var(--z-dropdown-portal, 46)",
+    });
+  }, []);
 
   useEffect(() => {
     function onPointerDown(event) {
-      if (!rootRef.current || rootRef.current.contains(event.target)) return;
+      const target = event.target;
+      if (rootRef.current?.contains(target) || menuRef.current?.contains(target)) return;
       setOpen(false);
       setHighlightedIndex(-1);
     }
     document.addEventListener("mousedown", onPointerDown);
     return () => document.removeEventListener("mousedown", onPointerDown);
   }, []);
+
+  useEffect(() => {
+    if (!open) {
+      setMenuStyle(null);
+      return undefined;
+    }
+    updateMenuPosition();
+    function onLayoutChange() {
+      updateMenuPosition();
+    }
+    window.addEventListener("resize", onLayoutChange);
+    window.addEventListener("scroll", onLayoutChange, true);
+    return () => {
+      window.removeEventListener("resize", onLayoutChange);
+      window.removeEventListener("scroll", onLayoutChange, true);
+    };
+  }, [open, updateMenuPosition]);
 
   useEffect(() => {
     if (!open) return;
@@ -101,23 +145,31 @@ export function AppSelect({ value, onChange, options, placeholder = "Selectionne
         <i className={`fa-solid ${open ? "fa-chevron-up" : "fa-chevron-down"}`} />
       </button>
       {open ? (
-        <div className="ui-select__menu" role="listbox">
-          {options.map((option, index) => (
-            <button
-              key={option.value}
-              type="button"
-              role="option"
-              aria-selected={option.value === value}
-              className={`ui-select__option ${option.value === value ? "is-selected" : ""} ${index === highlightedIndex ? "is-highlighted" : ""}`}
-              onMouseEnter={() => setHighlightedIndex(index)}
-              onClick={() => {
-                choose(index);
-              }}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
+        <ModalPortal>
+          <div
+            ref={menuRef}
+            className="ui-select__menu ui-select__menu--portal"
+            role="listbox"
+            style={menuStyle || undefined}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            {options.map((option, index) => (
+              <button
+                key={option.value}
+                type="button"
+                role="option"
+                aria-selected={option.value === value}
+                className={`ui-select__option ${option.value === value ? "is-selected" : ""} ${index === highlightedIndex ? "is-highlighted" : ""}`}
+                onMouseEnter={() => setHighlightedIndex(index)}
+                onClick={() => {
+                  choose(index);
+                }}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </ModalPortal>
       ) : null}
     </div>
   );
@@ -128,7 +180,62 @@ export function AppDateField({ value, onChange, placeholder = "JJ/MM/AAAA" }) {
   const [draft, setDraft] = useState("");
   const [editing, setEditing] = useState(false);
   const [viewDate, setViewDate] = useState(value ? parseIsoDate(value) : new Date());
+  const [panelStyle, setPanelStyle] = useState(null);
   const rootRef = useRef(null);
+  const inputWrapRef = useRef(null);
+  const panelRef = useRef(null);
+
+  const updatePanelPosition = useCallback(() => {
+    const anchor = inputWrapRef.current;
+    if (!anchor) return;
+    const rect = anchor.getBoundingClientRect();
+    const viewportPadding = 12;
+    const panelWidth = Math.min(300, window.innerWidth - viewportPadding * 2);
+    const left = Math.min(
+      Math.max(viewportPadding, rect.left),
+      window.innerWidth - panelWidth - viewportPadding,
+    );
+    const spaceBelow = window.innerHeight - rect.bottom - viewportPadding;
+    const spaceAbove = rect.top - viewportPadding;
+    const openUp = spaceBelow < 320 && spaceAbove > spaceBelow;
+    setPanelStyle({
+      position: "fixed",
+      left,
+      width: panelWidth,
+      top: openUp ? undefined : rect.bottom + 6,
+      bottom: openUp ? window.innerHeight - rect.top + 6 : undefined,
+      zIndex: "var(--z-dropdown-portal, 510)",
+    });
+  }, []);
+
+  useEffect(() => {
+    function onPointerDown(event) {
+      const target = event.target;
+      if (rootRef.current?.contains(target) || panelRef.current?.contains(target)) return;
+      setOpen(false);
+      setEditing(false);
+      setDraft(value ? toDisplayDate(value) : "");
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [value]);
+
+  useEffect(() => {
+    if (!open) {
+      setPanelStyle(null);
+      return undefined;
+    }
+    updatePanelPosition();
+    function onLayoutChange() {
+      updatePanelPosition();
+    }
+    window.addEventListener("resize", onLayoutChange);
+    window.addEventListener("scroll", onLayoutChange, true);
+    return () => {
+      window.removeEventListener("resize", onLayoutChange);
+      window.removeEventListener("scroll", onLayoutChange, true);
+    };
+  }, [open, updatePanelPosition]);
 
   const commitDraft = useCallback(() => {
     const parsed = parseUserDate(draft);
@@ -169,7 +276,7 @@ export function AppDateField({ value, onChange, placeholder = "JJ/MM/AAAA" }) {
 
   return (
     <div className={`ui-date ${open ? "is-open" : ""}`} ref={rootRef}>
-      <div className="ui-date__input-wrap">
+      <div className="ui-date__input-wrap" ref={inputWrapRef}>
         <input
           className="ui-date__input"
           type="text"
@@ -198,47 +305,54 @@ export function AppDateField({ value, onChange, placeholder = "JJ/MM/AAAA" }) {
         </button>
       </div>
       {open ? (
-        <div className="ui-date__panel">
-          <div className="ui-date__head">
-            <button type="button" onClick={() => setViewDate((prev) => addMonths(prev, -1))} aria-label="Mois precedent">
-              <i className="fa-solid fa-chevron-left" />
-            </button>
-            <strong>{monthLabel}</strong>
-            <button type="button" onClick={() => setViewDate((prev) => addMonths(prev, 1))} aria-label="Mois suivant">
-              <i className="fa-solid fa-chevron-right" />
-            </button>
+        <ModalPortal>
+          <div
+            ref={panelRef}
+            className="ui-date__panel ui-date__panel--portal"
+            style={panelStyle || undefined}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="ui-date__head">
+              <button type="button" onClick={() => setViewDate((prev) => addMonths(prev, -1))} aria-label="Mois precedent">
+                <i className="fa-solid fa-chevron-left" />
+              </button>
+              <strong>{monthLabel}</strong>
+              <button type="button" onClick={() => setViewDate((prev) => addMonths(prev, 1))} aria-label="Mois suivant">
+                <i className="fa-solid fa-chevron-right" />
+              </button>
+            </div>
+            <div className="ui-date__weekdays">
+              {["Lu", "Ma", "Me", "Je", "Ve", "Sa", "Di"].map((label) => (
+                <span key={label}>{label}</span>
+              ))}
+            </div>
+            <div className="ui-date__grid">
+              {days.map((day) => {
+                const iso = toIsoDate(day.date);
+                const active = value === iso;
+                const todayIso = toIsoDate(new Date());
+                const isToday = iso === todayIso;
+                return (
+                  <button
+                    key={`${iso}-${day.isCurrentMonth ? "current" : "other"}`}
+                    type="button"
+                    className={`ui-date__day ${day.isCurrentMonth ? "" : "is-outside"} ${active ? "is-active" : ""} ${isToday ? "is-today" : ""}`}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      onChange(iso);
+                      setDraft(toDisplayDate(iso));
+                      setViewDate(day.date);
+                      setOpen(false);
+                      setEditing(false);
+                    }}
+                  >
+                    {day.date.getDate()}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <div className="ui-date__weekdays">
-            {["Lu", "Ma", "Me", "Je", "Ve", "Sa", "Di"].map((label) => (
-              <span key={label}>{label}</span>
-            ))}
-          </div>
-          <div className="ui-date__grid">
-            {days.map((day) => {
-              const iso = toIsoDate(day.date);
-              const active = value === iso;
-              const todayIso = toIsoDate(new Date());
-              const isToday = iso === todayIso;
-              return (
-                <button
-                  key={`${iso}-${day.isCurrentMonth ? "current" : "other"}`}
-                  type="button"
-                  className={`ui-date__day ${day.isCurrentMonth ? "" : "is-outside"} ${active ? "is-active" : ""} ${isToday ? "is-today" : ""}`}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => {
-                    onChange(iso);
-                    setDraft(toDisplayDate(iso));
-                    setViewDate(day.date);
-                    setOpen(false);
-                    setEditing(false);
-                  }}
-                >
-                  {day.date.getDate()}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        </ModalPortal>
       ) : null}
     </div>
   );

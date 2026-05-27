@@ -1,9 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { apiFetch, peekCache } from "../../api/client";
 import TableSkeleton from "../../components/skeleton/TableSkeleton";
 import FormActions from "../../components/FormActions";
+import AppModal from "../../components/AppModal";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import { AppSelect } from "../../components/AppFormControls";
 import ModalPortal from "../../components/ModalPortal";
+import { useAccountMe } from "../../hooks/useAccountMe";
+import { canImportClientsCsv } from "../../utils/planFeatures";
 
 const emptyForm = {
   first_name: "",
@@ -17,6 +22,10 @@ const emptyForm = {
 };
 
 export default function ClientsPage() {
+  const { t } = useTranslation("app");
+  const { t: tc } = useTranslation("common");
+  const { user } = useAccountMe();
+  const csvImportEnabled = canImportClientsCsv(user?.plan_features || user?.plan);
   const [clients, setClients] = useState([]);
   const [meta, setMeta] = useState({ current_page: 1, last_page: 1, total: 0 });
   const [search, setSearch] = useState("");
@@ -36,6 +45,7 @@ export default function ClientsPage() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [viewTarget, setViewTarget] = useState(null);
   const [clientDocs, setClientDocs] = useState(null);
+  const [clientDocsLoading, setClientDocsLoading] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importCsv, setImportCsv] = useState("");
   const [importing, setImporting] = useState(false);
@@ -50,15 +60,19 @@ export default function ClientsPage() {
   useEffect(() => {
     if (!viewTarget?.id) {
       setClientDocs(null);
+      setClientDocsLoading(false);
       return;
     }
     let cancelled = false;
+    setClientDocsLoading(true);
     (async () => {
       try {
         const res = await apiFetch(`/api/clients/${viewTarget.id}/documents`);
         if (!cancelled) setClientDocs(res);
       } catch {
         if (!cancelled) setClientDocs(null);
+      } finally {
+        if (!cancelled) setClientDocsLoading(false);
       }
     })();
     return () => {
@@ -140,6 +154,13 @@ export default function ClientsPage() {
     setModalOpen(true);
     setSuccess("");
     setError("");
+  }
+
+  function openEditFromView() {
+    if (!viewTarget) return;
+    const client = viewTarget;
+    setViewTarget(null);
+    startEdit(client);
   }
 
   function startEdit(client) {
@@ -292,7 +313,6 @@ export default function ClientsPage() {
           background: var(--color-surface);
           border: 1px solid var(--color-border);
           padding: 16px;
-          overflow-x: hidden;
           box-shadow: 0 8px 22px rgba(20, 33, 61, 0.05);
         }
         .clients-search-card {
@@ -550,12 +570,11 @@ export default function ClientsPage() {
           cursor: pointer;
         }
         .clients-delete-text { margin: 0 0 14px; color: var(--color-text-muted); }
-        .clients-view-list { margin: 0; padding-left: 16px; display: grid; gap: 6px; color: var(--color-text-muted); }
         .clients-toast-wrap {
           position: fixed;
           right: 16px;
           bottom: 16px;
-          z-index: 120;
+          z-index: var(--z-toast, 60);
           display: grid;
           gap: 8px;
         }
@@ -605,6 +624,7 @@ export default function ClientsPage() {
             overflow-x: auto;
             overflow-y: hidden;
             -webkit-overflow-scrolling: touch;
+          }
           .clients-table { min-width: 760px; }
           .clients-table th,
           .clients-table td { padding: 10px 6px; }
@@ -626,7 +646,7 @@ export default function ClientsPage() {
       {success ? <div className="clients-banner clients-banner--success">{success}</div> : null}
 
       <div className="clients-grid">
-        <section className="clients-search-card">
+        <section className="clients-search-card doc-filter-bar">
           <div className="clients-filter-row">
             <div className="clients-filter-item">
               <label>Rechercher:</label>
@@ -661,11 +681,23 @@ export default function ClientsPage() {
           </div>
         </section>
 
-        <section className="clients-card">
+        <section className="clients-card doc-list-card">
           <div className="clients-topbar">
             <h2>Liste des clients</h2>
             <div style={{ display: "flex", gap: 8 }}>
-              <button className="clients-btn" type="button" onClick={() => setImportOpen(true)}>
+              <button
+                className="clients-btn"
+                type="button"
+                title={csvImportEnabled ? "Importer des clients" : "Réservé à l'offre Pro"}
+                disabled={!csvImportEnabled}
+                onClick={() => {
+                  if (!csvImportEnabled) {
+                    setError("L'import CSV clients est réservé à l'offre Pro.");
+                    return;
+                  }
+                  setImportOpen(true);
+                }}
+              >
                 <i className="fa-solid fa-file-import" /> Import CSV
               </button>
               <button className="clients-btn clients-btn--accent" type="button" onClick={startCreate}>
@@ -817,97 +849,108 @@ export default function ClientsPage() {
       ) : null}
 
       {confirmSubmitOpen ? (
-        <ModalPortal>
-        <div className="clients-modal-backdrop" role="dialog" aria-modal="true" onClick={() => setConfirmSubmitOpen(false)}>
-          <section className="clients-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="clients-modal-head">
-              <h2>Confirmer l'enregistrement</h2>
-              <button className="clients-icon-btn" type="button" onClick={() => setConfirmSubmitOpen(false)} aria-label="Fermer">
-                <i className="fa-solid fa-xmark" />
-              </button>
-            </div>
-            <p className="clients-delete-text">
-              Voulez-vous confirmer cette action ?
-            </p>
-            <div className="clients-actions">
-              <button className="clients-btn clients-btn--primary" type="button" onClick={confirmSubmit} disabled={saving}>
-                Confirmer
-              </button>
-              <button className="clients-btn clients-btn--soft-danger" type="button" onClick={() => setConfirmSubmitOpen(false)} disabled={saving}>
-                Annuler
-              </button>
-            </div>
-          </section>
-        </div>
-        </ModalPortal>
+        <ConfirmDialog
+          open
+          title="Confirmer l'enregistrement"
+          description="Voulez-vous confirmer cette action ?"
+          onClose={() => setConfirmSubmitOpen(false)}
+          onConfirm={confirmSubmit}
+          saving={saving}
+        />
       ) : null}
 
       {deleteTarget ? (
-        <ModalPortal>
-        <div className="clients-modal-backdrop" role="dialog" aria-modal="true" onClick={() => setDeleteTarget(null)}>
-          <section className="clients-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="clients-modal-head">
-              <h2>Supprimer un client</h2>
-              <button className="clients-icon-btn" type="button" onClick={() => setDeleteTarget(null)} aria-label="Fermer">
-                <i className="fa-solid fa-xmark" />
-              </button>
-            </div>
-            <p className="clients-delete-text">
-              Confirmer la suppression de <strong>{getClientDisplayName(deleteTarget)}</strong> ? Cette action est irreversible.
-            </p>
-            <div className="clients-actions">
-              <button className="clients-btn clients-btn--primary" type="button" onClick={confirmDelete} disabled={deletingId !== null}>
-                {deletingId ? "Suppression..." : "Confirmer"}
-              </button>
-              <button className="clients-btn clients-btn--soft-danger" type="button" onClick={() => setDeleteTarget(null)} disabled={deletingId !== null}>
-                Annuler
-              </button>
-            </div>
-          </section>
-        </div>
-        </ModalPortal>
+        <ConfirmDialog
+          open
+          title="Supprimer un client"
+          description={`Confirmer la suppression de ${getClientDisplayName(deleteTarget)} ? Cette action est irreversible.`}
+          onClose={() => setDeleteTarget(null)}
+          onConfirm={confirmDelete}
+          saving={deletingId !== null}
+        />
       ) : null}
 
-      {viewTarget ? (
-        <ModalPortal>
-        <div className="clients-modal-backdrop" role="dialog" aria-modal="true" onClick={() => setViewTarget(null)}>
-          <section className="clients-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="clients-modal-head">
-              <h2>Détails client</h2>
-              <button className="clients-icon-btn" type="button" onClick={() => setViewTarget(null)} aria-label="Fermer">
-                <i className="fa-solid fa-xmark" />
+      <AppModal
+        open={Boolean(viewTarget)}
+        onClose={() => setViewTarget(null)}
+        wide
+        title={viewTarget ? getClientDisplayName(viewTarget) : t("clients.viewTitle")}
+        description={
+          viewTarget?.company
+            ? viewTarget.company
+            : viewTarget?.email || t("clients.viewDesc")
+        }
+      >
+        {viewTarget ? (
+          <div className="app-modal-detail">
+            <div className="app-modal-detail__scroll">
+              <div className="app-modal-detail__hero">
+                <div className="app-modal-detail__avatar" aria-hidden>
+                  {clientInitials(viewTarget)}
+                </div>
+                <div className="app-modal-detail__hero-text">
+                  <h3>{getClientDisplayName(viewTarget)}</h3>
+                  <p>{viewTarget.company || viewTarget.email || "—"}</p>
+                </div>
+              </div>
+
+              <div className="app-modal-detail__grid">
+                <DetailField label={t("clients.fieldFirstName")} value={viewTarget.first_name || splitName(viewTarget.name).first_name} />
+                <DetailField label={t("clients.fieldLastName")} value={viewTarget.last_name || splitName(viewTarget.name).last_name} />
+                <DetailField
+                  label={t("clients.fieldEmail")}
+                  value={viewTarget.email}
+                  href={viewTarget.email ? `mailto:${viewTarget.email}` : null}
+                />
+                <DetailField
+                  label={t("clients.fieldPhone")}
+                  value={viewTarget.phone}
+                  href={viewTarget.phone ? `tel:${viewTarget.phone.replace(/\s/g, "")}` : null}
+                />
+                <DetailField label={t("clients.fieldCompany")} value={viewTarget.company} />
+                <DetailField label={t("clients.fieldTaxId")} value={viewTarget.tax_id} />
+                <DetailField label={t("clients.fieldAddress")} value={viewTarget.address} full />
+                <DetailField label={t("clients.fieldNotes")} value={viewTarget.notes} full />
+              </div>
+
+              <section className="app-modal-detail__section">
+                <h4>{t("clients.historyTitle")}</h4>
+                {clientDocsLoading ? (
+                  <p className="app-modal-detail__loading">{t("clients.historyLoading")}</p>
+                ) : clientDocs ? (
+                  <>
+                    <div className="app-modal-detail__kpi">
+                      {t("clients.revenuePaid")} :{" "}
+                      <strong>{Number(clientDocs?.stats?.revenue_paid_cfa || 0).toLocaleString("fr-FR")} CFA</strong>
+                    </div>
+                    <DocumentChipGroup
+                      label={t("clients.quotesHistory")}
+                      items={(clientDocs?.quotes || []).map((q) => q.number)}
+                      emptyLabel={t("clients.noQuotes")}
+                    />
+                    <DocumentChipGroup
+                      label={t("clients.invoicesHistory")}
+                      items={(clientDocs?.invoices || []).map((i) => i.number)}
+                      emptyLabel={t("clients.noInvoices")}
+                    />
+                  </>
+                ) : (
+                  <p className="app-modal-detail__empty">—</p>
+                )}
+              </section>
+            </div>
+
+            <div className="app-modal-detail__footer">
+              <button type="button" className="form-actions__btn" onClick={() => setViewTarget(null)}>
+                {tc("actions.close")}
+              </button>
+              <button type="button" className="form-actions__btn form-actions__btn--primary" onClick={openEditFromView}>
+                {tc("actions.edit")}
               </button>
             </div>
-            <ul className="clients-view-list">
-              <li><strong>Prénom:</strong> {viewTarget.first_name || splitName(viewTarget.name).first_name || "—"}</li>
-              <li><strong>Nom:</strong> {viewTarget.last_name || splitName(viewTarget.name).last_name || "—"}</li>
-              <li><strong>Email:</strong> {viewTarget.email || "—"}</li>
-              <li><strong>Téléphone:</strong> {viewTarget.phone || "—"}</li>
-              <li><strong>Entreprise:</strong> {viewTarget.company || "—"}</li>
-              <li><strong>Adresse:</strong> {viewTarget.address || "—"}</li>
-              <li><strong>NIF:</strong> {viewTarget.tax_id || "—"}</li>
-              <li><strong>Notes:</strong> {viewTarget.notes || "—"}</li>
-            </ul>
-            {clientDocs ? (
-              <div style={{ marginTop: 14 }}>
-                <h3 style={{ fontSize: 14, marginBottom: 8 }}>Historique</h3>
-                <p className="clients-sub">
-                  CA encaisse : {Number(clientDocs?.stats?.revenue_paid_cfa || 0).toLocaleString("fr-FR")} CFA
-                </p>
-                <p className="clients-sub">
-                  <strong>Devis :</strong>{" "}
-                  {(clientDocs?.quotes || []).map((q) => q.number).join(", ") || "—"}
-                </p>
-                <p className="clients-sub">
-                  <strong>Factures :</strong>{" "}
-                  {(clientDocs?.invoices || []).map((i) => i.number).join(", ") || "—"}
-                </p>
-              </div>
-            ) : null}
-          </section>
-        </div>
-        </ModalPortal>
-      ) : null}
+          </div>
+        ) : null}
+      </AppModal>
 
       {importOpen ? (
         <ModalPortal>
@@ -963,6 +1006,44 @@ function Field({ label, as = "input", ...props }) {
       {as === "textarea" ? <textarea id={props.name} {...props} /> : <input id={props.name} {...props} />}
     </div>
   );
+}
+
+function DetailField({ label, value, href = null, full = false }) {
+  const display = String(value ?? "").trim() || "—";
+  return (
+    <div className={`app-modal-detail__field ${full ? "app-modal-detail__field--full" : ""}`}>
+      <p className="app-modal-detail__label">{label}</p>
+      <p className="app-modal-detail__value">
+        {href && display !== "—" ? <a href={href}>{display}</a> : display}
+      </p>
+    </div>
+  );
+}
+
+function DocumentChipGroup({ label, items, emptyLabel }) {
+  return (
+    <div className="app-modal-detail__doc-group">
+      <p className="app-modal-detail__doc-label">{label}</p>
+      {items.length ? (
+        <div className="app-modal-detail__chips">
+          {items.map((item) => (
+            <span key={item} className="app-modal-detail__chip">
+              {item}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <p className="app-modal-detail__empty">{emptyLabel}</p>
+      )}
+    </div>
+  );
+}
+
+function clientInitials(client) {
+  const name = getClientDisplayName(client);
+  const parts = name.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return `${parts[0][0] || ""}${parts[1][0] || ""}`.toUpperCase();
+  return (parts[0]?.slice(0, 2) || "?").toUpperCase();
 }
 
 function normalizeNullable(value) {

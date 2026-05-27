@@ -1,13 +1,18 @@
-﻿import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import "../styles/auth-pages.css";
-import { apiFetch, setStoredToken } from "../api/client";
+import { apiFetch } from "../api/client";
 import { AuthBrand } from "../components/AuthShell";
 import PasswordField from "../components/PasswordField";
+import PasswordRequirements from "../components/PasswordRequirements";
 import { FieldLabel } from "../components/AppFormControls";
+import { evaluatePassword, passwordsMatch, PASSWORD_POLICY_HINT } from "../utils/passwordPolicy";
+import { BILLING_PLANS, loginPathWithPlan } from "../utils/billingFlow";
 
 export default function Register() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const selectedPlan = searchParams.get("plan") === BILLING_PLANS.pro ? BILLING_PLANS.pro : null;
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -15,12 +20,20 @@ export default function Register() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const passwordValid = evaluatePassword(password).valid;
+  const confirmationValid = passwordsMatch(password, passwordConfirmation);
+  const canSubmit = passwordValid && confirmationValid;
+
   async function onSubmit(e) {
     e.preventDefault();
+    if (!canSubmit) {
+      setError(PASSWORD_POLICY_HINT);
+      return;
+    }
     setError("");
     setLoading(true);
     try {
-      const data = await apiFetch("/api/register", {
+      await apiFetch("/api/register", {
         method: "POST",
         body: JSON.stringify({
           name,
@@ -29,8 +42,9 @@ export default function Register() {
           password_confirmation: passwordConfirmation,
         }),
       });
-      setStoredToken(data.token);
-      navigate("/app", { replace: true });
+      const loginQs = new URLSearchParams({ registered: "1" });
+      if (selectedPlan === BILLING_PLANS.pro) loginQs.set("plan", "pro");
+      navigate(`/login?${loginQs.toString()}`, { replace: true });
     } catch (err) {
       const body = err.body;
       let msg = body?.message || err.message || "Inscription impossible.";
@@ -50,10 +64,15 @@ export default function Register() {
       subtitle="Gérez devis et factures en quelques minutes."
       footer={
         <>
-          Déjà inscrit ? <Link to="/login">Se connecter</Link>
+          Déjà inscrit ? <Link to={loginPathWithPlan(selectedPlan || "")}>Se connecter</Link>
         </>
       }
     >
+      {selectedPlan === BILLING_PLANS.pro ? (
+        <div className="auth-success" role="status">
+          Offre Pro sélectionnée — après connexion, vous serez guidé vers le paiement sécurisé.
+        </div>
+      ) : null}
       {error ? <div className="auth-error">{error}</div> : null}
 
       <form onSubmit={onSubmit} className="auth-form-box">
@@ -98,11 +117,15 @@ export default function Register() {
           label="Mot de passe"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="8 caractères minimum"
+          placeholder="Ex. : MonSecret1!"
           autoComplete="new-password"
           minLength={8}
-          pattern="^(?=.*[A-Za-z])(?=.*\\d)(?=.*[^A-Za-z\\d]).{8,}$"
-          title="Au moins 8 caractères avec une lettre, un chiffre et un symbole."
+        />
+
+        <PasswordRequirements
+          password={password}
+          confirmPassword={passwordConfirmation}
+          showConfirmation
         />
 
         <PasswordField
@@ -113,11 +136,9 @@ export default function Register() {
           placeholder="Répétez le mot de passe"
           autoComplete="new-password"
           minLength={8}
-          pattern="^(?=.*[A-Za-z])(?=.*\\d)(?=.*[^A-Za-z\\d]).{8,}$"
-          title="Au moins 8 caractères avec une lettre, un chiffre et un symbole."
         />
 
-        <button className="auth-submit" type="submit" disabled={loading}>
+        <button className="auth-submit" type="submit" disabled={loading || !canSubmit}>
           {loading ? "Création..." : "Créer mon compte"}
         </button>
       </form>

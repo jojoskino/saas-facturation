@@ -4,6 +4,8 @@
     "clients": "Clients",
     "quotes": "Devis",
     "invoices": "Factures",
+    "reports": "Rapports",
+    "billing": "Abonnement",
     "settings": "Paramètres",
     "app": "Application"
   },
@@ -13,7 +15,8 @@
     "cancel": "Annuler",
     "close": "Fermer",
     "edit": "Modifier",
-    "configure": "Configurer"
+    "configure": "Configurer",
+    "confirm": "Confirmer"
   },
   "profileMenu": {
     "myProfile": "Mon profil",

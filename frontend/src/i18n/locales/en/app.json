@@ -34,7 +34,11 @@
     "fieldLines": "Line items",
     "fieldNotes": "Notes",
     "fieldCurrency": "Currency",
-    "noneClient": "None"
+    "noneClient": "None",
+    "confirmStatusTitle": "Confirm status change",
+    "confirmStatusDesc": "Change quote {{number}} from « {{from}} » to « {{to}} »?",
+    "confirmConvertTitle": "Convert to invoice",
+    "confirmConvertDesc": "Create an invoice from quote {{number}}? This action cannot be undone."
   },
   "invoices": {
     "title": "Invoices",
@@ -54,11 +58,32 @@
     "fieldPaidAt": "Payment date",
     "fieldNotes": "Notes",
     "fieldQuote": "Source quote",
-    "amountsHint": "Amounts are calculated automatically (source quote or internal values)."
+    "amountsHint": "Amounts are calculated automatically (source quote or internal values).",
+    "confirmStatusTitle": "Confirm status change",
+    "confirmStatusDesc": "Change invoice {{number}} from « {{from}} » to « {{to}} »?",
+    "confirmCreditNoteTitle": "Create credit note",
+    "confirmCreditNoteDesc": "Generate a credit note for invoice {{number}}? This action cannot be undone."
   },
   "clients": {
     "title": "Clients",
     "search": "Search",
-    "filter": "Filter"
+    "filter": "Filter",
+    "viewTitle": "Client details",
+    "viewDesc": "Contact information and commercial history.",
+    "historyTitle": "Commercial history",
+    "historyLoading": "Loading history…",
+    "revenuePaid": "Revenue collected",
+    "quotesHistory": "Quotes",
+    "invoicesHistory": "Invoices",
+    "noQuotes": "No quotes",
+    "noInvoices": "No invoices",
+    "fieldFirstName": "First name",
+    "fieldLastName": "Last name",
+    "fieldEmail": "Email",
+    "fieldPhone": "Phone",
+    "fieldCompany": "Company",
+    "fieldAddress": "Address",
+    "fieldTaxId": "Tax ID",
+    "fieldNotes": "Notes"
   }
 }

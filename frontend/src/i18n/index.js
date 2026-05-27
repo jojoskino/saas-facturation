@@ -9,6 +9,10 @@ import frProfile from "./locales/fr/profile.json";
 import enProfile from "./locales/en/profile.json";
 import frApp from "./locales/fr/app.json";
 import enApp from "./locales/en/app.json";
+import frReports from "./locales/fr/reports.json";
+import enReports from "./locales/en/reports.json";
+import frBilling from "./locales/fr/billing.json";
+import enBilling from "./locales/en/billing.json";
 
 const STORAGE_KEY = "facturo_locale";
 
@@ -26,18 +30,22 @@ i18n.use(initReactI18next).init({
       settings: frSettings,
       profile: frProfile,
       app: frApp,
+      reports: frReports,
+      billing: frBilling,
     },
     en: {
       common: enCommon,
       settings: enSettings,
       profile: enProfile,
       app: enApp,
+      reports: enReports,
+      billing: enBilling,
     },
   },
   lng: getInitialLanguage(),
   fallbackLng: "fr",
   defaultNS: "common",
-  ns: ["common", "settings", "profile", "app"],
+  ns: ["common", "settings", "profile", "app", "reports", "billing"],
   interpolation: { escapeValue: false },
 });
 

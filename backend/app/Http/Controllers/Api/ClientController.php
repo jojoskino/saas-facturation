@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\Invoice;
 use App\Models\Quote;
+use App\Support\PlanFeatures;
 use App\Support\Utf8;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -287,6 +288,12 @@ class ClientController extends Controller
 
     public function importCsv(Request $request): JsonResponse
     {
+        if (! PlanFeatures::canImportClientsCsv($request->user()->plan)) {
+            return response()->json([
+                'message' => "L'import CSV clients est réservé à l'offre Pro.",
+            ], 403);
+        }
+
         $data = $request->validate([
             'csv' => ['required', 'string', 'max:500000'],
         ]);

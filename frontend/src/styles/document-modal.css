@@ -94,15 +94,13 @@
   padding: 14px 20px 18px;
 }
 
-/* Filtres : menus select/date au-dessus des cartes suivantes */
+/* Filtres : menus select/date au-dessus des cartes suivantes (sous le header app) */
 .doc-filter-bar {
-  position: relative;
-  z-index: 20;
+  overflow: visible;
 }
 
 .doc-list-card {
-  position: relative;
-  z-index: 1;
+  overflow: visible;
 }
 
 .inline-status-select {

@@ -34,7 +34,11 @@
     "fieldLines": "Lignes de prestation",
     "fieldNotes": "Notes",
     "fieldCurrency": "Devise",
-    "noneClient": "Aucun"
+    "noneClient": "Aucun",
+    "confirmStatusTitle": "Confirmer le changement de statut",
+    "confirmStatusDesc": "Passer le devis {{number}} de « {{from}} » à « {{to}} » ?",
+    "confirmConvertTitle": "Convertir en facture",
+    "confirmConvertDesc": "Créer une facture à partir du devis {{number}} ? Cette action est définitive."
   },
   "invoices": {
     "title": "Factures",
@@ -54,11 +58,32 @@
     "fieldPaidAt": "Date de paiement",
     "fieldNotes": "Notes",
     "fieldQuote": "Devis source",
-    "amountsHint": "Les montants sont calcules automatiquement (devis source ou saisie interne)."
+    "amountsHint": "Les montants sont calcules automatiquement (devis source ou saisie interne).",
+    "confirmStatusTitle": "Confirmer le changement de statut",
+    "confirmStatusDesc": "Passer la facture {{number}} de « {{from}} » à « {{to}} » ?",
+    "confirmCreditNoteTitle": "Créer un avoir",
+    "confirmCreditNoteDesc": "Générer un avoir pour la facture {{number}} ? Cette action est définitive."
   },
   "clients": {
     "title": "Clients",
     "search": "Rechercher",
-    "filter": "Filtrer"
+    "filter": "Filtrer",
+    "viewTitle": "Détails client",
+    "viewDesc": "Informations et historique commercial du client.",
+    "historyTitle": "Historique commercial",
+    "historyLoading": "Chargement de l'historique…",
+    "revenuePaid": "CA encaissé",
+    "quotesHistory": "Devis",
+    "invoicesHistory": "Factures",
+    "noQuotes": "Aucun devis",
+    "noInvoices": "Aucune facture",
+    "fieldFirstName": "Prénom",
+    "fieldLastName": "Nom",
+    "fieldEmail": "Email",
+    "fieldPhone": "Téléphone",
+    "fieldCompany": "Entreprise",
+    "fieldAddress": "Adresse",
+    "fieldTaxId": "NIF",
+    "fieldNotes": "Notes"
   }
 }

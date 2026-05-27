@@ -16,6 +16,19 @@
     "success": "Profile updated.",
     "error": "Could not update profile."
   },
+  "plan": {
+    "tileTitle": "My plan",
+    "tileDesc": "Limits, CSV export and Pro features.",
+    "modalTitle": "My plan",
+    "modalDesc": "Your Facturo subscription and associated limits.",
+    "freeLimit": "{{used}} / {{limit}} invoices this month",
+    "unlimited": "Unlimited invoices",
+    "csvExport": "CSV revenue export",
+    "csvImport": "Client CSV import",
+    "upgrade": "Upgrade to Pro",
+    "manageBilling": "Manage subscription",
+    "upgradeHint": "Upgrade to Pro for CSV export, advanced reports, and unlimited invoices."
+  },
   "security": {
     "tileTitle": "Security",
     "tileDesc": "Password and account protection.",

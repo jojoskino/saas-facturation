@@ -1,12 +1,17 @@
 <?php
 
+use App\Http\Controllers\Api\BillingController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\InvoiceController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\QuoteController;
+use App\Http\Controllers\Api\StripeWebhookController;
+use App\Http\Controllers\Api\ReportsController;
 use Illuminate\Support\Facades\Route;
+
+Route::post('/stripe/webhook', [StripeWebhookController::class, 'handle']);
 
 Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:auth');
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:auth');
@@ -24,10 +29,18 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::match(['put', 'post'], '/me/company-profile', [AuthController::class, 'updateCompanyProfile']);
     Route::put('/me/settings', [AuthController::class, 'updateSettings']);
     Route::put('/me/password', [AuthController::class, 'updatePassword'])->middleware('throttle:password-update');
+    Route::post('/me/verify-password', [AuthController::class, 'verifyPassword'])->middleware('throttle:password-update');
     Route::post('/email/verification-notification', [AuthController::class, 'resendVerification'])->middleware('throttle:6,1');
+
+    Route::get('/billing', [BillingController::class, 'show']);
+    Route::post('/billing/checkout', [BillingController::class, 'checkout']);
+    Route::post('/billing/portal', [BillingController::class, 'portal']);
+    Route::post('/billing/simulate', [BillingController::class, 'simulate']);
 
     Route::get('/dashboard/summary', [DashboardController::class, 'summary']);
     Route::get('/dashboard/export', [DashboardController::class, 'exportCsv']);
+
+    Route::get('/reports/summary', [ReportsController::class, 'summary']);
 
     Route::post('/clients/import', [ClientController::class, 'importCsv']);
     Route::get('/clients/{id}/documents', [ClientController::class, 'documents']);

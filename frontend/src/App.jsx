@@ -13,6 +13,8 @@ import DevisPage from "./pages/app/DevisPage";
 import FacturesPage from "./pages/app/FacturesPage";
 import ProfilePage from "./pages/app/ProfilePage";
 import SettingsPage from "./pages/app/SettingsPage";
+import RapportsPage from "./pages/app/RapportsPage";
+import BillingPage from "./pages/app/BillingPage";
 import NotFound from "./pages/NotFound";
 
 function App() {
@@ -30,9 +32,11 @@ function App() {
           <Route path="/app" element={<Dashboard />} />
           <Route path="/app/clients" element={<ClientsPage />} />
           <Route path="/app/profil" element={<ProfilePage />} />
+          <Route path="/app/abonnement" element={<BillingPage />} />
           <Route path="/app/parametres" element={<SettingsPage />} />
           <Route path="/app/devis" element={<DevisPage />} />
           <Route path="/app/factures" element={<FacturesPage />} />
+          <Route path="/app/rapports" element={<RapportsPage />} />
           <Route path="/app/*" element={<NotFound inApp />} />
         </Route>
         <Route path="*" element={<NotFound />} />

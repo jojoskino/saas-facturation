@@ -1,38 +1,40 @@
 import { Link } from "react-router-dom";
 
-export function AuthHero() {
-  return (
-    <aside className="auth-hero" aria-hidden="true">
-      <img className="auth-hero-photo" src="/images/auth-hero.jpg" alt="" loading="lazy" decoding="async" />
-      <div className="auth-hero-overlay" />
-      <div className="auth-hero-caption">
-        <p className="auth-hero-kicker">Facturo</p>
-        <p className="auth-hero-quote">Facturation claire, professionnelle et sans friction.</p>
-      </div>
-    </aside>
-  );
-}
+const AUTH_HINTS = [
+  "Factures et devis conformes",
+  "Suivi des paiements en direct",
+  "Relances automatiques (Pro)",
+];
 
 export function AuthBrand({ title, subtitle, children, footer }) {
   return (
-    <div className="auth-page">
-      <div className="auth-shell">
-        <div className="auth-panel">
-          <div className="auth-card">
-            <Link className="auth-back" to="/">
-              <i className="fa-solid fa-arrow-left" aria-hidden />
-              Retour au site
-            </Link>
-            <div className="auth-logo">
-              Factu<span>ro</span>
-            </div>
-            <h1>{title}</h1>
-            {subtitle ? <p className="subtitle">{subtitle}</p> : null}
-            {children}
-            {footer ? <p className="auth-footer">{footer}</p> : null}
-          </div>
+    <div className="auth-page auth-page--soft">
+      <div className="auth-soft-glow auth-soft-glow--1" aria-hidden />
+      <div className="auth-soft-glow auth-soft-glow--2" aria-hidden />
+
+      <div className="auth-soft-layout">
+        <header className="auth-soft-header">
+          <Link className="auth-soft-logo" to="/">
+            Factu<span>ro</span>
+          </Link>
+          <Link className="auth-soft-home" to="/">
+            <i className="fa-solid fa-arrow-left" aria-hidden />
+            Accueil
+          </Link>
+        </header>
+
+        <div className="auth-soft-card">
+          <h1>{title}</h1>
+          {subtitle ? <p className="auth-soft-sub">{subtitle}</p> : null}
+          <div className="auth-form-box">{children}</div>
+          {footer ? <p className="auth-soft-foot">{footer}</p> : null}
         </div>
-        <AuthHero />
+
+        <ul className="auth-soft-hints">
+          {AUTH_HINTS.map((text) => (
+            <li key={text}>{text}</li>
+          ))}
+        </ul>
       </div>
     </div>
   );
