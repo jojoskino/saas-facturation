@@ -23,26 +23,104 @@ Dépôt : `https://github.com/jojoskino/saas-facturation`
 
 ---
 
-## 2. Déployer le frontend sur Vercel
+## 2. Déployer le frontend sur Vercel (CLI)
 
-1. Aller sur [vercel.com](https://vercel.com) → **Add New Project**
-2. Importer le repo GitHub `jojoskino/saas-facturation`
-3. Réglages du projet :
-   - **Root Directory** : `frontend`
-   - **Framework Preset** : Vite (détecté automatiquement)
-   - **Build Command** : `npm run build`
-   - **Output Directory** : `dist`
-4. **Environment Variables** (Production) :
+### Prérequis
 
-   | Nom                   | Valeur                                      |
-   | --------------------- | ------------------------------------------- |
-   | `VITE_API_BASE_URL`   | URL publique de votre API Laravel (HTTPS)   |
+- Node.js installé
+- Compte [Vercel](https://vercel.com) lié à GitHub
 
-   Exemple : `https://saas-facturo-api.onrender.com` (sans slash final).
+### Installation CLI
 
-5. Cliquer **Deploy**
+```powershell
+npm install -g vercel
+vercel login
+```
+
+(Ouvre le navigateur pour s’authentifier.)
+
+### Lier le projet (depuis la racine du repo)
+
+```powershell
+cd "c:\Mes projets\saas-facturation\frontend"
+vercel link
+```
+
+Réponses typiques à l’assistant :
+
+- **Set up and deploy?** → Yes (ou lier un projet existant)
+- **Which scope?** → votre compte / équipe
+- **Link to existing project?** → No (première fois) ou Yes si déjà créé
+- **Project name?** → `saas-facturation` (ou autre)
+- **In which directory is your code located?** → `./` (vous êtes déjà dans `frontend`)
+
+Alternative depuis la racine sans `cd` :
+
+```powershell
+cd "c:\Mes projets\saas-facturation"
+vercel link --cwd frontend
+```
+
+### Variable d’environnement (API Laravel)
+
+Remplacez l’URL par celle de votre backend en production (HTTPS, **sans** slash final) :
+
+```powershell
+cd frontend
+vercel env add VITE_API_BASE_URL production
+# Coller : https://votre-api.onrender.com
+```
+
+Vérifier les variables :
+
+```powershell
+vercel env ls
+```
+
+### Build local (test avant prod)
+
+```powershell
+cd frontend
+npm ci
+npm run build
+```
+
+### Déploiement production
+
+```powershell
+cd frontend
+vercel --prod
+```
+
+À la fin, la CLI affiche l’URL (ex. `https://saas-facturation.vercel.app`).
+
+### Déploiements suivants (après `git push`)
+
+```powershell
+cd frontend
+vercel --prod
+```
+
+Ou connecter Git pour déployer à chaque push :
+
+```powershell
+vercel git connect
+```
+
+### Commandes utiles
+
+```powershell
+vercel ls                    # liste des déploiements
+vercel inspect <url>         # détails d’un déploiement
+vercel env pull .env.local   # récupérer les vars (preview/dev)
+vercel logs <deployment-url> # logs
+```
 
 Le fichier `frontend/vercel.json` redirige toutes les routes vers `index.html` (React Router).
+
+### Interface web (optionnel)
+
+Même réglages que la CLI : **Root Directory** = `frontend`, **Output** = `dist`, variable `VITE_API_BASE_URL`.
 
 ---
 
@@ -50,11 +128,29 @@ Le fichier `frontend/vercel.json` redirige toutes les routes vers `index.html` (
 
 Sans backend en ligne, le frontend Vercel affichera l’interface mais les connexions/API échoueront.
 
-### Exemple minimal (Render)
+### Exemple minimal (Render — CLI)
+
+```powershell
+# Installer Render CLI : https://render.com/docs/cli
+# winget install Render.RenderCLI   (ou scoop / téléchargement manuel)
+
+render login
+```
+
+Créer un `render.yaml` à la racine ou via le dashboard, puis :
+
+```powershell
+render services create
+# Choisir Web Service, repo GitHub, root directory : backend
+```
+
+Variables à définir (CLI ou dashboard) :
+
+### Variables backend (Render / Railway / autre)
 
 1. Créer un **Web Service** pointant vers le dossier `backend`
 2. Build : `composer install --no-dev --optimize-autoloader`
-3. Start : `php artisan serve` ou document root `public/` selon l’hébergeur
+3. Start : document root `public/` (Apache/Nginx) ou `php artisan serve` selon l’hébergeur
 4. Variables d’environnement (extrait de `backend/.env.example`) :
    - `APP_KEY`, `APP_URL` (URL du service API)
    - `FRONTEND_URL` = URL Vercel (ex. `https://saas-facturation.vercel.app`)
@@ -91,8 +187,11 @@ CORS_ALLOWED_ORIGINS=https://votre-projet.vercel.app,https://votre-projet-xxx.ve
 
 ## 5. Domaine personnalisé (optionnel)
 
-- **Vercel** : Settings → Domains → ajouter `app.votredomaine.com`
-- Mettre à jour `FRONTEND_URL` et `CORS_ALLOWED_ORIGINS` sur le backend
+```powershell
+vercel domains add app.votredomaine.com
+```
+
+Mettre à jour `FRONTEND_URL` et `CORS_ALLOWED_ORIGINS` sur le backend.
 
 ---
 

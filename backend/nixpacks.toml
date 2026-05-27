@@ -1,0 +1,22 @@
+[phases.setup]
+nixPkgs = [
+  "php83",
+  "php83Packages.composer",
+  "php83Extensions.pdo",
+  "php83Extensions.pdo_pgsql",
+  "php83Extensions.mbstring",
+  "php83Extensions.openssl",
+  "php83Extensions.gd",
+  "php83Extensions.zip",
+  "php83Extensions.xml",
+  "php83Extensions.dom",
+  "php83Extensions.fileinfo",
+  "php83Extensions.tokenizer",
+  "php83Extensions.curl",
+]
+
+[phases.install]
+cmds = ["composer install --no-dev --optimize-autoloader --no-interaction"]
+
+[start]
+cmd = "bash scripts/railway-start.sh"
