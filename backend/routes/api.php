@@ -38,6 +38,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/billing/simulate', [BillingController::class, 'simulate']);
 
     Route::get('/dashboard/summary', [DashboardController::class, 'summary']);
+    Route::get('/dashboard/home', [DashboardController::class, 'home']);
     Route::get('/dashboard/export', [DashboardController::class, 'exportCsv']);
 
     Route::get('/reports/summary', [ReportsController::class, 'summary']);

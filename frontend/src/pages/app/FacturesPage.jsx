@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { apiFetch, peekCache } from "../../api/client";
+import { paginatedFromCache } from "../../utils/listCache";
 import TableSkeleton from "../../components/skeleton/TableSkeleton";
 import FormActions from "../../components/FormActions";
 import DocumentPreviewModal from "../../components/DocumentPreviewModal";
@@ -8,6 +10,23 @@ import { AppDateField, AppSelect, FieldLabel } from "../../components/AppFormCon
 import InlineStatusSelect from "../../components/InlineStatusSelect";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import ModalPortal from "../../components/ModalPortal";
+import ToastStack, { useToasts } from "../../components/ToastStack";
+import DocumentLinesEditor, { computeLineTotals, createEmptyLine } from "../../components/DocumentLinesEditor";
+import { useAccountMe } from "../../hooks/useAccountMe";
+import { useAmountsPrivacy } from "../../hooks/useAmountsPrivacy";
+import { invoiceQuotaFromUser } from "../../utils/planFeatures";
+import ListFilterBar, { ListFilterField, ListFilterGrid } from "../../components/list/ListFilterBar";
+import ListPageHeader from "../../components/list/ListPageHeader";
+import ListPagination from "../../components/list/ListPagination";
+import ListIconButton from "../../components/list/ListIconButton";
+import {
+  canCreateCreditNote,
+  canDeleteInvoice,
+  canEditFinancialFields,
+  inlineStatusOptionsForInvoice,
+  invoiceBalanceDue,
+  invoicePaidTotal,
+} from "../../utils/invoiceRules";
 
 const defaultForm = {
   client_id: "",
@@ -22,10 +41,17 @@ const defaultForm = {
   total: "",
   paid_at: "",
   notes: "",
+  discount_percent: "0",
+  items: [createEmptyLine()],
 };
 
 export default function FacturesPage() {
   const { t } = useTranslation("app");
+  const { user } = useAccountMe();
+  const { toasts, pushToast, dismissToast } = useToasts();
+  const { maskMoney } = useAmountsPrivacy();
+  const showMoney = (value) => maskMoney(value, formatMoney);
+  const invoiceQuota = invoiceQuotaFromUser(user);
   const statusOptions = useMemo(
     () => [
       { value: "draft", label: t("invoices.statusDraft") },
@@ -36,16 +62,23 @@ export default function FacturesPage() {
     ],
     [t]
   );
-  const [invoices, setInvoices] = useState([]);
-  const [meta, setMeta] = useState({ current_page: 1, last_page: 1, total: 0 });
+  const editableStatusOptions = useMemo(
+    () => statusOptions.filter((opt) => !["paid", "cancelled"].includes(opt.value)),
+    [statusOptions]
+  );
+  const [listTab, setListTab] = useState("invoice");
+  const [invoices, setInvoices] = useState(() => paginatedFromCache(buildInvoicesUrl(1, "", "all", "invoice"))?.rows ?? []);
+  const [meta, setMeta] = useState(
+    () => paginatedFromCache(buildInvoicesUrl(1, "", "all", "invoice"))?.meta ?? { current_page: 1, last_page: 1, total: 0 },
+  );
   const [clients, setClients] = useState([]);
   const [quotes, setQuotes] = useState([]);
 
-  const [loading, setLoading] = useState(() => peekCache("/api/invoices?page=1") == null);
+  const [loading, setLoading] = useState(() => paginatedFromCache(buildInvoicesUrl(1, "", "all", "invoice")) == null);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [modalError, setModalError] = useState("");
 
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
@@ -54,6 +87,7 @@ export default function FacturesPage() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [editingInvoice, setEditingInvoice] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [form, setForm] = useState(defaultForm);
   const [paymentsOpen, setPaymentsOpen] = useState(null);
@@ -61,16 +95,28 @@ export default function FacturesPage() {
   const [balanceDue, setBalanceDue] = useState(0);
   const [paymentForm, setPaymentForm] = useState({ amount: "", method: "", reference: "", paid_at: "" });
   const [paymentSaving, setPaymentSaving] = useState(false);
+  const [paymentError, setPaymentError] = useState("");
+  const [paymentDeleteTarget, setPaymentDeleteTarget] = useState(null);
   const [previewTarget, setPreviewTarget] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [editingSnapshot, setEditingSnapshot] = useState(null);
 
   const isEditing = editingId !== null;
+  const financialEditable = !editingInvoice || canEditFinancialFields(editingInvoice);
+  const quotaBlocked = invoiceQuota.limit != null && invoiceQuota.remaining === 0;
 
   useEffect(() => {
     loadInvoices(page);
-  }, [page]);
+  }, [page, search, filterStatus, listTab]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setPage(1);
+      setSearch(searchInput.trim());
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
 
   useEffect(() => {
     loadReferences();
@@ -79,22 +125,28 @@ export default function FacturesPage() {
   async function loadReferences() {
     try {
       const [clientsRes, quotesRes] = await Promise.all([
-        apiFetch("/api/clients?per_page=200"),
-        apiFetch("/api/quotes?per_page=200"),
+        apiFetch("/api/clients?per_page=100&minimal=1", { cacheTtl: 300_000 }),
+        apiFetch("/api/quotes?per_page=100&status=accepted", { cacheTtl: 180_000 }),
       ]);
       setClients(Array.isArray(clientsRes?.data) ? clientsRes.data : []);
-      setQuotes(Array.isArray(quotesRes?.data) ? quotesRes.data : []);
+      const quoteRows = Array.isArray(quotesRes?.data) ? quotesRes.data : [];
+      setQuotes(quoteRows.filter((quote) => !quote.has_invoice));
     } catch {
       // Keep page usable even if references fail.
     }
   }
 
   async function loadInvoices(requestedPage = 1) {
-    const url = `/api/invoices?page=${requestedPage}`;
+    const url = buildInvoicesUrl(requestedPage, search, filterStatus, listTab);
+    const cached = paginatedFromCache(url);
+    if (cached) {
+      setInvoices(cached.rows);
+      setMeta(cached.meta);
+    }
     if (peekCache(url) == null) setLoading(true);
     setError("");
     try {
-      const res = await apiFetch(url);
+      const res = await apiFetch(url, { cacheTtl: 180_000 });
       setInvoices(Array.isArray(res?.data) ? res.data : []);
       setMeta({
         current_page: Number(res?.current_page || requestedPage || 1),
@@ -112,34 +164,60 @@ export default function FacturesPage() {
 
   function resetForm() {
     setEditingId(null);
+    setEditingInvoice(null);
     setEditingSnapshot(null);
     setForm(defaultForm);
+    setModalError("");
   }
 
   function openCreate() {
-    setSuccess("");
+    if (quotaBlocked) {
+      pushToast(t("invoices.quotaReached"), "error");
+      return;
+    }
     setError("");
     resetForm();
     setModalOpen(true);
   }
 
-  function openEdit(invoice) {
-    setSuccess("");
+  async function openEdit(invoice) {
+    if (invoice.document_type === "credit_note" || invoice.status === "cancelled") {
+      pushToast(t("invoices.lockedEditHint"), "info");
+      return;
+    }
     setError("");
+    setModalError("");
     setEditingId(invoice.id);
+    setEditingInvoice(invoice);
+    let full = invoice;
+    try {
+      full = await apiFetch(`/api/invoices/${invoice.id}`);
+    } catch {
+      // fallback list row
+    }
+    const items = Array.isArray(full.items) && full.items.length > 0
+      ? full.items.map((item) => ({
+          description: item.description || "",
+          quantity: String(Math.max(0, Number.parseFloat(item.quantity) || 1)),
+          unit_price: String(item.unit_price ?? ""),
+          tax_rate: String(item.tax_rate ?? "0"),
+        }))
+      : [createEmptyLine()];
     setForm({
-      client_id: invoice.client_id ? String(invoice.client_id) : "",
-      quote_id: invoice.quote_id ? String(invoice.quote_id) : "",
-      number: invoice.number || "",
-      status: invoice.status || "draft",
-      issue_date: toDateInput(invoice.issue_date),
-      due_date: toDateInput(invoice.due_date),
-      currency: invoice.currency || "XOF",
-      subtotal: toMoneyInput(invoice.subtotal),
-      tax_amount: toMoneyInput(invoice.tax_amount),
-      total: toMoneyInput(invoice.total),
-      paid_at: toDateInput(invoice.paid_at),
-      notes: invoice.notes || "",
+      client_id: full.client_id ? String(full.client_id) : "",
+      quote_id: full.quote_id ? String(full.quote_id) : "",
+      number: full.number || "",
+      status: full.status || "draft",
+      issue_date: toDateInput(full.issue_date),
+      due_date: toDateInput(full.due_date),
+      currency: full.currency || "XOF",
+      subtotal: toMoneyInput(full.subtotal),
+      tax_amount: toMoneyInput(full.tax_amount),
+      total: toMoneyInput(full.total),
+      paid_at: toDateInput(full.paid_at),
+      notes: full.notes || "",
+      discount_percent: String(full.discount_percent ?? "0"),
+      items,
     });
     setEditingSnapshot({ number: invoice.number || `#${invoice.id}`, status: invoice.status || "draft" });
     setModalOpen(true);
@@ -177,12 +255,6 @@ export default function FacturesPage() {
           next.due_date = issueDate.toISOString().slice(0, 10);
         }
       }
-      if (name === "status" && value !== "paid") {
-        next.paid_at = "";
-      }
-      if (name === "status" && value === "paid" && !next.paid_at) {
-        next.paid_at = new Date().toISOString().slice(0, 10);
-      }
       if (name === "quote_id" && value) {
         const quote = quotes.find((q) => String(q.id) === String(value));
         if (quote) {
@@ -191,7 +263,14 @@ export default function FacturesPage() {
           next.tax_amount = toMoneyInput(quote.tax_amount);
           next.total = toMoneyInput(quote.total);
           next.currency = quote.currency || next.currency;
+          next.discount_percent = String(quote.discount_percent ?? "0");
         }
+      }
+      if (name === "quote_id" && !value && financialEditable) {
+        const totals = computeLineTotals(next.items || [], next.discount_percent);
+        next.subtotal = totals.subtotal.toFixed(2);
+        next.tax_amount = totals.tax_amount.toFixed(2);
+        next.total = totals.total.toFixed(2);
       }
       return next;
     });
@@ -203,13 +282,14 @@ export default function FacturesPage() {
 
   async function openPayments(invoice) {
     setPaymentsOpen(invoice);
+    setPaymentError("");
     setError("");
     try {
       const res = await apiFetch(`/api/invoices/${invoice.id}/payments`);
       setPayments(Array.isArray(res?.payments) ? res.payments : []);
       setBalanceDue(Number(res?.balance_due ?? 0));
     } catch (err) {
-      setError(extractApiMessage(err, "Impossible de charger les paiements."));
+      setPaymentError(extractApiMessage(err, "Impossible de charger les paiements."));
     }
   }
 
@@ -217,6 +297,7 @@ export default function FacturesPage() {
     e.preventDefault();
     if (!paymentsOpen) return;
     setPaymentSaving(true);
+    setPaymentError("");
     try {
       await apiFetch(`/api/invoices/${paymentsOpen.id}/payments`, {
         method: "POST",
@@ -230,9 +311,26 @@ export default function FacturesPage() {
       setPaymentForm({ amount: "", method: "", reference: "", paid_at: "" });
       await openPayments(paymentsOpen);
       await loadInvoices(page);
-      setSuccess("Paiement enregistre.");
+      pushToast("Paiement enregistré.", "success");
     } catch (err) {
-      setError(extractApiMessage(err, "Paiement impossible."));
+      setPaymentError(extractApiMessage(err, "Paiement impossible."));
+    } finally {
+      setPaymentSaving(false);
+    }
+  }
+
+  async function confirmDeletePayment() {
+    if (!paymentDeleteTarget || !paymentsOpen) return;
+    setPaymentSaving(true);
+    setPaymentError("");
+    try {
+      await apiFetch(`/api/invoices/${paymentsOpen.id}/payments/${paymentDeleteTarget.id}`, { method: "DELETE" });
+      setPaymentDeleteTarget(null);
+      await openPayments(paymentsOpen);
+      await loadInvoices(page);
+      pushToast("Paiement supprimé.", "success");
+    } catch (err) {
+      setPaymentError(extractApiMessage(err, "Suppression impossible."));
     } finally {
       setPaymentSaving(false);
     }
@@ -240,10 +338,19 @@ export default function FacturesPage() {
 
   function requestStatusChange(invoice, status) {
     if (status === invoice.status) return;
+    if (status === "paid") {
+      setError(t("invoices.paidRequiresPayment"));
+      return;
+    }
+    if (status === "cancelled" && invoice.status !== "draft") {
+      setError(t("invoices.confirmCreditNoteDesc", { number: invoice.number }));
+      return;
+    }
     setConfirmState({ type: "status", invoice, toStatus: status });
   }
 
   function requestCreditNote(invoice) {
+    if (!canCreateCreditNote(invoice)) return;
     setConfirmState({ type: "creditNote", invoice });
   }
 
@@ -251,19 +358,12 @@ export default function FacturesPage() {
     if (!confirmState) return;
     setConfirmLoading(true);
     setError("");
-    setSuccess("");
+    setModalError("");
     try {
       if (confirmState.type === "status") {
         const { invoice, toStatus } = confirmState;
         if (modalOpen && editingId === invoice.id) {
-          setForm((prev) => {
-            const next = { ...prev, status: toStatus };
-            if (toStatus !== "paid") next.paid_at = "";
-            if (toStatus === "paid" && !next.paid_at) {
-              next.paid_at = new Date().toISOString().slice(0, 10);
-            }
-            return next;
-          });
+          setForm((prev) => ({ ...prev, status: toStatus, paid_at: "" }));
           setEditingSnapshot((prev) => (prev ? { ...prev, status: toStatus } : prev));
         } else {
           await apiFetch(`/api/invoices/${invoice.id}`, {
@@ -275,7 +375,7 @@ export default function FacturesPage() {
       } else if (confirmState.type === "creditNote") {
         const { invoice } = confirmState;
         await apiFetch(`/api/invoices/${invoice.id}/credit-note`, { method: "POST" });
-        setSuccess("Avoir cree.");
+        pushToast("Avoir créé.", "success");
         await loadInvoices(page);
       }
       setConfirmState(null);
@@ -288,34 +388,34 @@ export default function FacturesPage() {
 
   async function onSubmit(e) {
     e.preventDefault();
-    const validation = validateInvoiceForm(form);
+    const validation = validateInvoiceForm(form, t);
     if (!validation.valid) {
-      setError(validation.message);
+      setModalError(validation.message);
       return;
     }
 
     setSaving(true);
+    setModalError("");
     setError("");
-    setSuccess("");
     try {
-      const payload = buildPayload(form);
+      const payload = buildPayload(form, financialEditable);
       if (isEditing) {
         await apiFetch(`/api/invoices/${editingId}`, {
           method: "PUT",
           body: JSON.stringify(payload),
         });
-        setSuccess("Facture mise a jour.");
+        pushToast("Facture mise à jour.", "success");
       } else {
         await apiFetch("/api/invoices", {
           method: "POST",
           body: JSON.stringify(payload),
         });
-        setSuccess("Facture creee.");
+        pushToast("Facture créée.", "success");
       }
       closeModal();
       await loadInvoices(page);
     } catch (err) {
-      setError(extractApiMessage(err, "Impossible d'enregistrer la facture."));
+      setModalError(extractApiMessage(err, "Impossible d'enregistrer la facture."));
     } finally {
       setSaving(false);
     }
@@ -323,12 +423,16 @@ export default function FacturesPage() {
 
   async function confirmDelete() {
     if (!deleteTarget) return;
+    if (!canDeleteInvoice(deleteTarget)) {
+      pushToast(t("invoices.deleteDraftOnly"), "error");
+      setDeleteTarget(null);
+      return;
+    }
     setDeletingId(deleteTarget.id);
     setError("");
-    setSuccess("");
     try {
       await apiFetch(`/api/invoices/${deleteTarget.id}`, { method: "DELETE" });
-      setSuccess("Facture supprimee.");
+      pushToast("Facture supprimée.", "success");
       const nextPage = invoices.length === 1 && page > 1 ? page - 1 : page;
       if (nextPage !== page) setPage(nextPage);
       await loadInvoices(nextPage);
@@ -339,24 +443,6 @@ export default function FacturesPage() {
       setDeletingId(null);
     }
   }
-
-  const displayedInvoices = useMemo(() => {
-    return invoices.filter((invoice) => {
-      const matchesStatus = filterStatus === "all" || invoice.status === filterStatus;
-      const q = search.trim().toLowerCase();
-      if (!q) return matchesStatus;
-      const fields = [
-        invoice.number,
-        invoice.client?.name,
-        invoice.quote?.number,
-        invoice.currency,
-        invoice.status,
-      ]
-        .filter(Boolean)
-        .map((v) => String(v).toLowerCase());
-      return matchesStatus && fields.some((v) => v.includes(q));
-    });
-  }, [invoices, filterStatus, search]);
 
   const statusFilterOptions = useMemo(
     () => [{ value: "all", label: "Tous" }, ...statusOptions],
@@ -382,9 +468,59 @@ export default function FacturesPage() {
     ],
     []
   );
+  const formStatusOptions = useMemo(() => {
+    if (!editingInvoice || editingInvoice.status === "draft") {
+      return [...editableStatusOptions, { value: "cancelled", label: t("invoices.statusCancelled") }];
+    }
+    return editableStatusOptions.filter((opt) => opt.value !== "draft");
+  }, [editableStatusOptions, editingInvoice, t]);
+
+  const showLinesEditor = financialEditable && !form.quote_id;
+
+  function renderInvoiceActions(invoice) {
+    return (
+      <>
+        <ListIconButton title="Aperçu / PDF" icon="fa-eye" onClick={() => openPreview(invoice)} />
+        {listTab === "invoice" && invoice.document_type !== "credit_note" ? (
+          <>
+            <ListIconButton
+              title="Paiements"
+              icon="fa-coins"
+              onClick={() => openPayments(invoice)}
+              disabled={invoice.status === "cancelled"}
+            />
+            <ListIconButton
+              title="Créer un avoir"
+              icon="fa-rotate-left"
+              onClick={() => requestCreditNote(invoice)}
+              disabled={!canCreateCreditNote(invoice)}
+            />
+          </>
+        ) : null}
+        {listTab === "invoice" ? (
+          <ListIconButton
+            title="Modifier"
+            icon="fa-pen"
+            onClick={() => openEdit(invoice)}
+            disabled={invoice.status === "cancelled"}
+          />
+        ) : null}
+        {listTab === "invoice" ? (
+          <ListIconButton
+            title={canDeleteInvoice(invoice) ? "Supprimer" : t("invoices.deleteDraftOnly")}
+            icon="fa-trash"
+            danger
+            spinning={deletingId === invoice.id}
+            onClick={() => setDeleteTarget(invoice)}
+            disabled={deletingId === invoice.id || !canDeleteInvoice(invoice)}
+          />
+        ) : null}
+      </>
+    );
+  }
 
   return (
-    <div className="inv">
+    <div className="inv app-list-page">
       <style>{`
         .inv { color: var(--color-text); font-family: var(--sans); display: grid; gap: 14px; }
         .inv-card {
@@ -518,6 +654,9 @@ export default function FacturesPage() {
           vertical-align: top;
         }
         .inv-mini { color: var(--color-text-muted); font-size: 12px; }
+        .inv-cell-date { font-size: 13px; color: var(--color-text); }
+        .inv-cell-amount { font-weight: 700; font-size: 14px; color: var(--color-text); }
+        .inv-cell-amount-wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
         .inv-tag {
           display: inline-flex;
           border-radius: 999px;
@@ -597,51 +736,113 @@ export default function FacturesPage() {
           .inv-form-grid { grid-template-columns: 1fr; }
           .inv-head { align-items: flex-start; }
         }
+        .inv-tabs {
+          display: flex;
+          gap: 8px;
+          margin-bottom: 12px;
+          flex-wrap: wrap;
+        }
+        .inv-tab {
+          border-radius: 999px;
+          border: 1px solid var(--color-border-strong);
+          background: #fff;
+          padding: 8px 12px;
+          font-size: 13px;
+          font-weight: 700;
+          cursor: pointer;
+        }
+        .inv-tab--active {
+          background: #14213d;
+          color: #fff;
+          border-color: #14213d;
+        }
+        .inv-quota {
+          border-radius: 10px;
+          border: 1px solid #f8d6b4;
+          background: #fff8ef;
+          padding: 10px 12px;
+          font-size: 13px;
+        }
       `}</style>
 
-      {error ? <div className="inv-banner inv-banner--error">{error}</div> : null}
-      {success ? <div className="inv-banner inv-banner--success">{success}</div> : null}
+      <ToastStack toasts={toasts} onDismiss={dismissToast} />
 
-      <section className="inv-search-card doc-filter-bar">
-        <div className="inv-toolbar">
-          <div className="inv-field">
-            <label>Rechercher</label>
+      {error ? <div className="inv-banner inv-banner--error">{error}</div> : null}
+
+      {invoiceQuota.limit != null ? (
+        <div className="inv-quota">
+          {t("invoices.quotaBanner", { used: invoiceQuota.used, limit: invoiceQuota.limit })}
+          {quotaBlocked ? (
+            <>
+              {" "}
+              <Link to="/app/abonnement?plan=pro&checkout=start">{t("invoices.quotaReached")}</Link>
+            </>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="inv-tabs">
+        <button
+          type="button"
+          className={`inv-tab${listTab === "invoice" ? " inv-tab--active" : ""}`}
+          onClick={() => {
+            setListTab("invoice");
+            setPage(1);
+          }}
+        >
+          {t("invoices.tabInvoices")}
+        </button>
+        <button
+          type="button"
+          className={`inv-tab${listTab === "credit_note" ? " inv-tab--active" : ""}`}
+          onClick={() => {
+            setListTab("credit_note");
+            setPage(1);
+          }}
+        >
+          {t("invoices.tabCreditNotes")}
+        </button>
+      </div>
+
+      <ListFilterBar>
+        <ListFilterGrid>
+          <ListFilterField label="Rechercher">
             <input
               className="inv-input"
               type="text"
-              placeholder="Numero, client, devis..."
+              placeholder={t("invoices.searchPlaceholder")}
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
             />
-          </div>
-          <div className="inv-field">
-            <label>Statut</label>
+          </ListFilterField>
+          <ListFilterField label="Statut">
             <AppSelect value={filterStatus} onChange={setFilterStatus} options={statusFilterOptions} />
-          </div>
-          <button className="inv-btn inv-btn--primary" type="button" onClick={() => setSearch(searchInput.trim())}>
-            <i className="fa-solid fa-filter" /> Filtrer
-          </button>
-        </div>
-      </section>
+          </ListFilterField>
+        </ListFilterGrid>
+      </ListFilterBar>
 
-      <section className="inv-card doc-list-card">
-        <div className="inv-topbar">
-          <h2>Liste des factures</h2>
-          <button className="inv-btn inv-btn--accent" type="button" onClick={openCreate}>
-            <i className="fa-solid fa-plus" /> Nouvelle facture
-          </button>
-        </div>
-        <p className="inv-sub">{meta.total} facture(s) enregistree(s)</p>
+      <section className="inv-card app-list-card doc-list-card">
+        <ListPageHeader
+          title={listTab === "credit_note" ? t("invoices.tabCreditNotes") : t("invoices.listTitle")}
+          count={`${meta.total} ${listTab === "credit_note" ? "avoir(s)" : "facture(s)"} enregistré(s)`}
+          actions={
+            listTab === "invoice" ? (
+              <button className="inv-btn inv-btn--accent app-list-btn" type="button" onClick={openCreate} disabled={quotaBlocked}>
+                <i className="fa-solid fa-plus" /> <span className="btn-label-long">{t("invoices.new")}</span>
+              </button>
+            ) : null
+          }
+        />
 
-        <div className="inv-table-wrap">
-          <table className="inv-table">
+        <div className="inv-table-wrap app-list-table-wrap">
+          <table className="inv-table app-list-table">
             <thead>
               <tr>
                 <th>Numero</th>
                 <th>Client</th>
-                <th>Devis</th>
+                <th>{listTab === "credit_note" ? "Facture d'origine" : "Devis"}</th>
                 <th>Dates</th>
-                <th>Montants</th>
+                <th>Montant</th>
                 <th>Statut</th>
                 <th>Actions</th>
               </tr>
@@ -649,92 +850,135 @@ export default function FacturesPage() {
             <tbody>
               {loading ? (
                 <TableSkeleton rows={7} columns={7} withActions actionColumnIndex={6} />
-              ) : displayedInvoices.length === 0 ? (
+              ) : invoices.length === 0 ? (
                 <tr>
                   <td colSpan={7}>Aucune facture trouvee.</td>
                 </tr>
               ) : (
-                displayedInvoices.map((invoice) => (
+                invoices.map((invoice) => {
+                  const paid = invoicePaidTotal(invoice);
+                  const balance = invoiceBalanceDue(invoice);
+                  const rowStatusOptions = inlineStatusOptionsForInvoice(invoice, editableStatusOptions, t);
+                  return (
                   <tr key={invoice.id}>
                     <td>
                       <strong>{invoice.number}</strong>
                       <div className="inv-mini">{invoice.currency || "XOF"}</div>
                     </td>
                     <td>{invoice.client?.name || "—"}</td>
-                    <td>{invoice.quote?.number || "—"}</td>
                     <td>
-                      <div className="inv-mini">Emission: {formatDate(invoice.issue_date)}</div>
-                      <div className="inv-mini">Echeance: {formatDate(invoice.due_date)}</div>
+                      {listTab === "credit_note"
+                        ? invoice.parent_invoice?.number || "—"
+                        : invoice.quote?.number || "—"}
+                    </td>
+                    <td className="inv-cell-date">
+                      {formatDate(invoice.issue_date)} → {formatDate(invoice.due_date)}
                     </td>
                     <td>
-                      <div className="inv-mini">HT: {formatMoney(invoice.subtotal)}</div>
-                      <div className="inv-mini">TVA: {formatMoney(invoice.tax_amount)}</div>
-                      <strong>TTC: {formatMoney(invoice.total)}</strong>
-                    </td>
-                    <td>
-                      <InlineStatusSelect
-                        value={invoice.status || "draft"}
-                        options={statusOptions}
-                        onChange={(next) => requestStatusChange(invoice, next)}
-                      />
-                    </td>
-                    <td>
-                      <div className="inv-actions">
-                        <button className="inv-icon-btn" type="button" onClick={() => openPreview(invoice)} title="Aperçu / PDF">
-                          <i className="fa-solid fa-eye" />
-                        </button>
-                        {invoice.document_type !== "credit_note" ? (
-                          <>
-                            <button className="inv-icon-btn" type="button" onClick={() => openPayments(invoice)} title="Paiements">
-                              <i className="fa-solid fa-coins" />
-                            </button>
-                            <button className="inv-icon-btn" type="button" onClick={() => requestCreditNote(invoice)} title="Creer un avoir">
-                              <i className="fa-solid fa-rotate-left" />
-                            </button>
-                          </>
+                      <div className="inv-cell-amount-wrap">
+                        <span className="inv-cell-amount">
+                          {showMoney(invoice.total)} {invoice.currency || "XOF"}
+                        </span>
+                        {listTab === "invoice" && paid > 0 && balance > 0 ? (
+                          <span className="inv-tag inv-tag--sent">Partiel</span>
                         ) : null}
-                        <button className="inv-icon-btn" type="button" onClick={() => openEdit(invoice)} title="Modifier">
-                          <i className="fa-solid fa-pen" />
-                        </button>
-                        <button
-                          className="inv-icon-btn inv-icon-btn--danger"
-                          type="button"
-                          title="Supprimer"
-                          onClick={() => setDeleteTarget(invoice)}
-                          disabled={deletingId === invoice.id}
-                        >
-                          <i className={`fa-solid ${deletingId === invoice.id ? "fa-spinner fa-spin" : "fa-trash"}`} />
-                        </button>
+                        {listTab === "invoice" && balance <= 0 && paid > 0 ? (
+                          <span className="inv-tag inv-tag--paid">Soldé</span>
+                        ) : null}
                       </div>
                     </td>
+                    <td>
+                      {listTab === "credit_note" ? (
+                        <span className="inv-tag inv-tag--sent">{t("invoices.tabCreditNotes")}</span>
+                      ) : (
+                        <InlineStatusSelect
+                          value={invoice.status || "draft"}
+                          options={rowStatusOptions}
+                          disabled={invoice.status === "paid" || invoice.status === "cancelled"}
+                          onChange={(next) => requestStatusChange(invoice, next)}
+                        />
+                      )}
+                    </td>
+                    <td>
+                      <div className="inv-actions">{renderInvoiceActions(invoice)}</div>
+                    </td>
                   </tr>
-                ))
+                );
+                })
               )}
             </tbody>
           </table>
         </div>
 
-        <div className="inv-pagination">
-          <button
-            className="inv-btn"
-            type="button"
-            disabled={meta.current_page <= 1 || loading}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-          >
-            Precedent
-          </button>
-          <span>
-            Page {meta.current_page} / {meta.last_page}
-          </span>
-          <button
-            className="inv-btn"
-            type="button"
-            disabled={meta.current_page >= meta.last_page || loading}
-            onClick={() => setPage((p) => Math.min(meta.last_page, p + 1))}
-          >
-            Suivant
-          </button>
+        <div className="app-list-cards">
+          {loading && invoices.length === 0 ? (
+            <>
+              <div className="app-list-card-item app-list-card-item--skeleton" />
+              <div className="app-list-card-item app-list-card-item--skeleton" />
+              <div className="app-list-card-item app-list-card-item--skeleton" />
+            </>
+          ) : invoices.length === 0 ? (
+            <div className="app-list-card-item app-list-card-item--empty">Aucune facture trouvee.</div>
+          ) : (
+            invoices.map((invoice) => {
+              const paid = invoicePaidTotal(invoice);
+              const balance = invoiceBalanceDue(invoice);
+              const rowStatusOptions = inlineStatusOptionsForInvoice(invoice, editableStatusOptions, t);
+              return (
+                <article key={invoice.id} className="app-list-card-item">
+                  <div className="app-list-card-item__head">
+                    <div>
+                      <div className="app-list-card-item__ref">{invoice.number}</div>
+                      <div className="app-list-card-item__sub">{invoice.client?.name || "—"}</div>
+                    </div>
+                    <div className="app-list-card-item__amount">
+                      {showMoney(invoice.total)} {invoice.currency || "XOF"}
+                    </div>
+                  </div>
+                  <div className="app-list-card-item__row">
+                    <span className="app-list-card-item__label">{listTab === "credit_note" ? "Origine" : "Devis"}</span>
+                    <span>
+                      {listTab === "credit_note"
+                        ? invoice.parent_invoice?.number || "—"
+                        : invoice.quote?.number || "—"}
+                    </span>
+                  </div>
+                  <div className="app-list-card-item__row">
+                    <span className="app-list-card-item__label">Échéance</span>
+                    <span>{formatDate(invoice.due_date)}</span>
+                    {listTab === "invoice" && paid > 0 && balance > 0 ? (
+                      <span className="app-list-tag app-list-tag--sent">Partiel</span>
+                    ) : null}
+                    {listTab === "invoice" && balance <= 0 && paid > 0 ? (
+                      <span className="app-list-tag app-list-tag--paid">Soldé</span>
+                    ) : null}
+                  </div>
+                  <div className="app-list-card-item__foot">
+                    {listTab === "credit_note" ? (
+                      <span className="app-list-tag app-list-tag--sent">{t("invoices.tabCreditNotes")}</span>
+                    ) : (
+                      <InlineStatusSelect
+                        value={invoice.status || "draft"}
+                        options={rowStatusOptions}
+                        disabled={invoice.status === "paid" || invoice.status === "cancelled"}
+                        onChange={(next) => requestStatusChange(invoice, next)}
+                      />
+                    )}
+                    <div className="app-list-card-item__actions">{renderInvoiceActions(invoice)}</div>
+                  </div>
+                </article>
+              );
+            })
+          )}
         </div>
+
+        <ListPagination
+          page={meta.current_page}
+          lastPage={meta.last_page}
+          loading={loading}
+          onPrev={() => setPage((p) => Math.max(1, p - 1))}
+          onNext={() => setPage((p) => Math.min(meta.last_page, p + 1))}
+        />
       </section>
 
       {modalOpen ? (
@@ -750,14 +994,22 @@ export default function FacturesPage() {
 
             <form className="doc-modal-form" onSubmit={onSubmit}>
               <div className="doc-modal-body">
+              {modalError ? <div className="inv-banner inv-banner--error">{modalError}</div> : null}
+              {!financialEditable ? (
+                <p className="inv-sub">{t("invoices.lockedEditHint")}</p>
+              ) : null}
               <div className="inv-form-grid">
                 <div className="inv-field">
                   <FieldLabel required>Statut</FieldLabel>
                   <AppSelect
-                    value={form.status}
+                    value={form.status === "paid" ? "sent" : form.status}
                     onChange={(next) => onChangeField({ target: { name: "status", value: next } })}
-                    options={statusOptions}
+                    options={formStatusOptions}
+                    disabled={!financialEditable && editingInvoice?.status !== "draft"}
                   />
+                  <p className="inv-sub" style={{ marginTop: 6 }}>
+                    {t("invoices.paidStatusHint")}
+                  </p>
                 </div>
 
                 <div className="inv-field">
@@ -766,7 +1018,9 @@ export default function FacturesPage() {
                     value={form.client_id}
                     onChange={(next) => onChangeField({ target: { name: "client_id", value: next } })}
                     options={clientOptions}
+                    disabled={!financialEditable}
                   />
+                  {!form.client_id ? <p className="inv-sub">{t("invoices.noClientWarning")}</p> : null}
                 </div>
                 <div className="inv-field">
                   <label>Devis source</label>
@@ -774,18 +1028,20 @@ export default function FacturesPage() {
                     value={form.quote_id}
                     onChange={(next) => onChangeField({ target: { name: "quote_id", value: next } })}
                     options={quoteOptions}
+                    disabled={!financialEditable}
                   />
                 </div>
 
                 <div className="inv-field">
-                  <label>Date emission</label>
+                  <label>Date d'émission</label>
                   <AppDateField
                     value={form.issue_date}
                     onChange={(next) => onChangeField({ target: { name: "issue_date", value: next } })}
+                    disabled={!financialEditable}
                   />
                 </div>
                 <div className="inv-field">
-                  <label>Date echeance</label>
+                  <label>Date d'échéance</label>
                   <AppDateField
                     value={form.due_date}
                     onChange={(next) => onChangeField({ target: { name: "due_date", value: next } })}
@@ -798,29 +1054,55 @@ export default function FacturesPage() {
                     value={form.currency}
                     onChange={(next) => onChangeField({ target: { name: "currency", value: next } })}
                     options={currencyOptions}
+                    disabled={!financialEditable}
                   />
                 </div>
 
-                {form.status === "paid" ? (
-                  <div className="inv-field inv-field--full">
-                    <label>{t("invoices.fieldPaidAt")}</label>
-                    <AppDateField
-                      value={form.paid_at}
-                      onChange={(next) => onChangeField({ target: { name: "paid_at", value: next } })}
-                    />
-                  </div>
-                ) : null}
                 <div className="inv-field inv-field--full">
                   <p className="inv-sub" style={{ margin: 0 }}>
-                    {t("invoices.amountsHint")}
-                    {form.quote_id ? (
+                    {form.quote_id
+                      ? t("invoices.amountsHint")
+                      : "Saisissez les lignes ci-dessous ou sélectionnez un devis source."}
+                    {form.quote_id || !showLinesEditor ? (
                       <>
                         {" "}
-                        TTC : <strong>{formatMoney(form.total)} {form.currency}</strong>
+                        TTC : <strong>{showMoney(form.total)} {form.currency}</strong>
                       </>
                     ) : null}
                   </p>
                 </div>
+                {showLinesEditor ? (
+                  <div className="inv-field inv-field--full">
+                    <DocumentLinesEditor
+                      lines={form.items}
+                      discountPercent={form.discount_percent}
+                      onDiscountChange={(value) =>
+                        setForm((prev) => {
+                          const totals = computeLineTotals(prev.items, value);
+                          return {
+                            ...prev,
+                            discount_percent: value,
+                            subtotal: totals.subtotal.toFixed(2),
+                            tax_amount: totals.tax_amount.toFixed(2),
+                            total: totals.total.toFixed(2),
+                          };
+                        })
+                      }
+                      onChange={(items) =>
+                        setForm((prev) => {
+                          const totals = computeLineTotals(items, prev.discount_percent);
+                          return {
+                            ...prev,
+                            items,
+                            subtotal: totals.subtotal.toFixed(2),
+                            tax_amount: totals.tax_amount.toFixed(2),
+                            total: totals.total.toFixed(2),
+                          };
+                        })
+                      }
+                    />
+                  </div>
+                ) : null}
                 <div className="inv-field inv-field--full">
                   <label>Notes</label>
                   <textarea className="inv-textarea" name="notes" value={form.notes} onChange={onChangeField} placeholder="Informations internes..." />
@@ -858,15 +1140,36 @@ export default function FacturesPage() {
                 <i className="fa-solid fa-xmark" />
               </button>
             </div>
-            <p className="inv-sub">Solde restant : <strong>{formatMoney(balanceDue)} {paymentsOpen.currency}</strong></p>
+            <p className="inv-sub">
+              {t("invoices.paymentPartialHint", {
+                paid: formatMoney(invoicePaidTotal(paymentsOpen) || payments.reduce((sum, p) => sum + Number(p.amount || 0), 0)),
+                total: formatMoney(paymentsOpen.total),
+                currency: paymentsOpen.currency || "XOF",
+              })}
+            </p>
+            <p className="inv-sub">
+              Solde restant : <strong>{formatMoney(balanceDue)} {paymentsOpen.currency}</strong>
+            </p>
+            {paymentError ? <div className="inv-banner inv-banner--error">{paymentError}</div> : null}
             <ul className="inv-sub" style={{ marginBottom: 12 }}>
-              {payments.length === 0 ? <li>Aucun paiement enregistre.</li> : null}
+              {payments.length === 0 ? <li>Aucun paiement enregistré.</li> : null}
               {payments.map((p) => (
-                <li key={p.id}>
-                  {formatMoney(p.amount)} — {p.method || "—"} — {formatDate(p.paid_at)}
+                <li key={p.id} style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
+                  <span>
+                    {formatMoney(p.amount)} — {p.method || "—"} — {formatDate(p.paid_at)}
+                  </span>
+                  <button
+                    className="inv-btn inv-btn--danger-soft"
+                    type="button"
+                    onClick={() => setPaymentDeleteTarget(p)}
+                    disabled={paymentSaving}
+                  >
+                    Supprimer
+                  </button>
                 </li>
               ))}
             </ul>
+            {balanceDue > 0.001 ? (
             <form onSubmit={submitPayment}>
               <div className="inv-form-grid">
                 <div className="inv-field">
@@ -876,10 +1179,18 @@ export default function FacturesPage() {
                     type="number"
                     step="0.01"
                     min="0.01"
+                    max={balanceDue}
                     required
                     value={paymentForm.amount}
                     onChange={(e) => setPaymentForm((prev) => ({ ...prev, amount: e.target.value }))}
+                    placeholder={formatMoney(balanceDue)}
                   />
+                  <p className="inv-sub">
+                    {t("invoices.paymentMaxHint", {
+                      amount: formatMoney(balanceDue),
+                      currency: paymentsOpen.currency || "XOF",
+                    })}
+                  </p>
                 </div>
                 <div className="inv-field">
                   <label>Methode</label>
@@ -897,16 +1208,30 @@ export default function FacturesPage() {
                 saving={paymentSaving}
               />
             </form>
+            ) : (
+              <p className="inv-sub">{t("invoices.statusPaid")}</p>
+            )}
           </section>
         </div>
         </ModalPortal>
+      ) : null}
+
+      {paymentDeleteTarget ? (
+        <ConfirmDialog
+          open
+          title="Supprimer le paiement"
+          description={t("invoices.paymentDeleteConfirm", { amount: formatMoney(paymentDeleteTarget.amount) })}
+          onClose={() => setPaymentDeleteTarget(null)}
+          onConfirm={confirmDeletePayment}
+          saving={paymentSaving}
+        />
       ) : null}
 
       {deleteTarget ? (
         <ConfirmDialog
           open
           title="Supprimer la facture"
-          description={`Confirmer la suppression de ${deleteTarget.number} ?`}
+          description={t("invoices.deleteConfirmDraft", { number: deleteTarget.number })}
           onClose={() => setDeleteTarget(null)}
           onConfirm={confirmDelete}
           saving={deletingId !== null}
@@ -946,30 +1271,69 @@ function statusLabel(options, value) {
   return options.find((opt) => opt.value === value)?.label || value || "—";
 }
 
-function validateInvoiceForm(form) {
+function validateInvoiceForm(form, t) {
+  if (form.status === "paid") {
+    return { valid: false, message: t("invoices.paidRequiresPayment") };
+  }
   if (form.due_date && form.issue_date && form.due_date < form.issue_date) {
-    return { valid: false, message: "La date d'echeance doit etre superieure a la date d'emission." };
+    return { valid: false, message: "La date d'échéance doit être postérieure à la date d'émission." };
+  }
+  if (!form.quote_id) {
+    const validLines = (form.items || []).filter((line) => String(line.description || "").trim() !== "");
+    if (validLines.length === 0) {
+      return { valid: false, message: "Ajoutez au moins une ligne de prestation ou sélectionnez un devis source." };
+    }
+    const totals = computeLineTotals(form.items, form.discount_percent);
+    if (totals.total <= 0) {
+      return { valid: false, message: "Le montant TTC doit être supérieur à zéro." };
+    }
+  } else {
+    const total = Number.parseFloat(form.total);
+    if (!(Number.isFinite(total) && total > 0)) {
+      return { valid: false, message: "Sélectionnez un devis source avec un montant valide." };
+    }
   }
   return { valid: true, message: "" };
 }
 
-function buildPayload(form) {
+function buildPayload(form, includeFinancial = true) {
   const payload = {
-    number: normalizeNullable(form.number),
-    status: form.status || "draft",
-    currency: String(form.currency || "XOF").trim().toUpperCase(),
-    subtotal: roundMoney(form.subtotal),
-    tax_amount: roundMoney(form.tax_amount),
-    total: roundMoney(form.total),
+    status: form.status === "paid" ? "sent" : form.status || "draft",
     notes: normalizeNullable(form.notes),
-    issue_date: normalizeNullable(form.issue_date),
     due_date: normalizeNullable(form.due_date),
-    paid_at: normalizeNullable(form.paid_at),
   };
-  const clientId = Number.parseInt(form.client_id, 10);
-  const quoteId = Number.parseInt(form.quote_id, 10);
-  payload.client_id = Number.isFinite(clientId) ? clientId : null;
-  payload.quote_id = Number.isFinite(quoteId) ? quoteId : null;
+
+  if (includeFinancial) {
+    payload.number = normalizeNullable(form.number);
+    payload.currency = String(form.currency || "XOF").trim().toUpperCase();
+    payload.issue_date = normalizeNullable(form.issue_date);
+    payload.discount_percent = Number.parseFloat(form.discount_percent) || 0;
+    const clientId = Number.parseInt(form.client_id, 10);
+    const quoteId = Number.parseInt(form.quote_id, 10);
+    payload.client_id = Number.isFinite(clientId) ? clientId : null;
+    payload.quote_id = Number.isFinite(quoteId) ? quoteId : null;
+
+    if (!form.quote_id) {
+      const validLines = (form.items || [])
+        .filter((line) => String(line.description || "").trim() !== "")
+        .map((line) => ({
+          description: String(line.description).trim(),
+          quantity: Number.parseFloat(line.quantity) || 0,
+          unit_price: Number.parseFloat(line.unit_price) || 0,
+          tax_rate: Number.parseFloat(line.tax_rate) || 0,
+        }));
+      const totals = computeLineTotals(form.items, form.discount_percent);
+      payload.items = validLines;
+      payload.subtotal = totals.subtotal;
+      payload.tax_amount = totals.tax_amount;
+      payload.total = totals.total;
+    } else {
+      payload.subtotal = roundMoney(form.subtotal);
+      payload.tax_amount = roundMoney(form.tax_amount);
+      payload.total = roundMoney(form.total);
+    }
+  }
+
   return payload;
 }
 
@@ -1008,6 +1372,16 @@ function toMoneyInput(value) {
   const amount = Number.parseFloat(value);
   if (!Number.isFinite(amount)) return "";
   return amount.toFixed(2);
+}
+
+function buildInvoicesUrl(requestedPage, search, filterStatus, listTab) {
+  const params = new URLSearchParams({
+    page: String(requestedPage),
+    document_type: listTab === "credit_note" ? "credit_note" : "invoice",
+  });
+  if (search.trim()) params.set("q", search.trim());
+  if (filterStatus !== "all") params.set("status", filterStatus);
+  return `/api/invoices?${params.toString()}`;
 }
 
 function extractApiMessage(error, fallback) {

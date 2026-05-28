@@ -32,7 +32,7 @@ export default function ForgotPassword() {
   return (
     <AuthBrand
       title="Mot de passe oublié"
-      subtitle="Nous vous enverrons un lien de réinitialisation."
+      tagline="Récupérez l'accès à votre espace de facturation."
       footer={
         <Link to="/login">Retour à la connexion</Link>
       }

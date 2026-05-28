@@ -10,15 +10,25 @@ export default function DocumentPreviewModal({ open, onClose, previewPath, pdfPa
   const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
-    if (!open || !previewPath) {
+    if (!open) {
       setHtml("");
       setError("");
+      setLoading(false);
       return;
     }
+
+    if (!previewPath) {
+      setHtml("");
+      setError("Document introuvable ou identifiant manquant.");
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
     (async () => {
       setLoading(true);
       setError("");
+      setHtml("");
       try {
         const content = await apiFetchHtml(previewPath);
         if (!cancelled) setHtml(content);
@@ -38,7 +48,11 @@ export default function DocumentPreviewModal({ open, onClose, previewPath, pdfPa
 
   if (!open) return null;
 
+  const hasContent = Boolean(html?.trim());
+  const showEmpty = !loading && !hasContent;
+
   async function handleDownload() {
+    if (!pdfPath) return;
     setDownloading(true);
     setError("");
     try {
@@ -76,11 +90,16 @@ export default function DocumentPreviewModal({ open, onClose, previewPath, pdfPa
               <Skeleton width="100%" height={120} block style={{ marginTop: 20, borderRadius: 10 }} />
               <Skeleton width="100%" height={80} block style={{ marginTop: 12, borderRadius: 10 }} />
             </div>
+          ) : showEmpty ? (
+            <div className="doc-preview-empty">
+              <i className="fa-solid fa-file-circle-xmark" aria-hidden />
+              <p>Aperçu indisponible. Vérifiez que le backend est démarré.</p>
+            </div>
           ) : (
-            <iframe
-              className="doc-preview-frame"
-              title={title || "Aperçu"}
-              srcDoc={html}
+            <div
+              key={previewPath}
+              className="doc-preview-html"
+              dangerouslySetInnerHTML={{ __html: html }}
             />
           )}
         </div>
@@ -93,7 +112,7 @@ export default function DocumentPreviewModal({ open, onClose, previewPath, pdfPa
             type="button"
             className="doc-preview-btn doc-preview-btn--primary"
             onClick={handleDownload}
-            disabled={loading || downloading || !html}
+            disabled={loading || downloading || !hasContent || !pdfPath}
           >
             <i className="fa-solid fa-file-pdf" /> {downloading ? "Export…" : "Télécharger le PDF"}
           </button>
@@ -104,11 +123,11 @@ export default function DocumentPreviewModal({ open, onClose, previewPath, pdfPa
         .doc-preview-backdrop {
           position: fixed;
           inset: 0;
-          z-index: var(--z-modal, 500);
+          z-index: calc(var(--z-modal, 500) + 20);
           background: rgba(20, 33, 61, 0.45);
           display: grid;
           place-items: center;
-          padding: 16px;
+          padding: 12px;
         }
         .doc-preview-panel {
           width: min(920px, 100%);
@@ -128,6 +147,7 @@ export default function DocumentPreviewModal({ open, onClose, previewPath, pdfPa
           gap: 12px;
           padding: 16px 18px;
           border-bottom: 1px solid var(--color-border);
+          flex-shrink: 0;
         }
         .doc-preview-head h2 {
           margin: 0 0 4px;
@@ -147,6 +167,7 @@ export default function DocumentPreviewModal({ open, onClose, previewPath, pdfPa
           border: 1px solid var(--color-border);
           background: #fff;
           cursor: pointer;
+          flex-shrink: 0;
         }
         .doc-preview-error {
           margin: 0 18px;
@@ -159,28 +180,51 @@ export default function DocumentPreviewModal({ open, onClose, previewPath, pdfPa
         }
         .doc-preview-body {
           flex: 1;
-          min-height: 0;
+          min-height: 200px;
+          overflow: auto;
           padding: 12px 18px;
           background: #eef2f8;
+          -webkit-overflow-scrolling: touch;
         }
         .doc-preview-skeleton {
           padding: 8px 4px 16px;
           max-width: 520px;
           margin: 0 auto;
         }
-        .doc-preview-frame {
-          width: 100%;
-          height: min(62vh, 640px);
+        .doc-preview-html {
+          background: #fff;
           border: 1px solid #d8dbe3;
           border-radius: 8px;
-          background: #fff;
+          padding: 0;
+          min-height: min(62vh, 520px);
+          overflow: auto;
+        }
+        .doc-preview-html .doc-accent {
+          margin-bottom: 0;
+        }
+        .doc-preview-empty {
+          min-height: min(50vh, 400px);
+          display: grid;
+          place-content: center;
+          justify-items: center;
+          gap: 12px;
+          text-align: center;
+          padding: 24px;
+          color: var(--color-text-muted);
+          font-size: 0.92rem;
+        }
+        .doc-preview-empty i {
+          font-size: 2rem;
+          color: #94a3b8;
         }
         .doc-preview-foot {
           display: flex;
+          flex-wrap: wrap;
           justify-content: flex-end;
           gap: 10px;
           padding: 14px 18px;
           border-top: 1px solid var(--color-border);
+          flex-shrink: 0;
         }
         .doc-preview-btn {
           border-radius: 10px;
@@ -205,6 +249,25 @@ export default function DocumentPreviewModal({ open, onClose, previewPath, pdfPa
         .doc-preview-btn--primary:disabled {
           opacity: 0.6;
           cursor: not-allowed;
+        }
+        @media (max-width: 768px) {
+          .doc-preview-backdrop {
+            padding: 0;
+            align-items: stretch;
+          }
+          .doc-preview-panel {
+            width: 100%;
+            max-height: 100vh;
+            border-radius: 0;
+            min-height: 100vh;
+          }
+          .doc-preview-foot {
+            flex-direction: column-reverse;
+          }
+          .doc-preview-foot .doc-preview-btn {
+            width: 100%;
+            justify-content: center;
+          }
         }
       `}</style>
     </div>

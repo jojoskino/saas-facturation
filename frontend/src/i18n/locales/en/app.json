@@ -38,7 +38,8 @@
     "confirmStatusTitle": "Confirm status change",
     "confirmStatusDesc": "Change quote {{number}} from « {{from}} » to « {{to}} »?",
     "confirmConvertTitle": "Convert to invoice",
-    "confirmConvertDesc": "Create an invoice from quote {{number}}? This action cannot be undone."
+    "confirmConvertDesc": "Create an invoice from quote {{number}}? This action cannot be undone.",
+    "lockedWhenInvoiced": "This quote is linked to an invoice and can no longer be edited."
   },
   "invoices": {
     "title": "Invoices",
@@ -62,7 +63,21 @@
     "confirmStatusTitle": "Confirm status change",
     "confirmStatusDesc": "Change invoice {{number}} from « {{from}} » to « {{to}} »?",
     "confirmCreditNoteTitle": "Create credit note",
-    "confirmCreditNoteDesc": "Generate a credit note for invoice {{number}}? This action cannot be undone."
+    "confirmCreditNoteDesc": "Generate a credit note for invoice {{number}}? The invoice will be marked cancelled and the credit note will appear under Credit notes.",
+    "paidRequiresPayment": "To mark an invoice as paid, record a payment via the Payments button (amount must cover the total).",
+    "paidStatusHint": "The Paid status is applied automatically when recorded payments cover the invoice total.",
+    "tabInvoices": "Invoices",
+    "tabCreditNotes": "Credit notes",
+    "lockedEditHint": "Only notes and due date remain editable after issuing.",
+    "deleteDraftOnly": "Only drafts without payments can be deleted.",
+    "deleteConfirmDraft": "Permanently delete draft {{number}}?",
+    "paymentMaxHint": "Maximum amount: {{amount}} {{currency}}",
+    "paymentPartialHint": "Collected: {{paid}} / {{total}} {{currency}} — Paid status applies automatically at zero balance.",
+    "paymentDeleteConfirm": "Delete this payment of {{amount}}?",
+    "quotaBanner": "Free plan: {{used}}/{{limit}} invoices this month.",
+    "quotaReached": "Monthly limit reached. Upgrade to Pro to continue.",
+    "noClientWarning": "A client is recommended for a compliant PDF.",
+    "creditNoteFor": "Related to {{number}}"
   },
   "clients": {
     "title": "Clients",

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiFetch, peekCache } from "../../api/client";
+import { paginatedFromCache } from "../../utils/listCache";
 import TableSkeleton from "../../components/skeleton/TableSkeleton";
 import FormActions from "../../components/FormActions";
 import DocumentPreviewModal from "../../components/DocumentPreviewModal";
@@ -8,7 +9,11 @@ import { AppDateField, AppSelect, FieldLabel } from "../../components/AppFormCon
 import InlineStatusSelect from "../../components/InlineStatusSelect";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import DocumentLinesEditor, { computeLineTotals, createEmptyLine } from "../../components/DocumentLinesEditor";
-import ModalPortal from "../../components/ModalPortal";
+import ListFilterBar, { ListFilterField, ListFilterGrid } from "../../components/list/ListFilterBar";
+import ListPageHeader from "../../components/list/ListPageHeader";
+import ListPagination from "../../components/list/ListPagination";
+import ListIconButton from "../../components/list/ListIconButton";
+import { useAmountsPrivacy } from "../../hooks/useAmountsPrivacy";
 
 const defaultForm = {
   client_id: "",
@@ -23,6 +28,8 @@ const defaultForm = {
 
 export default function DevisPage() {
   const { t } = useTranslation("app");
+  const { maskMoney } = useAmountsPrivacy();
+  const showMoney = (value) => maskMoney(value, formatMoney);
   const statusOptions = useMemo(
     () => [
       { value: "draft", label: t("quotes.statusDraft") },
@@ -33,10 +40,12 @@ export default function DevisPage() {
     ],
     [t]
   );
-  const [quotes, setQuotes] = useState([]);
-  const [meta, setMeta] = useState({ current_page: 1, last_page: 1, total: 0 });
+  const [quotes, setQuotes] = useState(() => paginatedFromCache(buildQuotesUrl(1, "", "all"))?.rows ?? []);
+  const [meta, setMeta] = useState(
+    () => paginatedFromCache(buildQuotesUrl(1, "", "all"))?.meta ?? { current_page: 1, last_page: 1, total: 0 },
+  );
   const [clients, setClients] = useState([]);
-  const [loading, setLoading] = useState(() => peekCache("/api/quotes?page=1") == null);
+  const [loading, setLoading] = useState(() => paginatedFromCache(buildQuotesUrl(1, "", "all")) == null);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [error, setError] = useState("");
@@ -59,7 +68,7 @@ export default function DevisPage() {
 
   useEffect(() => {
     loadQuotes(page);
-  }, [page]);
+  }, [page, search, filterStatus]);
 
   useEffect(() => {
     loadClients();
@@ -67,7 +76,7 @@ export default function DevisPage() {
 
   async function loadClients() {
     try {
-      const response = await apiFetch("/api/clients?per_page=200");
+      const response = await apiFetch("/api/clients?per_page=200&minimal=1", { cacheTtl: 300_000 });
       setClients(Array.isArray(response?.data) ? response.data : []);
     } catch {
       // Keep module usable even if clients fail.
@@ -75,11 +84,16 @@ export default function DevisPage() {
   }
 
   async function loadQuotes(requestedPage = 1) {
-    const url = `/api/quotes?page=${requestedPage}`;
+    const url = buildQuotesUrl(requestedPage, search, filterStatus);
+    const cached = paginatedFromCache(url);
+    if (cached) {
+      setQuotes(cached.rows);
+      setMeta(cached.meta);
+    }
     if (peekCache(url) == null) setLoading(true);
     setError("");
     try {
-      const response = await apiFetch(url);
+      const response = await apiFetch(url, { cacheTtl: 180_000 });
       setQuotes(Array.isArray(response?.data) ? response.data : []);
       setMeta({
         current_page: Number(response?.current_page || requestedPage || 1),
@@ -109,6 +123,10 @@ export default function DevisPage() {
   }
 
   async function openEdit(quote) {
+    if (quote.has_invoice) {
+      setError(t("quotes.lockedWhenInvoiced"));
+      return;
+    }
     setError("");
     setSuccess("");
     setEditingId(quote.id);
@@ -269,18 +287,6 @@ export default function DevisPage() {
     }
   }
 
-  const displayedQuotes = useMemo(() => {
-    return quotes.filter((quote) => {
-      const matchesStatus = filterStatus === "all" || quote.status === filterStatus;
-      const q = search.trim().toLowerCase();
-      if (!q) return matchesStatus;
-      const fields = [quote.number, quote.client?.name, quote.currency, quote.status]
-        .filter(Boolean)
-        .map((value) => String(value).toLowerCase());
-      return matchesStatus && fields.some((value) => value.includes(q));
-    });
-  }, [quotes, filterStatus, search]);
-
   const statusFilterOptions = useMemo(
     () => [{ value: "all", label: "Tous" }, ...statusOptions],
     [statusOptions]
@@ -299,8 +305,38 @@ export default function DevisPage() {
     []
   );
 
+  function renderQuoteActions(quote) {
+    return (
+      <>
+        <ListIconButton title="Aperçu / PDF" icon="fa-eye" onClick={() => openPreview(quote)} />
+        {quote.status === "accepted" ? (
+          <ListIconButton
+            title={quote.has_invoice ? "Facture deja creee pour ce devis" : "Convertir en facture"}
+            icon="fa-file-invoice"
+            onClick={() => requestConvertToInvoice(quote)}
+            disabled={Boolean(quote.has_invoice)}
+          />
+        ) : null}
+        <ListIconButton
+          title={quote.has_invoice ? t("quotes.lockedWhenInvoiced") : "Modifier"}
+          icon="fa-pen"
+          onClick={() => openEdit(quote)}
+          disabled={Boolean(quote.has_invoice)}
+        />
+        <ListIconButton
+          title={quote.has_invoice ? t("quotes.lockedWhenInvoiced") : "Supprimer"}
+          icon="fa-trash"
+          danger
+          spinning={deletingId === quote.id}
+          onClick={() => setDeleteTarget(quote)}
+          disabled={deletingId === quote.id || Boolean(quote.has_invoice)}
+        />
+      </>
+    );
+  }
+
   return (
-    <div className="quo">
+    <div className="quo app-list-page">
       <style>{`
         .quo { color: var(--color-text); font-family: var(--sans); display: grid; gap: 14px; }
         .quo-card {
@@ -471,10 +507,9 @@ export default function DevisPage() {
       {error ? <div className="quo-banner quo-banner--error">{error}</div> : null}
       {success ? <div className="quo-banner quo-banner--success">{success}</div> : null}
 
-      <section className="quo-search-card doc-filter-bar">
-        <div className="quo-toolbar">
-          <div className="quo-field">
-            <label>Rechercher</label>
+      <ListFilterBar>
+        <ListFilterGrid>
+          <ListFilterField label="Rechercher">
             <input
               className="quo-input"
               type="text"
@@ -482,34 +517,32 @@ export default function DevisPage() {
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
             />
-          </div>
-          <div className="quo-field">
-            <label>Statut</label>
+          </ListFilterField>
+          <ListFilterField label="Statut">
             <AppSelect value={filterStatus} onChange={setFilterStatus} options={statusFilterOptions} />
-          </div>
-          <button className="quo-btn quo-btn--primary" type="button" onClick={() => setSearch(searchInput.trim())}>
-            <i className="fa-solid fa-filter" /> Filtrer
-          </button>
-        </div>
-      </section>
+          </ListFilterField>
+        </ListFilterGrid>
+      </ListFilterBar>
 
-      <section className="quo-card doc-list-card">
-        <div className="quo-topbar">
-          <h2>Liste des devis</h2>
-          <button className="quo-btn quo-btn--accent" type="button" onClick={openCreate}>
-            <i className="fa-solid fa-plus" /> Nouveau devis
-          </button>
-        </div>
-        <p className="quo-sub">{meta.total} devis enregistre(s)</p>
+      <section className="quo-card app-list-card doc-list-card">
+        <ListPageHeader
+          title="Liste des devis"
+          count={`${meta.total} devis enregistre(s)`}
+          actions={
+            <button className="quo-btn quo-btn--accent app-list-btn" type="button" onClick={openCreate}>
+              <i className="fa-solid fa-plus" /> <span className="btn-label-long">Nouveau devis</span>
+            </button>
+          }
+        />
 
-        <div className="quo-table-wrap">
-          <table className="quo-table">
+        <div className="quo-table-wrap app-list-table-wrap">
+          <table className="quo-table app-list-table">
             <thead>
               <tr>
                 <th>Numero</th>
                 <th>Client</th>
                 <th>Dates</th>
-                <th>Montants</th>
+                <th>Montant</th>
                 <th>Statut</th>
                 <th>Actions</th>
               </tr>
@@ -517,12 +550,12 @@ export default function DevisPage() {
             <tbody>
               {loading ? (
                 <TableSkeleton rows={7} columns={6} withActions actionColumnIndex={5} />
-              ) : displayedQuotes.length === 0 ? (
+              ) : quotes.length === 0 ? (
                 <tr>
                   <td colSpan={6}>Aucun devis trouve.</td>
                 </tr>
               ) : (
-                displayedQuotes.map((quote) => (
+                quotes.map((quote) => (
                   <tr key={quote.id}>
                     <td>
                       <strong>{quote.number}</strong>
@@ -530,50 +563,23 @@ export default function DevisPage() {
                     </td>
                     <td>{quote.client?.name || "—"}</td>
                     <td>
-                      <div className="quo-mini">Emission: {formatDate(quote.issue_date)}</div>
-                      <div className="quo-mini">Validite: {formatDate(quote.valid_until)}</div>
+                      {formatDate(quote.issue_date)} → {formatDate(quote.valid_until)}
                     </td>
                     <td>
-                      <div className="quo-mini">HT: {formatMoney(quote.subtotal)}</div>
-                      <div className="quo-mini">TVA: {formatMoney(quote.tax_amount)}</div>
-                      <strong>TTC: {formatMoney(quote.total)}</strong>
+                      <strong>
+                        {showMoney(quote.total)} {quote.currency || "XOF"}
+                      </strong>
                     </td>
                     <td>
-                      <InlineStatusSelect
-                        value={quote.status || "draft"}
-                        options={statusOptions}
-                        onChange={(next) => requestStatusChange(quote, next)}
-                      />
+                        <InlineStatusSelect
+                          value={quote.status || "draft"}
+                          options={statusOptions}
+                          onChange={(next) => requestStatusChange(quote, next)}
+                          disabled={Boolean(quote.has_invoice)}
+                        />
                     </td>
                     <td>
-                      <div className="quo-actions">
-                        <button className="quo-icon-btn" type="button" title="Aperçu / PDF" onClick={() => openPreview(quote)}>
-                          <i className="fa-solid fa-eye" />
-                        </button>
-                        {quote.status === "accepted" ? (
-                          <button
-                            className="quo-icon-btn"
-                            type="button"
-                            title={quote.has_invoice ? "Facture deja creee pour ce devis" : "Convertir en facture"}
-                            onClick={() => requestConvertToInvoice(quote)}
-                            disabled={Boolean(quote.has_invoice)}
-                          >
-                            <i className="fa-solid fa-file-invoice" />
-                          </button>
-                        ) : null}
-                        <button className="quo-icon-btn" type="button" title="Modifier" onClick={() => openEdit(quote)}>
-                          <i className="fa-solid fa-pen" />
-                        </button>
-                        <button
-                          className="quo-icon-btn quo-icon-btn--danger"
-                          type="button"
-                          title="Supprimer"
-                          onClick={() => setDeleteTarget(quote)}
-                          disabled={deletingId === quote.id}
-                        >
-                          <i className={`fa-solid ${deletingId === quote.id ? "fa-spinner fa-spin" : "fa-trash"}`} />
-                        </button>
-                      </div>
+                      <div className="quo-actions">{renderQuoteActions(quote)}</div>
                     </td>
                   </tr>
                 ))
@@ -582,27 +588,52 @@ export default function DevisPage() {
           </table>
         </div>
 
-        <div className="quo-pagination">
-          <button
-            className="quo-btn"
-            type="button"
-            disabled={meta.current_page <= 1 || loading}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-          >
-            Precedent
-          </button>
-          <span>
-            Page {meta.current_page} / {meta.last_page}
-          </span>
-          <button
-            className="quo-btn"
-            type="button"
-            disabled={meta.current_page >= meta.last_page || loading}
-            onClick={() => setPage((p) => Math.min(meta.last_page, p + 1))}
-          >
-            Suivant
-          </button>
+        <div className="app-list-cards">
+          {loading && quotes.length === 0 ? (
+            <>
+              <div className="app-list-card-item app-list-card-item--skeleton" />
+              <div className="app-list-card-item app-list-card-item--skeleton" />
+              <div className="app-list-card-item app-list-card-item--skeleton" />
+            </>
+          ) : quotes.length === 0 ? (
+            <div className="app-list-card-item app-list-card-item--empty">Aucun devis trouve.</div>
+          ) : (
+            quotes.map((quote) => (
+              <article key={quote.id} className="app-list-card-item">
+                <div className="app-list-card-item__head">
+                  <div>
+                    <div className="app-list-card-item__ref">{quote.number}</div>
+                    <div className="app-list-card-item__sub">{quote.client?.name || "—"}</div>
+                  </div>
+                  <div className="app-list-card-item__amount">
+                    {showMoney(quote.total)} {quote.currency || "XOF"}
+                  </div>
+                </div>
+                <div className="app-list-card-item__row">
+                  <span className="app-list-card-item__label">Validité</span>
+                  <span>{formatDate(quote.issue_date)} → {formatDate(quote.valid_until)}</span>
+                </div>
+                <div className="app-list-card-item__foot">
+                  <InlineStatusSelect
+                    value={quote.status || "draft"}
+                    options={statusOptions}
+                    onChange={(next) => requestStatusChange(quote, next)}
+                    disabled={Boolean(quote.has_invoice)}
+                  />
+                  <div className="app-list-card-item__actions">{renderQuoteActions(quote)}</div>
+                </div>
+              </article>
+            ))
+          )}
         </div>
+
+        <ListPagination
+          page={meta.current_page}
+          lastPage={meta.last_page}
+          loading={loading}
+          onPrev={() => setPage((p) => Math.max(1, p - 1))}
+          onNext={() => setPage((p) => Math.min(meta.last_page, p + 1))}
+        />
       </section>
 
       {modalOpen ? (
@@ -786,6 +817,13 @@ function toDateInput(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return date.toISOString().slice(0, 10);
+}
+
+function buildQuotesUrl(requestedPage, search, filterStatus) {
+  const params = new URLSearchParams({ page: String(requestedPage) });
+  if (search.trim()) params.set("q", search.trim());
+  if (filterStatus !== "all") params.set("status", filterStatus);
+  return `/api/quotes?${params.toString()}`;
 }
 
 function formatDate(value) {

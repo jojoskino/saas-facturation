@@ -37,7 +37,15 @@ class DocumentPdfService
 
     public function invoicePdf(Invoice $invoice, User $user): Response
     {
-        $invoice->loadMissing(['client', 'quote', 'payments', 'quote.items']);
+        $invoice->loadMissing([
+            'client',
+            'quote',
+            'payments',
+            'quote.items',
+            'items',
+            'parentInvoice.items',
+            'parentInvoice.quote.items',
+        ]);
 
         $pdf = Pdf::loadView('pdf.invoice', $this->invoiceViewData($invoice, $user))
             ->setPaper('a4');
@@ -54,7 +62,15 @@ class DocumentPdfService
 
     public function invoiceHtml(Invoice $invoice, User $user): string
     {
-        $invoice->loadMissing(['client', 'quote', 'payments', 'quote.items']);
+        $invoice->loadMissing([
+            'client',
+            'quote',
+            'payments',
+            'quote.items',
+            'items',
+            'parentInvoice.items',
+            'parentInvoice.quote.items',
+        ]);
 
         return view('pdf.invoice', $this->invoiceViewData($invoice, $user))->render();
     }
@@ -81,8 +97,8 @@ class DocumentPdfService
         $paidAmount = (float) $invoice->payments->sum('amount');
         $balance = max(0, (float) $invoice->total - $paidAmount);
 
-        /** @var Collection<int, \App\Models\QuoteItem> $items */
-        $items = $invoice->quote?->items ?? collect();
+        /** @var \Illuminate\Support\Collection<int, \App\Models\InvoiceItem|\App\Models\QuoteItem> $items */
+        $items = $this->resolveInvoiceLineItems($invoice);
 
         return [
             'invoice' => $invoice,
@@ -112,14 +128,56 @@ class DocumentPdfService
         ];
     }
 
+    /**
+     * @return Collection<int, \App\Models\InvoiceItem|\App\Models\QuoteItem>
+     */
+    private function resolveInvoiceLineItems(Invoice $invoice): Collection
+    {
+        if ($invoice->items->isNotEmpty()) {
+            return $invoice->items;
+        }
+
+        if ($invoice->quote?->items?->isNotEmpty()) {
+            return $invoice->quote->items;
+        }
+
+        if ($invoice->document_type === 'credit_note' && $invoice->parentInvoice) {
+            $parent = $invoice->parentInvoice;
+            $parent->loadMissing(['items', 'quote.items']);
+
+            if ($parent->items->isNotEmpty()) {
+                return $parent->items;
+            }
+
+            if ($parent->quote?->items?->isNotEmpty()) {
+                return $parent->quote->items;
+            }
+        }
+
+        return collect();
+    }
+
     private function logoDataUri(?string $relativePath): ?string
     {
         if (! $relativePath) {
             return null;
         }
 
-        $absolute = storage_path('app/public/'.ltrim($relativePath, '/'));
-        if (! is_file($absolute) || ! is_readable($absolute)) {
+        $relative = ltrim($relativePath, '/');
+        $candidates = [
+            storage_path('app/public/'.$relative),
+            public_path('storage/'.$relative),
+        ];
+
+        $absolute = null;
+        foreach ($candidates as $path) {
+            if (is_file($path) && is_readable($path)) {
+                $absolute = $path;
+                break;
+            }
+        }
+
+        if ($absolute === null) {
             return null;
         }
 

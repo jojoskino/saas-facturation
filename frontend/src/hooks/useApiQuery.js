@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "../api/client";
-import { peekCache, subscribeCache } from "../api/cache";
+import { getCacheEntry, isCacheFresh, peekCache, subscribeCache } from "../api/cache";
+
+const DEFAULT_TTL_MS = 180_000;
 
 /**
  * Cached GET query — shows cached data instantly on revisit, revalidates in background.
@@ -40,7 +42,11 @@ export function useApiQuery(path, { enabled = true, ttlMs } = {}) {
       setLoading(false);
     }
 
-    refresh();
+    const ttl = ttlMs ?? DEFAULT_TTL_MS;
+    const entry = getCacheEntry(path);
+    if (!entry || !isCacheFresh(entry, ttl)) {
+      refresh();
+    }
 
     return subscribeCache(path, () => {
       const next = peekCache(path);

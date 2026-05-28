@@ -65,9 +65,21 @@ class QuoteToInvoiceService
             'subtotal' => $quote->subtotal,
             'tax_amount' => $quote->tax_amount,
             'total' => $quote->total,
+            'discount_percent' => $quote->discount_percent ?? 0,
             'notes' => $quote->notes,
         ]);
 
-        return $invoice->load(['client:id,name', 'quote:id,number', 'payments']);
+        foreach ($quote->items as $index => $item) {
+            $invoice->items()->create([
+                'description' => $item->description,
+                'quantity' => $item->quantity,
+                'unit_price' => $item->unit_price,
+                'tax_rate' => $item->tax_rate,
+                'line_total' => $item->line_total,
+                'sort_order' => $item->sort_order ?? $index,
+            ]);
+        }
+
+        return $invoice->load(['client:id,name', 'quote:id,number', 'payments', 'items']);
     }
 }

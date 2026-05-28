@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import "../styles/auth-pages.css";
 import { apiFetch, setStoredToken } from "../api/client";
+import { prefetchAppData } from "../utils/prefetchAppData";
 import { AuthBrand } from "../components/AuthShell";
 import PasswordField from "../components/PasswordField";
 import { FieldLabel } from "../components/AppFormControls";
@@ -28,7 +29,8 @@ export default function Login() {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
-      setStoredToken(data.token);
+      setStoredToken(data.token, { remember });
+      prefetchAppData();
       navigate(authRedirectPath(searchParams), { replace: true });
     } catch (err) {
       const msg =
@@ -45,7 +47,7 @@ export default function Login() {
   return (
     <AuthBrand
       title="Connexion"
-      subtitle="Accédez à votre espace de facturation."
+      tagline="Connectez-vous et gérez vos devis et factures au quotidien."
       footer={
         <>
           Pas encore de compte ? <Link to="/register">Créer un compte</Link>
@@ -83,6 +85,11 @@ export default function Login() {
         <PasswordField
           id="login-password"
           label="Mot de passe"
+          labelExtra={
+            <Link to="/forgot-password" className="auth-forgot">
+              Mot de passe oublié ?
+            </Link>
+          }
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Votre mot de passe"
@@ -94,9 +101,6 @@ export default function Login() {
             <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
             <span>Se souvenir de moi</span>
           </label>
-          <Link to="/forgot-password" className="auth-forgot">
-            Mot de passe oublié ?
-          </Link>
         </div>
 
         <button className="auth-submit" type="submit" disabled={loading}>

@@ -13,6 +13,7 @@ export default function PasswordField({
   required = true,
   pattern,
   title,
+  labelExtra = null,
 }) {
   const reactId = useId();
   const inputId = idProp || `pwd-${reactId}`;
@@ -20,9 +21,18 @@ export default function PasswordField({
 
   return (
     <div className="auth-field">
-      <FieldLabel htmlFor={inputId} required={required}>
-        {label}
-      </FieldLabel>
+      {labelExtra ? (
+        <div className="auth-field-head">
+          <FieldLabel htmlFor={inputId} required={required}>
+            {label}
+          </FieldLabel>
+          {labelExtra}
+        </div>
+      ) : (
+        <FieldLabel htmlFor={inputId} required={required}>
+          {label}
+        </FieldLabel>
+      )}
       <div className="auth-pass-wrap">
         <i className={`fa-solid ${leadingIcon} auth-input-icon`} aria-hidden />
         <input

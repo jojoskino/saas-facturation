@@ -5,16 +5,23 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\Invoice;
+use App\Models\Payment;
 use App\Models\Quote;
+use App\Models\User;
+use App\Support\PaymentAnalytics;
 use App\Support\PlanFeatures;
+use App\Support\UserAnalyticsCache;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use OpenApi\Attributes as OA;
 
 class ReportsController extends Controller
 {
+    private const SUMMARY_TTL_SECONDS = 60;
+
     #[OA\Get(
         path: '/api/reports/summary',
         tags: ['Rapports'],
@@ -30,29 +37,31 @@ class ReportsController extends Controller
     public function summary(Request $request): JsonResponse
     {
         $period = $this->normalizePeriod((string) $request->query('period', 'year'));
-        $userId = (int) $request->user()->id;
+        $user = $request->user();
+        $userId = (int) $user->id;
+
+        $payload = Cache::remember(
+            UserAnalyticsCache::reportsKey($userId, $period),
+            self::SUMMARY_TTL_SECONDS,
+            fn (): array => $this->buildSummary($userId, $user, $period)
+        );
+
+        return response()->json($payload);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildSummary(int $userId, User $user, string $period): array
+    {
         [$start, $end] = $this->periodRange($period);
         [$prevStart, $prevEnd] = $this->previousPeriodRange($period);
 
-        $revenuePaid = (float) Invoice::query()
-            ->where('user_id', $userId)
-            ->where('document_type', 'invoice')
-            ->where('status', 'paid')
-            ->whereBetween('paid_at', [$start, $end])
-            ->sum('total');
+        $revenuePaid = PaymentAnalytics::revenueBetween($userId, $start, $end);
 
-        $revenuePaidPrevious = (float) Invoice::query()
-            ->where('user_id', $userId)
-            ->where('document_type', 'invoice')
-            ->where('status', 'paid')
-            ->whereBetween('paid_at', [$prevStart, $prevEnd])
-            ->sum('total');
+        $revenuePaidPrevious = PaymentAnalytics::revenueBetween($userId, $prevStart, $prevEnd);
 
-        $outstanding = (float) Invoice::query()
-            ->where('user_id', $userId)
-            ->where('document_type', 'invoice')
-            ->whereIn('status', ['sent', 'overdue'])
-            ->sum('total');
+        $outstanding = PaymentAnalytics::outstandingBalance($userId);
 
         $invoicesIssued = (int) Invoice::query()
             ->where('user_id', $userId)
@@ -60,12 +69,13 @@ class ReportsController extends Controller
             ->whereBetween('issue_date', [$start->toDateString(), $end->toDateString()])
             ->count();
 
-        $invoicesPaid = (int) Invoice::query()
-            ->where('user_id', $userId)
-            ->where('document_type', 'invoice')
-            ->where('status', 'paid')
-            ->whereBetween('paid_at', [$start, $end])
-            ->count();
+        $invoicesPaid = (int) Payment::query()
+            ->join('invoices', 'payments.invoice_id', '=', 'invoices.id')
+            ->where('invoices.user_id', $userId)
+            ->where('invoices.document_type', 'invoice')
+            ->whereBetween('payments.paid_at', [$start, $end])
+            ->distinct('invoices.id')
+            ->count('invoices.id');
 
         $overdueCount = (int) Invoice::query()
             ->where('user_id', $userId)
@@ -88,12 +98,7 @@ class ReportsController extends Controller
             ? round(($quotesAccepted / $quotesCreated) * 100, 1)
             : 0.0;
 
-        $avgPaid = (float) Invoice::query()
-            ->where('user_id', $userId)
-            ->where('document_type', 'invoice')
-            ->where('status', 'paid')
-            ->whereBetween('paid_at', [$start, $end])
-            ->avg('total');
+        $avgPaid = PaymentAnalytics::averagePaymentBetween($userId, $start, $end);
 
         $invoicesByStatus = Invoice::query()
             ->select('status', DB::raw('count(*) as count'))
@@ -112,25 +117,22 @@ class ReportsController extends Controller
             ->pluck('count', 'status')
             ->all();
 
-        $topClients = Invoice::query()
-            ->select('client_id', DB::raw('sum(total) as revenue'), DB::raw('count(*) as invoices_count'))
-            ->where('user_id', $userId)
-            ->where('document_type', 'invoice')
-            ->where('status', 'paid')
-            ->whereBetween('paid_at', [$start, $end])
-            ->whereNotNull('client_id')
-            ->groupBy('client_id')
-            ->orderByDesc('revenue')
-            ->limit(10)
-            ->get()
-            ->map(function ($row) {
-                $client = Client::query()->find($row->client_id);
+        $topClientRows = collect(PaymentAnalytics::topClientsByPayments($userId, $start, $end));
+
+        $clientsById = Client::query()
+            ->whereIn('id', $topClientRows->pluck('client_id'))
+            ->get(['id', 'name', 'first_name', 'last_name', 'company'])
+            ->keyBy('id');
+
+        $topClients = $topClientRows
+            ->map(function (array $row) use ($clientsById) {
+                $client = $clientsById->get($row['client_id']);
 
                 return [
-                    'client_id' => $row->client_id,
+                    'client_id' => $row['client_id'],
                     'name' => $client?->company ?: ($client?->name ?: trim(($client?->first_name ?? '').' '.($client?->last_name ?? '')) ?: '—'),
-                    'revenue_cfa' => (float) $row->revenue,
-                    'invoices_count' => (int) $row->invoices_count,
+                    'revenue_cfa' => (float) $row['revenue_cfa'],
+                    'invoices_count' => (int) $row['invoices_count'],
                 ];
             })
             ->values()
@@ -159,7 +161,7 @@ class ReportsController extends Controller
 
         $aging = $this->overdueAging($userId);
 
-        return response()->json([
+        return [
             'period' => $period,
             'period_label' => $this->periodLabel($period, $start, $end),
             'revenue_paid_cfa' => $revenuePaid,
@@ -178,11 +180,11 @@ class ReportsController extends Controller
             'top_clients' => $topClients,
             'overdue_invoices' => $overdueInvoices,
             'overdue_aging' => $aging,
-            'plan_features' => PlanFeatures::forUser($request->user()),
-        ]);
+            'plan_features' => PlanFeatures::forUser($user),
+        ];
     }
 
-  /**
+    /**
      * @return array{0: CarbonImmutable, 1: CarbonImmutable}
      */
     private function periodRange(string $period): array
@@ -250,17 +252,7 @@ class ReportsController extends Controller
             default => $end->startOfMonth()->subMonths(11),
         };
 
-        $monthlyPaidRows = Invoice::query()
-            ->selectRaw("to_char(date_trunc('month', paid_at), 'YYYY-MM') as ym, sum(total) as total")
-            ->where('user_id', $userId)
-            ->where('document_type', 'invoice')
-            ->where('status', 'paid')
-            ->whereNotNull('paid_at')
-            ->whereBetween('paid_at', [$rangeStart, $end])
-            ->groupBy('ym')
-            ->orderBy('ym')
-            ->get()
-            ->pluck('total', 'ym');
+        $monthlyPaidRows = PaymentAnalytics::monthlyRevenue($userId, $rangeStart, $end);
 
         $series = [];
         for ($i = $bucketCount - 1; $i >= 0; $i--) {
@@ -281,28 +273,23 @@ class ReportsController extends Controller
      */
     private function overdueAging(int $userId): array
     {
-        $today = CarbonImmutable::today();
-        $buckets = ['0_30' => 0, '31_60' => 0, '61_plus' => 0];
-
-        $overdue = Invoice::query()
+        $row = Invoice::query()
             ->where('user_id', $userId)
             ->where('document_type', 'invoice')
             ->where('status', 'overdue')
             ->whereNotNull('due_date')
-            ->get(['due_date']);
+            ->selectRaw(
+                "coalesce(sum(case when (current_date - due_date) between 0 and 30 then 1 else 0 end), 0) as bucket_0_30,
+                 coalesce(sum(case when (current_date - due_date) between 31 and 60 then 1 else 0 end), 0) as bucket_31_60,
+                 coalesce(sum(case when (current_date - due_date) > 60 then 1 else 0 end), 0) as bucket_61_plus"
+            )
+            ->first();
 
-        foreach ($overdue as $invoice) {
-            $days = CarbonImmutable::parse($invoice->due_date)->diffInDays($today, false);
-            if ($days <= 30) {
-                $buckets['0_30']++;
-            } elseif ($days <= 60) {
-                $buckets['31_60']++;
-            } else {
-                $buckets['61_plus']++;
-            }
-        }
-
-        return $buckets;
+        return [
+            '0_30' => (int) ($row->bucket_0_30 ?? 0),
+            '31_60' => (int) ($row->bucket_31_60 ?? 0),
+            '61_plus' => (int) ($row->bucket_61_plus ?? 0),
+        ];
     }
 
     private function pctChange(float|int $current, float|int $previous): float

@@ -1,10 +1,13 @@
 @import "tailwindcss";
-@import "@fortawesome/fontawesome-free/css/all.min.css";
 @import "./styles/skeleton.css";
 @import "./styles/scrollbars.css";
 @import "./styles/form-actions.css";
 @import "./styles/form-labels.css";
 @import "./styles/document-modal.css";
+@import "./styles/app-list.css";
+@import "./styles/app-shell-mobile.css";
+@import "./styles/app-reports-mobile.css";
+@import "./styles/toast-stack.css";
 
 .field-required,
 .clients-required,
@@ -391,4 +394,55 @@ p {
 .doc-list-card {
   position: relative;
   z-index: var(--z-page-content);
+}
+
+.route-fallback {
+  display: grid;
+  place-items: center;
+  min-height: 50vh;
+  padding: 2rem;
+}
+
+.route-fallback__spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(20, 33, 61, 0.12);
+  border-top-color: #fca311;
+  border-radius: 50%;
+  animation: route-fallback-spin 0.7s linear infinite;
+}
+
+@keyframes route-fallback-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.amounts-privacy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--color-border-strong);
+  background: #fff;
+  color: var(--color-text);
+  border-radius: 10px;
+  padding: 0 12px;
+  height: 38px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: var(--sans);
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+}
+
+.amounts-privacy-btn--compact {
+  width: 38px;
+  padding: 0;
+  justify-content: center;
+}
+
+.amounts-privacy-btn:hover {
+  border-color: #fca311;
+  background: #f8fafc;
+  color: #14213d;
 }

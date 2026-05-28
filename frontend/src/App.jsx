@@ -1,45 +1,171 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import RouteFallback from "./components/RouteFallback";
 import AppLayout from "./layout/AppLayout";
-import Home from "./pages/Home";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
-import ForgotPassword from "./pages/ForgotPassword";
-import ResetPassword from "./pages/ResetPassword";
-import Dashboard from "./pages/Dashboard";
-import LegalMentions from "./pages/LegalMentions";
-import LegalPrivacy from "./pages/LegalPrivacy";
-import ClientsPage from "./pages/app/ClientsPage";
-import DevisPage from "./pages/app/DevisPage";
-import FacturesPage from "./pages/app/FacturesPage";
-import ProfilePage from "./pages/app/ProfilePage";
-import SettingsPage from "./pages/app/SettingsPage";
-import RapportsPage from "./pages/app/RapportsPage";
-import BillingPage from "./pages/app/BillingPage";
-import NotFound from "./pages/NotFound";
+
+const Home = lazy(() => import("./pages/Home"));
+const Login = lazy(() => import("./pages/Login"));
+const Register = lazy(() => import("./pages/Register"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const LegalMentions = lazy(() => import("./pages/LegalMentions"));
+const LegalPrivacy = lazy(() => import("./pages/LegalPrivacy"));
+const ClientsPage = lazy(() => import("./pages/app/ClientsPage"));
+const DevisPage = lazy(() => import("./pages/app/DevisPage"));
+const FacturesPage = lazy(() => import("./pages/app/FacturesPage"));
+const ProfilePage = lazy(() => import("./pages/app/ProfilePage"));
+const SettingsPage = lazy(() => import("./pages/app/SettingsPage"));
+const RapportsPage = lazy(() => import("./pages/app/RapportsPage"));
+const BillingPage = lazy(() => import("./pages/app/BillingPage"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+
+function LazyPage({ children }) {
+  return <Suspense fallback={<RouteFallback />}>{children}</Suspense>;
+}
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/legal/mentions" element={<LegalMentions />} />
-        <Route path="/legal/confidentialite" element={<LegalPrivacy />} />
+        <Route
+          path="/"
+          element={
+            <LazyPage>
+              <Home />
+            </LazyPage>
+          }
+        />
+        <Route
+          path="/login"
+          element={
+            <LazyPage>
+              <Login />
+            </LazyPage>
+          }
+        />
+        <Route
+          path="/register"
+          element={
+            <LazyPage>
+              <Register />
+            </LazyPage>
+          }
+        />
+        <Route
+          path="/forgot-password"
+          element={
+            <LazyPage>
+              <ForgotPassword />
+            </LazyPage>
+          }
+        />
+        <Route
+          path="/reset-password"
+          element={
+            <LazyPage>
+              <ResetPassword />
+            </LazyPage>
+          }
+        />
+        <Route
+          path="/legal/mentions"
+          element={
+            <LazyPage>
+              <LegalMentions />
+            </LazyPage>
+          }
+        />
+        <Route
+          path="/legal/confidentialite"
+          element={
+            <LazyPage>
+              <LegalPrivacy />
+            </LazyPage>
+          }
+        />
         <Route element={<AppLayout />}>
-          <Route path="/app" element={<Dashboard />} />
-          <Route path="/app/clients" element={<ClientsPage />} />
-          <Route path="/app/profil" element={<ProfilePage />} />
-          <Route path="/app/abonnement" element={<BillingPage />} />
-          <Route path="/app/parametres" element={<SettingsPage />} />
-          <Route path="/app/devis" element={<DevisPage />} />
-          <Route path="/app/factures" element={<FacturesPage />} />
-          <Route path="/app/rapports" element={<RapportsPage />} />
-          <Route path="/app/*" element={<NotFound inApp />} />
+          <Route
+            path="/app"
+            element={
+              <LazyPage>
+                <Dashboard />
+              </LazyPage>
+            }
+          />
+          <Route
+            path="/app/clients"
+            element={
+              <LazyPage>
+                <ClientsPage />
+              </LazyPage>
+            }
+          />
+          <Route
+            path="/app/profil"
+            element={
+              <LazyPage>
+                <ProfilePage />
+              </LazyPage>
+            }
+          />
+          <Route
+            path="/app/abonnement"
+            element={
+              <LazyPage>
+                <BillingPage />
+              </LazyPage>
+            }
+          />
+          <Route
+            path="/app/parametres"
+            element={
+              <LazyPage>
+                <SettingsPage />
+              </LazyPage>
+            }
+          />
+          <Route
+            path="/app/devis"
+            element={
+              <LazyPage>
+                <DevisPage />
+              </LazyPage>
+            }
+          />
+          <Route
+            path="/app/factures"
+            element={
+              <LazyPage>
+                <FacturesPage />
+              </LazyPage>
+            }
+          />
+          <Route
+            path="/app/rapports"
+            element={
+              <LazyPage>
+                <RapportsPage />
+              </LazyPage>
+            }
+          />
+          <Route
+            path="/app/*"
+            element={
+              <LazyPage>
+                <NotFound inApp />
+              </LazyPage>
+            }
+          />
         </Route>
-        <Route path="*" element={<NotFound />} />
+        <Route
+          path="*"
+          element={
+            <LazyPage>
+              <NotFound />
+            </LazyPage>
+          }
+        />
       </Routes>
     </BrowserRouter>
   );

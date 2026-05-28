@@ -6,13 +6,16 @@ use App\Http\Controllers\Controller;
 use App\Models\Quote;
 use App\Services\DocumentPdfService;
 use App\Services\QuoteToInvoiceService;
+use App\Support\ApiListQuery;
 use App\Support\DocumentMath;
 use App\Support\DocumentNumberGenerator;
+use App\Support\UserAnalyticsCache;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use OpenApi\Attributes as OA;
 
 class QuoteController extends Controller
@@ -22,19 +25,46 @@ class QuoteController extends Controller
         tags: ['Devis'],
         security: [['sanctum' => []]],
         responses: [
-            new OA\Response(response: 200, description: 'Liste paginée (items inclus)'),
+            new OA\Response(response: 200, description: 'Liste paginée (lignes sur GET /quotes/{id} uniquement)'),
         ]
     )]
     public function index(Request $request): JsonResponse
     {
-        $quotes = Quote::query()
-            ->where('user_id', $request->user()->id)
-            ->with(['client:id,name', 'items'])
+        $userId = $request->user()->id;
+        $status = trim((string) $request->query('status', ''));
+        $q = trim((string) $request->query('q', ''));
+
+        $query = Quote::query()
+            ->where('user_id', $userId)
+            ->with(['client:id,name'])
             ->withExists([
-                'invoices as has_invoice' => fn ($q) => $q->where('document_type', 'invoice'),
-            ])
+                'invoices as has_invoice' => fn ($builder) => $builder->where('document_type', 'invoice'),
+            ]);
+
+        if ($status !== '' && $status !== 'all') {
+            $query->where('status', $status);
+        }
+
+        if ($q !== '') {
+            $like = '%'.$q.'%';
+            $query->where(function ($sub) use ($like): void {
+                $sub->where('number', 'like', $like)
+                    ->orWhereHas('client', fn ($client) => $client->where('name', 'like', $like));
+            });
+        }
+
+        if ($request->boolean('include_items')) {
+            $query->with('items');
+        }
+
+        $quotes = $query
             ->orderByDesc('id')
-            ->paginate(25);
+            ->paginate(
+                ApiListQuery::perPage($request),
+                ['*'],
+                'page',
+                ApiListQuery::page($request)
+            );
 
         return response()->json($quotes);
     }
@@ -125,6 +155,7 @@ class QuoteController extends Controller
         }
 
         $quote->load(['client:id,name', 'items']);
+        UserAnalyticsCache::bust((int) $userId);
 
         return response()->json($quote, 201);
     }
@@ -182,7 +213,10 @@ class QuoteController extends Controller
 
         $quote = Quote::query()
             ->where('user_id', $userId)
+            ->withCount(['invoices as has_invoice' => fn ($builder) => $builder->where('document_type', 'invoice')])
             ->findOrFail($id);
+
+        $this->assertQuoteMutable($quote);
 
         $data = $request->validate([
             'client_id' => ['nullable', Rule::exists('clients', 'id')->where('user_id', $userId)],
@@ -230,6 +264,7 @@ class QuoteController extends Controller
 
         $quote->save();
         $quote->load(['client', 'items']);
+        UserAnalyticsCache::bust($userId);
 
         return response()->json($quote);
     }
@@ -246,6 +281,8 @@ class QuoteController extends Controller
             return $result;
         }
 
+        UserAnalyticsCache::bust((int) $request->user()->id);
+
         return response()->json([
             'message' => 'Facture créée à partir du devis.',
             'invoice' => $result,
@@ -258,7 +295,11 @@ class QuoteController extends Controller
             ->where('user_id', $request->user()->id)
             ->findOrFail($id);
 
-        return $pdfService->quotePreview($quote, $request->user());
+        try {
+            return $pdfService->quotePreview($quote, $request->user());
+        } catch (\Throwable) {
+            return response()->json(['message' => 'Aperçu indisponible pour ce document.'], 500);
+        }
     }
 
     public function pdf(Request $request, string $id, DocumentPdfService $pdfService): \Symfony\Component\HttpFoundation\Response
@@ -285,10 +326,23 @@ class QuoteController extends Controller
     {
         $quote = Quote::query()
             ->where('user_id', $request->user()->id)
+            ->withCount(['invoices as has_invoice' => fn ($builder) => $builder->where('document_type', 'invoice')])
             ->findOrFail($id);
 
+        $this->assertQuoteMutable($quote);
+
         $quote->delete();
+        UserAnalyticsCache::bust((int) $request->user()->id);
 
         return response()->noContent();
+    }
+
+    private function assertQuoteMutable(Quote $quote): void
+    {
+        if ((int) ($quote->has_invoice ?? 0) > 0) {
+            throw ValidationException::withMessages([
+                'quote' => ['Ce devis est lié à une facture et ne peut plus être modifié ou supprimé.'],
+            ]);
+        }
     }
 }

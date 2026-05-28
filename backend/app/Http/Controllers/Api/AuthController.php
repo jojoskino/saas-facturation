@@ -125,6 +125,12 @@ class AuthController extends Controller
             ]);
         }
 
+        if (! $user->hasVerifiedEmail()) {
+            throw ValidationException::withMessages([
+                'email' => ['Veuillez vérifier votre adresse e-mail avant de vous connecter. Consultez votre boîte de réception.'],
+            ]);
+        }
+
         $user->tokens()->delete();
         $token = $user->createToken('api')->plainTextToken;
 

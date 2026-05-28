@@ -1,11 +1,10 @@
 import { Link } from "react-router-dom";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { apiDownload, apiFetch, getStoredToken } from "../../api/client";
+import { apiDownload, getStoredToken } from "../../api/client";
 import { useApiQuery } from "../../hooks/useApiQuery";
-import AppModal from "../../components/AppModal";
-import FormActions from "../../components/FormActions";
-import { FieldLabel } from "../../components/AppFormControls";
+import { useAmountsPrivacy } from "../../hooks/useAmountsPrivacy";
+import AmountsPrivacyToggle from "../../components/AmountsPrivacyToggle";
 import ReportsSkeleton from "../../components/skeleton/ReportsSkeleton";
 import { canAdvancedReports, canExportCsv } from "../../utils/planFeatures";
 
@@ -34,13 +33,7 @@ const QUOTE_STATUS_LABELS = {
 export default function RapportsPage() {
   const { t } = useTranslation("reports");
   const [period, setPeriod] = useState("year");
-  const [amountsVisible, setAmountsVisible] = useState(
-    () => sessionStorage.getItem("facturo_amounts_unlocked") === "1",
-  );
-  const [unlockOpen, setUnlockOpen] = useState(false);
-  const [codeInput, setCodeInput] = useState("");
-  const [codeError, setCodeError] = useState("");
-  const [unlockLoading, setUnlockLoading] = useState(false);
+  const { amountsVisible } = useAmountsPrivacy();
   const [exportError, setExportError] = useState("");
 
   const query = `/api/reports/summary?period=${period}`;
@@ -91,41 +84,6 @@ export default function RapportsPage() {
     return amountsVisible ? formatCfa(v) : "******";
   }
 
-  async function requestUnlock() {
-    const typed = codeInput.trim();
-    if (!typed) {
-      setCodeError("Veuillez saisir votre mot de passe.");
-      return;
-    }
-    setUnlockLoading(true);
-    setCodeError("");
-    try {
-      await apiFetch("/api/me/verify-password", {
-        method: "POST",
-        body: JSON.stringify({ password: typed }),
-      });
-      sessionStorage.setItem("facturo_amounts_unlocked", "1");
-      setAmountsVisible(true);
-      setCodeInput("");
-      setUnlockOpen(false);
-    } catch (err) {
-      setCodeError(
-        err.body?.errors?.password?.[0] || err.body?.message || "Mot de passe incorrect.",
-      );
-    } finally {
-      setUnlockLoading(false);
-    }
-  }
-
-  function toggleAmounts() {
-    if (amountsVisible) {
-      sessionStorage.removeItem("facturo_amounts_unlocked");
-      setAmountsVisible(false);
-    } else {
-      setUnlockOpen(true);
-    }
-  }
-
   async function handleExport() {
     setExportError("");
     if (!csvEnabled) {
@@ -172,7 +130,7 @@ export default function RapportsPage() {
   }
 
   return (
-    <div className="rpt">
+    <div className="rpt app-list-page">
       <style>{`
         .rpt { color: var(--color-text); font-family: var(--sans); }
         .rpt-header { margin-bottom: 20px; }
@@ -291,19 +249,51 @@ export default function RapportsPage() {
           font-family: var(--heading);
           font-size: 1rem;
         }
+        .rpt-chart-scroll {
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          margin: 0 -4px;
+          padding-bottom: 4px;
+        }
+        .rpt-chart-scroll .rpt-line-svg {
+          min-width: 560px;
+        }
         .rpt-line-svg { width: 100%; height: auto; display: block; }
         .rpt-line { fill: none; stroke: #fca311; stroke-width: 2.5; }
         .rpt-axis-grid { stroke: #e2e8f0; stroke-width: 1; }
         .rpt-axis-label { font-size: 10px; fill: #64748b; }
-        .rpt-bars { display: flex; align-items: flex-end; gap: 10px; height: 160px; }
-        .rpt-bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+        .rpt-bars-scroll {
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          margin-top: 4px;
+        }
+        .rpt-bars {
+          display: flex;
+          align-items: flex-end;
+          gap: 10px;
+          height: 160px;
+          min-width: min(100%, 280px);
+        }
+        .rpt-bars--wide { min-width: 420px; }
+        .rpt-bar-col { flex: 1; min-width: 52px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
         .rpt-bar {
           width: 100%;
           max-width: 48px;
           border-radius: 6px 6px 0 0;
           min-height: 4px;
         }
-        .rpt-bar-label { font-size: 10px; color: var(--color-text-muted); text-align: center; }
+        .rpt-bar-label { font-size: 10px; color: var(--color-text-muted); text-align: center; line-height: 1.25; }
+        .rpt-pro-callout {
+          font-size: 12px;
+          line-height: 1.45;
+          padding: 10px 12px;
+          border-radius: 10px;
+          border: 1px solid rgba(252, 163, 17, 0.35);
+          background: rgba(252, 163, 17, 0.1);
+          color: #14213d;
+          margin-bottom: 12px;
+        }
+        .rpt-pro-callout a { font-weight: 700; color: #14213d; }
         .rpt-table { width: 100%; border-collapse: collapse; font-size: 13px; }
         .rpt-table th, .rpt-table td {
           padding: 10px 8px;
@@ -333,8 +323,9 @@ export default function RapportsPage() {
           position: absolute;
           inset: 0;
           border-radius: 12px;
-          background: rgba(255,255,255,.75);
-          backdrop-filter: blur(2px);
+          background: rgba(255,255,255,.72);
+          backdrop-filter: blur(3px);
+          pointer-events: none;
         }
         .rpt-locked-msg {
           position: absolute;
@@ -347,9 +338,20 @@ export default function RapportsPage() {
           color: #14213d;
           text-align: center;
           padding: 16px;
+          line-height: 1.45;
         }
         @media (max-width: 900px) {
           .rpt-panels { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 768px) {
+          .rpt-locked { min-height: 0; }
+          .rpt-locked::after { display: none; }
+          .rpt-locked-msg {
+            position: static;
+            display: block;
+            margin-bottom: 10px;
+            padding: 0;
+          }
         }
       `}</style>
 
@@ -372,10 +374,7 @@ export default function RapportsPage() {
           ))}
         </div>
         <div className="rpt-actions">
-          <button type="button" className="rpt-btn" onClick={toggleAmounts}>
-            <i className={`fa-regular ${amountsVisible ? "fa-eye-slash" : "fa-eye"}`} aria-hidden />
-            {amountsVisible ? t("hideAmounts") : t("showAmounts")}
-          </button>
+          <AmountsPrivacyToggle />
           <button
             type="button"
             className={`rpt-btn rpt-btn--accent${csvEnabled ? "" : " is-locked"}`}
@@ -421,38 +420,41 @@ export default function RapportsPage() {
           {monthlyTrend.length === 0 ? (
             <p className="rpt-period-label">—</p>
           ) : (
-            <svg viewBox="0 0 620 250" className="rpt-line-svg" role="img" aria-label={t("revenueChart")}>
-              {chartTicks.map((tick, idx) => {
-                const y = 20 + idx * 45;
-                return (
-                  <g key={`tick-${tick}`}>
-                    <line x1="46" y1={y} x2="590" y2={y} className="rpt-axis-grid" />
-                    <text x="40" y={y + 4} textAnchor="end" className="rpt-axis-label">
-                      {shortCfa(tick)}
-                    </text>
-                  </g>
-                );
-              })}
-              <polyline points={chartPoints} className="rpt-line" />
-              {monthlyTrend.map((p, i) => {
-                const x = 48 + (i * (542 / Math.max(monthlyTrend.length - 1, 1)));
-                const y = 230 - (p.value / chartYMax) * 200;
-                return (
-                  <g key={p.label}>
-                    <circle cx={x} cy={y} r="4" fill="#fca311" />
-                    <text x={x} y={248} textAnchor="middle" className="rpt-axis-label">
-                      {p.label}
-                    </text>
-                  </g>
-                );
-              })}
-            </svg>
+            <div className="rpt-chart-scroll">
+              <svg viewBox="0 0 620 250" className="rpt-line-svg" role="img" aria-label={t("revenueChart")}>
+                {chartTicks.map((tick, idx) => {
+                  const y = 20 + idx * 45;
+                  return (
+                    <g key={`tick-${tick}`}>
+                      <line x1="46" y1={y} x2="590" y2={y} className="rpt-axis-grid" />
+                      <text x="40" y={y + 4} textAnchor="end" className="rpt-axis-label">
+                        {shortCfa(tick)}
+                      </text>
+                    </g>
+                  );
+                })}
+                <polyline points={chartPoints} className="rpt-line" />
+                {monthlyTrend.map((p, i) => {
+                  const x = 48 + (i * (542 / Math.max(monthlyTrend.length - 1, 1)));
+                  const y = 230 - (p.value / chartYMax) * 200;
+                  return (
+                    <g key={p.label}>
+                      <circle cx={x} cy={y} r="4" fill="#fca311" />
+                      <text x={x} y={248} textAnchor="middle" className="rpt-axis-label">
+                        {p.label}
+                      </text>
+                    </g>
+                  );
+                })}
+              </svg>
+            </div>
           )}
         </section>
 
         <section className="rpt-panel">
           <h3>{t("invoicesByStatus")}</h3>
-          <div className="rpt-bars">
+          <div className="rpt-bars-scroll">
+          <div className={`rpt-bars${invoiceBarItems.length > 4 ? " rpt-bars--wide" : ""}`}>
             {invoiceBarItems.map((b) => (
               <div key={b.key} className="rpt-bar-col">
                 <div
@@ -467,13 +469,15 @@ export default function RapportsPage() {
               </div>
             ))}
           </div>
+          </div>
         </section>
       </div>
 
       <div className="rpt-panels">
         <section className="rpt-panel">
           <h3>{t("quotesByStatus")}</h3>
-          <div className="rpt-bars">
+          <div className="rpt-bars-scroll">
+          <div className={`rpt-bars${quoteBarItems.length > 4 ? " rpt-bars--wide" : ""}`}>
             {quoteBarItems.map((b) => (
               <div key={b.key} className="rpt-bar-col">
                 <div
@@ -487,12 +491,18 @@ export default function RapportsPage() {
               </div>
             ))}
           </div>
+          </div>
         </section>
 
         <section className="rpt-panel">
           <h3>{t("aging")}</h3>
           <div className={`rpt-aging${advanced ? "" : " rpt-locked"}`}>
-            {!advanced ? <div className="rpt-locked-msg">{t("proBanner")}</div> : null}
+            {!advanced ? (
+              <div className="rpt-locked-msg">
+                {t("proBanner")}{" "}
+                <Link to="/app/abonnement?plan=pro&checkout=start">Pro →</Link>
+              </div>
+            ) : null}
             {[
               { key: "0_30", label: t("aging0_30") },
               { key: "31_60", label: t("aging31_60") },
@@ -513,108 +523,118 @@ export default function RapportsPage() {
 
       <div className="rpt-panels">
         <section className={`rpt-panel${advanced ? "" : " rpt-locked"}`}>
-          {!advanced ? <div className="rpt-locked-msg">{t("proBanner")}</div> : null}
+          {!advanced ? (
+            <div className="rpt-pro-callout rpt-locked-msg">
+              {t("proBanner")}{" "}
+              <Link to="/app/abonnement?plan=pro&checkout=start">Passer à Pro →</Link>
+            </div>
+          ) : null}
           <h3>{t("topClients")}</h3>
-          <table className="rpt-table">
-            <thead>
-              <tr>
-                <th>{t("colClient")}</th>
-                <th>{t("colRevenue")}</th>
-                <th>{t("colInvoices")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(data?.top_clients ?? []).length === 0 ? (
+          <div className="app-list-table-wrap rpt-table-wrap">
+            <table className="rpt-table">
+              <thead>
                 <tr>
-                  <td colSpan={3}>{t("emptyTopClients")}</td>
+                  <th>{t("colClient")}</th>
+                  <th>{t("colRevenue")}</th>
+                  <th>{t("colInvoices")}</th>
                 </tr>
-              ) : (
-                data.top_clients.map((row) => (
-                  <tr key={row.client_id}>
-                    <td>{row.name}</td>
-                    <td>{shown(row.revenue_cfa)}</td>
-                    <td>{row.invoices_count}</td>
+              </thead>
+              <tbody>
+                {(data?.top_clients ?? []).length === 0 ? (
+                  <tr>
+                    <td colSpan={3}>{t("emptyTopClients")}</td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  data.top_clients.map((row) => (
+                    <tr key={row.client_id}>
+                      <td>{row.name}</td>
+                      <td>{shown(row.revenue_cfa)}</td>
+                      <td>{row.invoices_count}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+          <div className="app-list-cards">
+            {(data?.top_clients ?? []).length === 0 ? (
+              <div className="app-list-card-item app-list-card-item--empty">{t("emptyTopClients")}</div>
+            ) : (
+              data.top_clients.map((row) => (
+                <article key={row.client_id} className="app-list-card-item">
+                  <div className="app-list-card-item__head">
+                    <div className="app-list-card-item__ref">{row.name}</div>
+                    <div className="app-list-card-item__amount">{shown(row.revenue_cfa)}</div>
+                  </div>
+                  <div className="app-list-card-item__row">
+                    <span className="app-list-card-item__label">{t("colInvoices")}</span>
+                    <span>{row.invoices_count}</span>
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
         </section>
 
         <section className="rpt-panel">
           <h3>{t("overdueList")}</h3>
-          <table className="rpt-table">
-            <thead>
-              <tr>
-                <th>{t("colReference")}</th>
-                <th>{t("colClient")}</th>
-                <th>{t("colDue")}</th>
-                <th>{t("colDays")}</th>
-                <th>{t("colAmount")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(data?.overdue_invoices ?? []).length === 0 ? (
+          <div className="app-list-table-wrap rpt-table-wrap">
+            <table className="rpt-table">
+              <thead>
                 <tr>
-                  <td colSpan={5}>{t("emptyOverdue")}</td>
+                  <th>{t("colReference")}</th>
+                  <th>{t("colClient")}</th>
+                  <th>{t("colDue")}</th>
+                  <th>{t("colDays")}</th>
+                  <th>{t("colAmount")}</th>
                 </tr>
-              ) : (
-                data.overdue_invoices.map((row) => (
-                  <tr key={row.id}>
-                    <td>{row.number}</td>
-                    <td>{row.client_name}</td>
-                    <td>{formatDate(row.due_date)}</td>
-                    <td>{row.days_overdue}</td>
-                    <td>{shown(row.total)}</td>
+              </thead>
+              <tbody>
+                {(data?.overdue_invoices ?? []).length === 0 ? (
+                  <tr>
+                    <td colSpan={5}>{t("emptyOverdue")}</td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  data.overdue_invoices.map((row) => (
+                    <tr key={row.id}>
+                      <td>{row.number}</td>
+                      <td>{row.client_name}</td>
+                      <td>{formatDate(row.due_date)}</td>
+                      <td>{row.days_overdue}</td>
+                      <td>{shown(row.total)}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+          <div className="app-list-cards">
+            {(data?.overdue_invoices ?? []).length === 0 ? (
+              <div className="app-list-card-item app-list-card-item--empty">{t("emptyOverdue")}</div>
+            ) : (
+              data.overdue_invoices.map((row) => (
+                <article key={row.id} className="app-list-card-item">
+                  <div className="app-list-card-item__head">
+                    <div>
+                      <div className="app-list-card-item__ref">{row.number}</div>
+                      <div className="app-list-card-item__sub">{row.client_name || "—"}</div>
+                    </div>
+                    <div className="app-list-card-item__amount">{shown(row.total)}</div>
+                  </div>
+                  <div className="app-list-card-item__row">
+                    <span className="app-list-card-item__label">{t("colDue")}</span>
+                    <span>{formatDate(row.due_date)}</span>
+                  </div>
+                  <div className="app-list-card-item__row">
+                    <span className="app-list-card-item__label">{t("colDays")}</span>
+                    <span>{row.days_overdue} j</span>
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
         </section>
       </div>
-
-      <AppModal
-        open={unlockOpen}
-        onClose={() => {
-          setUnlockOpen(false);
-          setCodeError("");
-        }}
-        title={t("unlockTitle")}
-        description={t("unlockDesc")}
-      >
-        <form
-          className="account-form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            requestUnlock();
-          }}
-        >
-          <div className="account-field account-field--full">
-            <FieldLabel htmlFor="rpt-unlock-password" required>
-              Mot de passe
-            </FieldLabel>
-            <input
-              id="rpt-unlock-password"
-              type="password"
-              value={codeInput}
-              onChange={(e) => setCodeInput(e.target.value)}
-              autoComplete="current-password"
-              required
-              autoFocus
-            />
-          </div>
-          {codeError ? <p className="rpt-banner rpt-banner--warn">{codeError}</p> : null}
-          <FormActions
-            onCancel={() => {
-              setUnlockOpen(false);
-              setCodeError("");
-            }}
-            submitLabel={unlockLoading ? "…" : "Valider"}
-            submitDisabled={unlockLoading}
-          />
-        </form>
-      </AppModal>
     </div>
   );
 }

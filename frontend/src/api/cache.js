@@ -1,4 +1,4 @@
-const DEFAULT_TTL_MS = 120_000;
+const DEFAULT_TTL_MS = 180_000;
 
 /** @type {Map<string, { data: unknown, fetchedAt: number }>} */
 const store = new Map();
@@ -79,6 +79,15 @@ export function invalidateForMutation(path) {
   }
   if (path.startsWith("/api/dashboard")) {
     invalidateApiCache("/api/dashboard");
+    return;
+  }
+  if (path.startsWith("/api/clients/import")) {
+    invalidateApiCache("/api/clients");
+    invalidateApiCache("/api/dashboard");
+    return;
+  }
+  if (path.startsWith("/api/reports")) {
+    invalidateApiCache("/api/reports");
   }
 }
 

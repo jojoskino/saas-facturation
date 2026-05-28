@@ -4,19 +4,25 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Client;
-use App\Support\PlanFeatures;
 use App\Models\Invoice;
+use App\Models\Payment;
 use App\Models\Quote;
+use App\Models\User;
+use App\Support\PlanFeatures;
+use App\Support\PaymentAnalytics;
+use App\Support\UserAnalyticsCache;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 use OpenApi\Attributes as OA;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DashboardController extends Controller
 {
+    private const SUMMARY_TTL_SECONDS = 60;
+
     #[OA\Get(
         path: '/api/dashboard/summary',
         tags: ['Dashboard'],
@@ -28,7 +34,52 @@ class DashboardController extends Controller
     )]
     public function summary(Request $request): JsonResponse
     {
-        $userId = (int) $request->user()->id;
+        $user = $request->user();
+        $userId = (int) $user->id;
+
+        $payload = Cache::remember(
+            UserAnalyticsCache::dashboardKey($userId),
+            self::SUMMARY_TTL_SECONDS,
+            fn (): array => $this->buildSummary($userId, $user)
+        );
+
+        return response()->json($payload);
+    }
+
+    public function home(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        $userId = (int) $user->id;
+
+        $payload = Cache::remember(
+            UserAnalyticsCache::dashboardHomeKey($userId),
+            self::SUMMARY_TTL_SECONDS,
+            fn (): array => [
+                'summary' => $this->buildSummary($userId, $user),
+                'recent_quotes' => Quote::query()
+                    ->where('user_id', $userId)
+                    ->with(['client:id,name'])
+                    ->orderByDesc('id')
+                    ->limit(5)
+                    ->get(['id', 'number', 'status', 'total', 'currency']),
+                'recent_invoices' => Invoice::query()
+                    ->where('user_id', $userId)
+                    ->where('document_type', 'invoice')
+                    ->with(['client:id,name'])
+                    ->orderByDesc('id')
+                    ->limit(5)
+                    ->get(['id', 'number', 'status', 'due_date']),
+            ]
+        );
+
+        return response()->json($payload);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildSummary(int $userId, User $user): array
+    {
         $now = CarbonImmutable::now();
         $currentMonthStart = $now->startOfMonth();
         $currentMonthEnd = $now->endOfMonth();
@@ -47,72 +98,59 @@ class DashboardController extends Controller
         $invoicesByStatus = Invoice::query()
             ->select('status', DB::raw('count(*) as count'))
             ->where('user_id', $userId)
+            ->where('document_type', 'invoice')
             ->groupBy('status')
             ->pluck('count', 'status')
             ->all();
 
-        $revenuePaid = (float) Invoice::query()
-            ->where('user_id', $userId)
-            ->where('status', 'paid')
-            ->sum('total');
+        $globalTotals = (object) [
+            'revenue_paid' => PaymentAnalytics::totalRevenue($userId),
+            'outstanding' => PaymentAnalytics::outstandingBalance($userId),
+        ];
 
-        $outstanding = (float) Invoice::query()
-            ->where('user_id', $userId)
-            ->whereIn('status', ['sent', 'overdue'])
-            ->sum('total');
+        $revenuePaid = (float) ($globalTotals->revenue_paid ?? 0);
+        $outstanding = (float) ($globalTotals->outstanding ?? 0);
 
-        $paidCurrentMonth = (float) Invoice::query()
+        $monthlyMetrics = Invoice::query()
             ->where('user_id', $userId)
-            ->where('status', 'paid')
-            ->whereBetween('paid_at', [$currentMonthStart, $currentMonthEnd])
-            ->sum('total');
-        $paidPreviousMonth = (float) Invoice::query()
-            ->where('user_id', $userId)
-            ->where('status', 'paid')
-            ->whereBetween('paid_at', [$previousMonthStart, $previousMonthEnd])
-            ->sum('total');
+            ->where('document_type', 'invoice')
+            ->selectRaw(
+                "coalesce(sum(case when status in ('sent', 'overdue') and created_at between ? and ? then total else 0 end), 0) as outstanding_current,
+                 coalesce(sum(case when status in ('sent', 'overdue') and created_at between ? and ? then total else 0 end), 0) as outstanding_previous,
+                 coalesce(sum(case when status = 'overdue' and created_at between ? and ? then 1 else 0 end), 0) as overdue_current,
+                 coalesce(sum(case when status = 'overdue' and created_at between ? and ? then 1 else 0 end), 0) as overdue_previous",
+                [
+                    $currentMonthStart, $currentMonthEnd,
+                    $previousMonthStart, $previousMonthEnd,
+                    $currentMonthStart, $currentMonthEnd,
+                    $previousMonthStart, $previousMonthEnd,
+                ]
+            )
+            ->first();
 
-        $outstandingCurrentMonth = (float) Invoice::query()
-            ->where('user_id', $userId)
-            ->whereIn('status', ['sent', 'overdue'])
-            ->whereBetween('created_at', [$currentMonthStart, $currentMonthEnd])
-            ->sum('total');
-        $outstandingPreviousMonth = (float) Invoice::query()
-            ->where('user_id', $userId)
-            ->whereIn('status', ['sent', 'overdue'])
-            ->whereBetween('created_at', [$previousMonthStart, $previousMonthEnd])
-            ->sum('total');
+        $paidCurrentMonth = PaymentAnalytics::revenueBetween($userId, $currentMonthStart, $currentMonthEnd);
+        $paidPreviousMonth = PaymentAnalytics::revenueBetween($userId, $previousMonthStart, $previousMonthEnd);
+        $outstandingCurrentMonth = (float) ($monthlyMetrics->outstanding_current ?? 0);
+        $outstandingPreviousMonth = (float) ($monthlyMetrics->outstanding_previous ?? 0);
+        $avgInvoiceCurrentMonth = PaymentAnalytics::averagePaymentBetween($userId, $currentMonthStart, $currentMonthEnd);
+        $avgInvoicePreviousMonth = PaymentAnalytics::averagePaymentBetween($userId, $previousMonthStart, $previousMonthEnd);
+        $overdueCurrentMonth = (int) ($monthlyMetrics->overdue_current ?? 0);
+        $overduePreviousMonth = (int) ($monthlyMetrics->overdue_previous ?? 0);
 
-        $clientsCurrentMonth = (int) Client::query()
+        $clientMonthCounts = Client::query()
             ->where('user_id', $userId)
-            ->whereBetween('created_at', [$currentMonthStart, $currentMonthEnd])
-            ->count();
-        $clientsPreviousMonth = (int) Client::query()
-            ->where('user_id', $userId)
-            ->whereBetween('created_at', [$previousMonthStart, $previousMonthEnd])
-            ->count();
+            ->selectRaw(
+                'coalesce(sum(case when created_at between ? and ? then 1 else 0 end), 0) as current_count,
+                 coalesce(sum(case when created_at between ? and ? then 1 else 0 end), 0) as previous_count',
+                [
+                    $currentMonthStart, $currentMonthEnd,
+                    $previousMonthStart, $previousMonthEnd,
+                ]
+            )
+            ->first();
 
-        $overdueCurrentMonth = (int) Invoice::query()
-            ->where('user_id', $userId)
-            ->where('status', 'overdue')
-            ->whereBetween('created_at', [$currentMonthStart, $currentMonthEnd])
-            ->count();
-        $overduePreviousMonth = (int) Invoice::query()
-            ->where('user_id', $userId)
-            ->where('status', 'overdue')
-            ->whereBetween('created_at', [$previousMonthStart, $previousMonthEnd])
-            ->count();
-
-        $avgInvoiceCurrentMonth = (float) Invoice::query()
-            ->where('user_id', $userId)
-            ->where('status', 'paid')
-            ->whereBetween('paid_at', [$currentMonthStart, $currentMonthEnd])
-            ->avg('total');
-        $avgInvoicePreviousMonth = (float) Invoice::query()
-            ->where('user_id', $userId)
-            ->where('status', 'paid')
-            ->whereBetween('paid_at', [$previousMonthStart, $previousMonthEnd])
-            ->avg('total');
+        $clientsCurrentMonth = (int) ($clientMonthCounts->current_count ?? 0);
+        $clientsPreviousMonth = (int) ($clientMonthCounts->previous_count ?? 0);
 
         $recoveryCurrentMonth = $paidCurrentMonth + $outstandingCurrentMonth > 0
             ? ($paidCurrentMonth / ($paidCurrentMonth + $outstandingCurrentMonth)) * 100
@@ -121,23 +159,14 @@ class DashboardController extends Controller
             ? ($paidPreviousMonth / ($paidPreviousMonth + $outstandingPreviousMonth)) * 100
             : 0.0;
 
-        $rangeStart = CarbonImmutable::now()->startOfMonth()->subMonths(5);
-        $rangeEnd = CarbonImmutable::now()->endOfMonth();
+        $rangeStart = $now->startOfMonth()->subMonths(5);
+        $rangeEnd = $now->endOfMonth();
 
-        $monthlyPaidRows = Invoice::query()
-            ->selectRaw("to_char(date_trunc('month', paid_at), 'YYYY-MM') as ym, sum(total) as total")
-            ->where('user_id', $userId)
-            ->where('status', 'paid')
-            ->whereNotNull('paid_at')
-            ->whereBetween('paid_at', [$rangeStart, $rangeEnd])
-            ->groupBy('ym')
-            ->orderBy('ym')
-            ->get()
-            ->pluck('total', 'ym');
+        $monthlyPaidRows = PaymentAnalytics::monthlyRevenue($userId, $rangeStart, $rangeEnd);
 
         $monthlyRevenue = [];
         for ($i = 5; $i >= 0; $i--) {
-            $month = CarbonImmutable::now()->startOfMonth()->subMonths($i);
+            $month = $now->startOfMonth()->subMonths($i);
             $key = $month->format('Y-m');
             $monthlyRevenue[] = [
                 'month' => $key,
@@ -146,7 +175,7 @@ class DashboardController extends Controller
             ];
         }
 
-        return response()->json([
+        return [
             'clients_count' => $clientsCount,
             'quotes_by_status' => $quotesByStatus,
             'invoices_by_status' => $invoicesByStatus,
@@ -161,8 +190,8 @@ class DashboardController extends Controller
                 'clients_pct' => $this->pctChange($clientsCurrentMonth, $clientsPreviousMonth),
                 'overdue_pct' => $this->pctChange($overdueCurrentMonth, $overduePreviousMonth),
             ],
-            'plan_features' => PlanFeatures::forUser($request->user()),
-        ]);
+            'plan_features' => PlanFeatures::forUser($user),
+        ];
     }
 
     public function exportCsv(Request $request): StreamedResponse|JsonResponse
@@ -184,13 +213,19 @@ class DashboardController extends Controller
             default => $now->startOfYear(),
         };
 
-        $rows = Invoice::query()
-            ->where('user_id', $userId)
-            ->where('document_type', 'invoice')
-            ->where('status', 'paid')
-            ->whereBetween('paid_at', [$start, $now])
-            ->orderBy('paid_at')
-            ->get(['number', 'total', 'currency', 'paid_at', 'client_id']);
+        $rows = Payment::query()
+            ->join('invoices', 'payments.invoice_id', '=', 'invoices.id')
+            ->where('invoices.user_id', $userId)
+            ->where('invoices.document_type', 'invoice')
+            ->whereBetween('payments.paid_at', [$start, $now])
+            ->orderBy('payments.paid_at')
+            ->get([
+                'invoices.number',
+                'payments.amount',
+                'invoices.currency',
+                'payments.paid_at',
+                'invoices.client_id',
+            ]);
 
         $filename = 'revenus-'.$period.'-'.$now->format('Y-m-d').'.csv';
 
@@ -200,7 +235,7 @@ class DashboardController extends Controller
             foreach ($rows as $row) {
                 fputcsv($out, [
                     $row->number,
-                    $row->total,
+                    $row->amount,
                     $row->currency,
                     $row->paid_at?->format('Y-m-d'),
                     $row->client_id,

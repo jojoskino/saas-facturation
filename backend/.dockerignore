@@ -1,6 +1,8 @@
 node_modules
 vendor
 .git
+# Junction Windows — recréé au démarrage (artisan storage:link)
+public/storage
 .env
 .env.*
 !.env.example

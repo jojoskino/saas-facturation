@@ -11,19 +11,15 @@ import TableSkeleton from "../components/skeleton/TableSkeleton";
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { data: summary, error: summaryError, loading: summaryLoading } = useApiQuery("/api/dashboard/summary", {
+  const { data: home, error: summaryError, loading: homeLoading } = useApiQuery("/api/dashboard/home", {
     enabled: Boolean(getStoredToken()),
   });
-  const { data: quotesData, loading: quotesLoading } = useApiQuery("/api/quotes?per_page=5", {
-    enabled: Boolean(getStoredToken()),
-  });
-  const { data: invoicesData, loading: invoicesLoading } = useApiQuery("/api/invoices?per_page=5", {
-    enabled: Boolean(getStoredToken()),
-  });
-  const { data: me } = useApiQuery("/api/me", { enabled: Boolean(getStoredToken()) });
-  const showDashboardSkeleton = summaryLoading && !summary;
-  const recentQuotes = Array.isArray(quotesData?.data) ? quotesData.data : [];
-  const recentInvoices = Array.isArray(invoicesData?.data) ? invoicesData.data : [];
+  const summary = home?.summary;
+  const showKpiSkeleton = homeLoading && !summary;
+  const recentQuotes = Array.isArray(home?.recent_quotes) ? home.recent_quotes : [];
+  const recentInvoices = Array.isArray(home?.recent_invoices) ? home.recent_invoices : [];
+  const quotesLoading = homeLoading;
+  const invoicesLoading = homeLoading;
   const [amountsVisible, setAmountsVisible] = useState(
     () => sessionStorage.getItem("facturo_amounts_unlocked") === "1",
   );
@@ -34,8 +30,8 @@ export default function Dashboard() {
   const [unlockLoading, setUnlockLoading] = useState(false);
   const [exportError, setExportError] = useState("");
 
-  const planFeatures = summary?.plan_features || me?.plan_features;
-  const plan = normalizePlan(planFeatures?.plan || me?.plan);
+  const planFeatures = summary?.plan_features;
+  const plan = normalizePlan(planFeatures?.plan);
   const csvExportEnabled = canExportCsv(planFeatures || plan);
   const invoiceQuota = invoiceQuotaFromUser({ plan_features: planFeatures, plan });
 
@@ -568,10 +564,9 @@ export default function Dashboard() {
         </div>
       ) : null}
 
-      {showDashboardSkeleton ? (
+      {showKpiSkeleton ? (
         <DashboardSkeleton />
       ) : (
-        <>
       <div className="dash-grid">
         {kpis.map((k) => (
           <div key={k.label} className="dash-kpi">
@@ -581,11 +576,11 @@ export default function Dashboard() {
               {k.isMoney ? (
                 k.value.includes("*") ? (
                 <button type="button" className="dash-eye-btn" onClick={() => openUnlock(k.label)} aria-label="Afficher le montant">
-                  <i className="fa-regular fa-eye" />
+                  <i className="fa-solid fa-coins" />
                 </button>
               ) : (
                 <button type="button" className="dash-eye-btn" onClick={() => openUnlock(k.label)} aria-label="Cacher le montant">
-                  <i className="fa-regular fa-eye-slash" />
+                  <i className="fa-solid fa-money-bill-wave" />
                 </button>
                 )
               ) : null}
@@ -599,8 +594,13 @@ export default function Dashboard() {
           </div>
         ))}
       </div>
+      )}
 
       <div className="dash-layout">
+        {showKpiSkeleton ? (
+          <div className="dash-chart dash-subtle" style={{ minHeight: 120 }} aria-hidden />
+        ) : (
+        <>
         <section className="dash-chart">
           <div className="dash-chart-head">
             <h3>Évolution du chiffre d'affaires encaissé</h3>
@@ -682,6 +682,8 @@ export default function Dashboard() {
             </div>
           </div>
         </section>
+        </>
+        )}
       </div>
 
       <section className="dash-quick-panel">
@@ -703,7 +705,8 @@ export default function Dashboard() {
             <h2>Devis récents</h2>
             <button type="button" className="dash-see-all" onClick={() => navigate("/app/devis")}>voir tout <i className="fa-solid fa-arrow-right-long" /></button>
           </div>
-          <table className="dash-table">
+          <div className="app-list-table-wrap">
+          <table className="dash-table app-list-table">
             <thead>
               <tr>
                 <th>Réf.</th>
@@ -731,6 +734,32 @@ export default function Dashboard() {
               ))}
             </tbody>
           </table>
+          </div>
+          <div className="app-list-cards">
+            {quotesLoading && recentQuotes.length === 0 ? (
+              <>
+                <div className="app-list-card-item app-list-card-item--skeleton" />
+                <div className="app-list-card-item app-list-card-item--skeleton" />
+              </>
+            ) : recentQuotes.length === 0 ? (
+              <div className="app-list-card-item app-list-card-item--empty">Aucun devis récent.</div>
+            ) : (
+              recentQuotes.map((row) => (
+                <article key={row.id} className="app-list-card-item">
+                  <div className="app-list-card-item__head">
+                    <div>
+                      <div className="app-list-card-item__ref">{row.number || `DEV-${row.id}`}</div>
+                      <div className="app-list-card-item__sub">{row.client?.name || "—"}</div>
+                    </div>
+                    <div className="app-list-card-item__amount">{amountsVisible ? formatCfa(row.total) : "******"}</div>
+                  </div>
+                  <div className="app-list-card-item__foot">
+                    <span className="dash-pill" style={getStatusStyle(row.status, "quote")}>{toFrenchStatus(row.status, "quote")}</span>
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
         </section>
 
         <section className="dash-panel dash-panel--invoices">
@@ -738,7 +767,8 @@ export default function Dashboard() {
             <h2>Factures récentes</h2>
             <button type="button" className="dash-see-all" onClick={() => navigate("/app/factures")}>voir tout <i className="fa-solid fa-arrow-right-long" /></button>
           </div>
-          <table className="dash-table">
+          <div className="app-list-table-wrap">
+          <table className="dash-table app-list-table">
             <thead>
               <tr>
                 <th>Réf.</th>
@@ -766,10 +796,34 @@ export default function Dashboard() {
               ))}
             </tbody>
           </table>
+          </div>
+          <div className="app-list-cards">
+            {invoicesLoading && recentInvoices.length === 0 ? (
+              <>
+                <div className="app-list-card-item app-list-card-item--skeleton" />
+                <div className="app-list-card-item app-list-card-item--skeleton" />
+              </>
+            ) : recentInvoices.length === 0 ? (
+              <div className="app-list-card-item app-list-card-item--empty">Aucune facture récente.</div>
+            ) : (
+              recentInvoices.map((row) => (
+                <article key={row.id} className="app-list-card-item">
+                  <div className="app-list-card-item__head">
+                    <div>
+                      <div className="app-list-card-item__ref">{row.number || `FAC-${row.id}`}</div>
+                      <div className="app-list-card-item__sub">{row.client?.name || "—"}</div>
+                    </div>
+                  </div>
+                  <div className="app-list-card-item__foot">
+                    <span className="app-list-card-item__label">Échéance {formatDate(row.due_date)}</span>
+                    <span className="dash-pill" style={getStatusStyle(row.status, "invoice")}>{toFrenchStatus(row.status, "invoice")}</span>
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
         </section>
       </div>
-        </>
-      )}
 
       <AppModal
         open={unlockOpen}
@@ -887,8 +941,8 @@ function toFrenchStatus(status, type) {
   }
   if (type === "invoice") {
     if (value === "draft") return "Brouillon";
-    if (value === "sent") return "Envoyee";
-    if (value === "paid") return "Payee";
+    if (value === "sent") return "Envoyée";
+    if (value === "paid") return "Payée";
     if (value === "overdue") return "En retard";
     if (value === "cancelled") return "Annulee";
   }

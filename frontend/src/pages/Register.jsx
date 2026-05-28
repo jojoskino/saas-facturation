@@ -61,7 +61,7 @@ export default function Register() {
   return (
     <AuthBrand
       title="Créer un compte"
-      subtitle="Gérez devis et factures en quelques minutes."
+      tagline="Créez votre compte et commencez à facturer en quelques minutes."
       footer={
         <>
           Déjà inscrit ? <Link to={loginPathWithPlan(selectedPlan || "")}>Se connecter</Link>

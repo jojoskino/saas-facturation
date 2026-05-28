@@ -1,0 +1,51 @@
+# Déploiement API Laravel sur Render (alternative si Railway indisponible)
+# Dashboard Render → New → Blueprint → repo GitHub, ou CLI render deploy
+
+services:
+  - type: web
+    name: facturo-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /up
+    envVars:
+      - key: APP_NAME
+        value: Facturo
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_KEY
+        generateValue: true
+      - key: APP_URL
+        fromService:
+          type: web
+          name: facturo-api
+          property: host
+      - key: LOG_CHANNEL
+        value: stderr
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: SESSION_DRIVER
+        value: database
+      - key: CACHE_STORE
+        value: database
+      - key: QUEUE_CONNECTION
+        value: sync
+      - key: BILLING_MODE
+        value: simulation
+      - key: FRONTEND_URL
+        value: https://saas-facturation.vercel.app
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://saas-facturation.vercel.app
+      - key: DATABASE_URL
+        fromDatabase:
+          name: facturo-db
+          property: connectionString
+
+databases:
+  - name: facturo-db
+    plan: free
+    databaseName: facturo
+    user: facturo

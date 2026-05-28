@@ -28,7 +28,7 @@ class UpdateDocumentStatuses extends Command
 
         $overdueInvoices = Invoice::query()
             ->where('document_type', 'invoice')
-            ->whereIn('status', ['sent', 'draft'])
+            ->where('status', 'sent')
             ->whereNotNull('due_date')
             ->whereDate('due_date', '<', $today)
             ->update(['status' => 'overdue']);

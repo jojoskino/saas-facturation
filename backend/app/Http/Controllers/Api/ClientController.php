@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Client;
 use App\Models\Invoice;
 use App\Models\Quote;
+use App\Support\ApiListQuery;
 use App\Support\PlanFeatures;
+use App\Support\UserAnalyticsCache;
 use App\Support\Utf8;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -26,35 +28,63 @@ class ClientController extends Controller
     public function index(Request $request): JsonResponse
     {
         $q = trim((string) $request->query('q', ''));
-        $perPage = (int) $request->query('per_page', 25);
-        $perPage = max(1, min($perPage, 100));
+        $company = trim((string) $request->query('company', ''));
+        $sort = (string) $request->query('sort', 'recent');
+        $perPage = ApiListQuery::perPage($request);
+        $minimal = $request->boolean('minimal');
+        $userId = $request->user()->id;
 
-        $clients = Client::query()
-            ->where('user_id', $request->user()->id)
-            ->when($q !== '', function ($builder) use ($q): void {
-                $builder->where(function ($sub) use ($q): void {
-                    $sub->where('name', 'like', "%{$q}%")
-                        ->orWhere('first_name', 'like', "%{$q}%")
-                        ->orWhere('last_name', 'like', "%{$q}%")
-                        ->orWhere('email', 'like', "%{$q}%")
-                        ->orWhere('phone', 'like', "%{$q}%")
-                        ->orWhere('company', 'like', "%{$q}%")
-                        ->orWhere('tax_id', 'like', "%{$q}%")
-                        ->orWhere('address', 'like', "%{$q}%")
-                        ->orWhere('notes', 'like', "%{$q}%");
-                });
-            })
-            ->orderByDesc('created_at')
-            ->paginate($perPage);
+        $query = Client::query()->where('user_id', $userId);
+
+        if ($q !== '') {
+            $query->where(function ($sub) use ($q): void {
+                $sub->where('name', 'like', "%{$q}%")
+                    ->orWhere('first_name', 'like', "%{$q}%")
+                    ->orWhere('last_name', 'like', "%{$q}%")
+                    ->orWhere('email', 'like', "%{$q}%")
+                    ->orWhere('phone', 'like', "%{$q}%")
+                    ->orWhere('company', 'like', "%{$q}%")
+                    ->orWhere('tax_id', 'like', "%{$q}%")
+                    ->orWhere('address', 'like', "%{$q}%")
+                    ->orWhere('notes', 'like', "%{$q}%");
+            });
+        }
+
+        if ($company !== '' && $company !== 'all') {
+            $query->where('company', $company);
+        }
+
+        match ($sort) {
+            'name_asc' => $query->orderBy('name')->orderBy('last_name')->orderBy('first_name'),
+            'name_desc' => $query->orderByDesc('name')->orderByDesc('last_name')->orderByDesc('first_name'),
+            default => $query->orderByDesc('created_at'),
+        };
+
+        $clients = $query->paginate($perPage, ['*'], 'page', ApiListQuery::page($request));
+
+        $companies = Client::query()
+            ->where('user_id', $userId)
+            ->whereNotNull('company')
+            ->where('company', '!=', '')
+            ->distinct()
+            ->orderBy('company')
+            ->pluck('company')
+            ->values()
+            ->all();
 
         $clients->setCollection(
             $clients->getCollection()->map(
-                fn (Client $client): array => $this->clientPayload($client)
+                fn (Client $client): array => $minimal
+                    ? $this->clientOptionPayload($client)
+                    : $this->clientPayload($client)
             )
         );
 
+        $payload = $clients->toArray();
+        $payload['filter_options'] = ['companies' => $companies];
+
         return response()->json(
-            $clients,
+            $payload,
             200,
             [],
             JSON_INVALID_UTF8_SUBSTITUTE | JSON_UNESCAPED_UNICODE
@@ -120,6 +150,7 @@ class ClientController extends Controller
 
         $data = $this->sanitizePayload($data);
         $client = $request->user()->clients()->create($data);
+        UserAnalyticsCache::bust((int) $request->user()->id);
 
         return response()->json(
             $this->clientPayload($client),
@@ -218,6 +249,7 @@ class ClientController extends Controller
 
         $data = $this->sanitizePayload($data);
         $client->update($data);
+        UserAnalyticsCache::bust((int) $request->user()->id);
 
         return response()->json(
             $this->clientPayload($client),
@@ -245,6 +277,7 @@ class ClientController extends Controller
             ->findOrFail($id);
 
         $client->delete();
+        UserAnalyticsCache::bust((int) $request->user()->id);
 
         return response()->noContent();
     }
@@ -345,6 +378,10 @@ class ClientController extends Controller
             }
         }
 
+        if ($created > 0) {
+            UserAnalyticsCache::bust((int) $request->user()->id);
+        }
+
         return response()->json([
             'message' => "{$created} client(s) importé(s).",
             'created' => $created,
@@ -382,6 +419,17 @@ class ClientController extends Controller
         }
 
         return $data;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function clientOptionPayload(Client $client): array
+    {
+        return [
+            'id' => $client->id,
+            'name' => Utf8::clean($client->name),
+        ];
     }
 
     /**

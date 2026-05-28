@@ -1,8 +1,27 @@
 import { cachedGet, clearApiCache, invalidateForMutation } from "./cache.js";
 
-const base =
-  (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_BASE_URL?.replace(/\/$/, "")) ||
-  "http://127.0.0.1:8000";
+function resolveApiBase() {
+  const raw = import.meta.env?.VITE_API_BASE_URL;
+  const trimmed = typeof raw === "string" ? raw.trim() : "";
+  if (trimmed) return trimmed.replace(/\/$/, "");
+  if (import.meta.env.DEV) return "";
+  return "http://127.0.0.1:8000";
+}
+
+const base = resolveApiBase();
+
+function networkError() {
+  const isLocal =
+    typeof window !== "undefined" &&
+    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+  const msg = isLocal
+    ? "Impossible de joindre l'API locale. Lancez le backend : cd backend && php artisan serve"
+    : "Le service est momentanément indisponible. L'API backend doit être relancée (Render ou Railway).";
+  const err = new Error(msg);
+  err.status = 0;
+  err.body = null;
+  return err;
+}
 
 export function apiUrl(path) {
   const p = path.startsWith("/") ? path : `/${path}`;
@@ -13,19 +32,19 @@ export function getStoredToken() {
   const sessionToken = sessionStorage.getItem("facturo_token");
   if (sessionToken) return sessionToken;
 
-  const legacyToken = localStorage.getItem("facturo_token");
-  if (legacyToken) {
-    sessionStorage.setItem("facturo_token", legacyToken);
-    localStorage.removeItem("facturo_token");
-  }
-
-  return legacyToken;
+  const persistentToken = localStorage.getItem("facturo_token");
+  return persistentToken;
 }
 
-export function setStoredToken(token) {
+export function setStoredToken(token, { remember = false } = {}) {
   if (token) {
-    sessionStorage.setItem("facturo_token", token);
-    localStorage.removeItem("facturo_token");
+    if (remember) {
+      localStorage.setItem("facturo_token", token);
+      sessionStorage.removeItem("facturo_token");
+    } else {
+      sessionStorage.setItem("facturo_token", token);
+      localStorage.removeItem("facturo_token");
+    }
   } else {
     sessionStorage.removeItem("facturo_token");
     localStorage.removeItem("facturo_token");
@@ -47,10 +66,7 @@ async function rawApiFetch(path, options = {}) {
   try {
     res = await fetch(apiUrl(path), { ...options, headers });
   } catch {
-    const err = new Error("Impossible de joindre le serveur. Vérifiez que l'API est démarrée.");
-    err.status = 0;
-    err.body = null;
-    throw err;
+    throw networkError();
   }
   const text = await res.text();
   let data = null;
@@ -78,10 +94,7 @@ export async function apiUpload(path, formData, method = "POST") {
   try {
     res = await fetch(apiUrl(path), { method, headers, body: formData });
   } catch {
-    const err = new Error("Impossible de joindre le serveur. Vérifiez que l'API est démarrée.");
-    err.status = 0;
-    err.body = null;
-    throw err;
+    throw networkError();
   }
   const text = await res.text();
   let data = null;
@@ -138,7 +151,8 @@ export async function apiFetchHtml(path) {
     err.body = data;
     throw err;
   }
-  return text;
+  const { assertDocumentPreviewHtml } = await import("../utils/documentPreview.js");
+  return assertDocumentPreviewHtml(text);
 }
 
 export async function apiDownload(path, filename = "document.pdf", accept = "application/pdf") {

@@ -38,7 +38,8 @@
     "confirmStatusTitle": "Confirmer le changement de statut",
     "confirmStatusDesc": "Passer le devis {{number}} de « {{from}} » à « {{to}} » ?",
     "confirmConvertTitle": "Convertir en facture",
-    "confirmConvertDesc": "Créer une facture à partir du devis {{number}} ? Cette action est définitive."
+    "confirmConvertDesc": "Créer une facture à partir du devis {{number}} ? Cette action est définitive.",
+    "lockedWhenInvoiced": "Ce devis est lié à une facture et ne peut plus être modifié."
   },
   "invoices": {
     "title": "Factures",
@@ -48,10 +49,10 @@
     "createModal": "Creer une facture",
     "editModal": "Modifier la facture",
     "statusDraft": "Brouillon",
-    "statusSent": "Envoyee",
-    "statusPaid": "Payee",
+    "statusSent": "Envoyée",
+    "statusPaid": "Payée",
     "statusOverdue": "En retard",
-    "statusCancelled": "Annulee",
+    "statusCancelled": "Annulée",
     "fieldClient": "Client",
     "fieldIssueDate": "Date emission",
     "fieldDueDate": "Date echeance",
@@ -62,7 +63,21 @@
     "confirmStatusTitle": "Confirmer le changement de statut",
     "confirmStatusDesc": "Passer la facture {{number}} de « {{from}} » à « {{to}} » ?",
     "confirmCreditNoteTitle": "Créer un avoir",
-    "confirmCreditNoteDesc": "Générer un avoir pour la facture {{number}} ? Cette action est définitive."
+    "confirmCreditNoteDesc": "Générer un avoir pour la facture {{number}} ? La facture sera marquée comme annulée et l'avoir apparaîtra dans l'onglet Avoirs.",
+    "paidRequiresPayment": "Pour marquer une facture comme payée, enregistrez un paiement via le bouton « Paiements » (montant couvrant le TTC).",
+    "paidStatusHint": "Le statut « Payée » est appliqué automatiquement lorsque les paiements couvrent le montant TTC.",
+    "tabInvoices": "Factures",
+    "tabCreditNotes": "Avoirs",
+    "lockedEditHint": "Seules les notes et la date d'échéance restent modifiables après émission.",
+    "deleteDraftOnly": "Seuls les brouillons sans paiement peuvent être supprimés.",
+    "deleteConfirmDraft": "Supprimer définitivement le brouillon {{number}} ?",
+    "paymentMaxHint": "Montant maximum : {{amount}} {{currency}}",
+    "paymentPartialHint": "Encaissé : {{paid}} / {{total}} {{currency}} — le statut « Payée » s'appliquera automatiquement au solde zéro.",
+    "paymentDeleteConfirm": "Supprimer ce paiement de {{amount}} ?",
+    "quotaBanner": "Offre Gratuite : {{used}}/{{limit}} factures ce mois-ci.",
+    "quotaReached": "Limite mensuelle atteinte. Passez à Pro pour continuer.",
+    "noClientWarning": "Un client est recommandé pour un PDF conforme.",
+    "creditNoteFor": "Relatif à {{number}}"
   },
   "clients": {
     "title": "Clients",

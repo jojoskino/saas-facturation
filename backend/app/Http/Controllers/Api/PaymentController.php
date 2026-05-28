@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
 use App\Models\Payment;
+use App\Services\InvoicePaymentSync;
+use App\Support\UserAnalyticsCache;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,14 +15,18 @@ use Illuminate\Validation\Rule;
 
 class PaymentController extends Controller
 {
+    public function __construct(
+        private readonly InvoicePaymentSync $paymentSync,
+    ) {}
+
     public function index(Request $request, string $invoiceId): JsonResponse
     {
         $invoice = $this->findInvoice($request, $invoiceId);
 
         return response()->json([
             'payments' => $invoice->payments()->orderByDesc('paid_at')->get(),
-            'paid_total' => (float) $invoice->payments()->sum('amount'),
-            'balance_due' => $this->balanceDue($invoice),
+            'paid_total' => $this->paymentSync->paidTotal($invoice),
+            'balance_due' => $this->paymentSync->balanceDue($invoice),
         ]);
     }
 
@@ -39,7 +45,7 @@ class PaymentController extends Controller
             'paid_at' => ['nullable', 'date'],
         ]);
 
-        $balance = $this->balanceDue($invoice);
+        $balance = $this->paymentSync->balanceDue($invoice);
         if ((float) $data['amount'] > $balance + 0.001) {
             return response()->json([
                 'message' => 'Le montant dépasse le solde restant dû.',
@@ -54,13 +60,16 @@ class PaymentController extends Controller
             'paid_at' => isset($data['paid_at']) ? Carbon::parse($data['paid_at']) : now(),
         ]);
 
-        $this->syncInvoicePaymentStatus($invoice->fresh(['payments']));
+        $fresh = $invoice->fresh(['client:id,name', 'payments']);
+        $this->paymentSync->syncStatus($fresh);
+        $fresh->refresh();
+        UserAnalyticsCache::bust((int) $request->user()->id);
 
         return response()->json([
             'message' => 'Paiement enregistré.',
             'payment' => $payment,
-            'invoice' => $invoice->fresh(['client:id,name', 'payments']),
-            'balance_due' => $this->balanceDue($invoice->fresh(['payments'])),
+            'invoice' => $fresh,
+            'balance_due' => $this->paymentSync->balanceDue($fresh),
         ], 201);
     }
 
@@ -74,7 +83,9 @@ class PaymentController extends Controller
             ->firstOrFail();
 
         $payment->delete();
-        $this->syncInvoicePaymentStatus($invoice->fresh(['payments']));
+        $fresh = $invoice->fresh(['payments']);
+        $this->paymentSync->syncStatus($fresh);
+        UserAnalyticsCache::bust((int) $request->user()->id);
 
         return response()->noContent();
     }
@@ -85,41 +96,5 @@ class PaymentController extends Controller
             ->where('user_id', $request->user()->id)
             ->with('payments')
             ->findOrFail($invoiceId);
-    }
-
-    private function balanceDue(Invoice $invoice): float
-    {
-        $paid = (float) $invoice->payments->sum('amount');
-
-        return max(0, round((float) $invoice->total - $paid, 2));
-    }
-
-    private function syncInvoicePaymentStatus(Invoice $invoice): void
-    {
-        if ($invoice->document_type === 'credit_note') {
-            return;
-        }
-
-        $balance = $this->balanceDue($invoice);
-
-        if ($balance <= 0.001 && (float) $invoice->total > 0) {
-            $invoice->update([
-                'status' => 'paid',
-                'paid_at' => $invoice->paid_at ?? now(),
-            ]);
-
-            return;
-        }
-
-        if ($invoice->status === 'paid' && $balance > 0) {
-            $dueDate = $invoice->due_date?->toDateString() ?? now()->toDateString();
-            $status = Carbon::parse($dueDate)->isPast() && ! Carbon::parse($dueDate)->isToday()
-                ? 'overdue'
-                : 'sent';
-            $invoice->update([
-                'status' => $status,
-                'paid_at' => null,
-            ]);
-        }
     }
 }

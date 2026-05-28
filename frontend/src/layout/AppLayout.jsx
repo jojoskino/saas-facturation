@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { clearApiCache } from "../api/cache";
 import { apiFetch, getStoredToken, setStoredToken } from "../api/client";
 import { useApiQuery } from "../hooks/useApiQuery";
-import I18nSync from "../components/I18nSync";
 import PlanBadge from "../components/PlanBadge";
+import { setAppLanguage } from "../i18n";
 import { applyUserBranding } from "../utils/branding";
+import { prefetchAppData } from "../utils/prefetchAppData";
+import AmountsPrivacyToggle from "../components/AmountsPrivacyToggle";
 import ModalPortal from "../components/ModalPortal";
 
 const navItems = [
@@ -36,6 +39,9 @@ export default function AppLayout() {
   const { data: me, error: meError } = useApiQuery("/api/me", { enabled: Boolean(getStoredToken()) });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(localStorage.getItem("facturo_sidebar_collapsed") === "1");
+  const [isMobileNav, setIsMobileNav] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 900px)").matches,
+  );
   const [profileOpen, setProfileOpen] = useState(false);
   const [confirmLogoutOpen, setConfirmLogoutOpen] = useState(false);
   const profileRef = useRef(null);
@@ -45,10 +51,22 @@ export default function AppLayout() {
     return key ? t(key) : t("nav.app");
   }, [location.pathname, t]);
 
+  const effectiveCollapsed = isMobileNav ? false : sidebarCollapsed;
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 900px)");
+    const onChange = () => setIsMobileNav(mq.matches);
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
   useEffect(() => {
     if (!getStoredToken()) {
       navigate("/login", { replace: true });
+      return;
     }
+    prefetchAppData();
   }, [navigate]);
 
   useEffect(() => {
@@ -62,6 +80,10 @@ export default function AppLayout() {
     setUserName(me?.name || "");
     if (me) applyUserBranding(me);
   }, [me]);
+
+  useEffect(() => {
+    if (me?.locale) setAppLanguage(me.locale);
+  }, [me?.locale]);
 
   useEffect(() => {
     setSidebarOpen(false);
@@ -78,11 +100,19 @@ export default function AppLayout() {
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [profileOpen]);
 
+  function requestLogout() {
+    setProfileOpen(false);
+    setConfirmLogoutOpen(true);
+  }
+
   function logout() {
-    apiFetch("/api/logout", { method: "POST" }).finally(() => {
-      setStoredToken(null);
-      navigate("/", { replace: true });
-    });
+    setConfirmLogoutOpen(false);
+    setSidebarOpen(false);
+    setProfileOpen(false);
+    setStoredToken(null);
+    clearApiCache();
+    apiFetch("/api/logout", { method: "POST" }).catch(() => {});
+    window.location.replace("/login");
   }
 
   function goTo(path) {
@@ -92,7 +122,6 @@ export default function AppLayout() {
 
   return (
     <div className="app-shell">
-      <I18nSync />
       <style>{`
         .app-shell {
           min-height: 100vh;
@@ -332,6 +361,12 @@ export default function AppLayout() {
         }
         .app-shell__profile-item:hover { background: #f8fafc; color: var(--color-text); }
         .app-shell__profile-item:last-child { border-bottom: 0; }
+        .app-shell__profile-item--danger {
+          color: #9d2f2f;
+        }
+        .app-shell__profile-item--danger:hover {
+          background: #fff6f6;
+        }
         .app-shell__profile-name {
           display: block;
           color: var(--color-text-muted);
@@ -359,6 +394,20 @@ export default function AppLayout() {
           top: 0;
           z-index: var(--z-header, 40);
           isolation: isolate;
+        }
+        .app-shell__header-brand {
+          display: none;
+          font-family: var(--heading);
+          font-weight: 800;
+          font-size: 1.12rem;
+          letter-spacing: -0.03em;
+          color: var(--color-text);
+          margin: 0;
+        }
+        .app-shell__header-brand span { color: var(--color-accent); }
+        .app-shell__sidebar-tools {
+          display: none;
+          padding: 0 12px 8px;
         }
         .app-shell__header-left {
           display: flex;
@@ -419,13 +468,22 @@ export default function AppLayout() {
           position: absolute;
           right: 0;
           top: calc(100% + 8px);
-          width: 210px;
+          width: min(220px, 88vw);
           background: #fff;
           border: 1px solid var(--color-border);
           border-radius: 10px;
           box-shadow: 0 16px 40px rgba(20, 33, 61, 0.18);
           z-index: var(--z-header-menu, 25);
           overflow: hidden;
+        }
+        .app-shell__profile-plan {
+          padding: 8px 12px;
+          border-bottom: 1px solid var(--color-border);
+        }
+        .app-shell__profile-popover .app-shell__profile-item i {
+          width: 16px;
+          text-align: center;
+          color: var(--color-text-muted);
         }
         .app-shell__btn {
           border-radius: 10px;
@@ -499,17 +557,29 @@ export default function AppLayout() {
           background: #fff6f6;
           color: #9d2f2f;
         }
+        @media (max-width: 768px) {
+          .app-shell__title { display: none; }
+          .app-shell__header-brand { display: block; }
+          .app-shell__header {
+            position: relative;
+            justify-content: space-between;
+            padding: 0 12px;
+          }
+          .app-shell__header-left { flex: 0 0 auto; z-index: 1; }
+          .app-shell__header-brand {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            pointer-events: none;
+          }
+          .app-shell__header-right { flex: 0 0 auto; z-index: 1; }
+          .app-shell__hello { display: none; }
+        }
         @media (max-width: 900px) {
           .app-shell__menu-btn { display: inline-flex; }
           .app-shell__header { padding: 0 12px; }
           .app-shell__title { font-size: 0.98rem; max-width: 45vw; }
-          .app-shell__hello { max-width: 34vw; }
-          .app-shell__hello-name {
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            font-size: 12px;
-          }
+          .app-shell__hello { display: none; }
           .app-shell__profile-icon {
             width: 34px;
             height: 34px;
@@ -544,25 +614,36 @@ export default function AppLayout() {
         onClick={() => setSidebarOpen(false)}
       />
 
-      <aside className={`app-shell__sidebar ${sidebarOpen ? "open" : ""} ${sidebarCollapsed ? "collapsed" : ""}`}>
+      <aside className={`app-shell__sidebar ${sidebarOpen ? "open" : ""} ${effectiveCollapsed ? "collapsed" : ""}`}>
         <div className="app-shell__brand">
           <div className="app-shell__brand-title">
             Factu<span>ro</span>
           </div>
-          <button
-            type="button"
-            className="app-shell__collapse-btn"
-            aria-label={sidebarCollapsed ? "Déplier la sidebar" : "Plier la sidebar"}
-            onClick={() => {
-              setSidebarCollapsed((prev) => {
-                const next = !prev;
-                localStorage.setItem("facturo_sidebar_collapsed", next ? "1" : "0");
-                return next;
-              });
-            }}
-          >
-            <i className={`fa-solid ${sidebarCollapsed ? "fa-angles-right" : "fa-angles-left"}`} />
-          </button>
+          {isMobileNav ? (
+            <button
+              type="button"
+              className="app-shell__sidebar-close"
+              aria-label="Fermer le menu"
+              onClick={() => setSidebarOpen(false)}
+            >
+              <i className="fa-solid fa-xmark" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="app-shell__collapse-btn"
+              aria-label={sidebarCollapsed ? "Déplier la sidebar" : "Plier la sidebar"}
+              onClick={() => {
+                setSidebarCollapsed((prev) => {
+                  const next = !prev;
+                  localStorage.setItem("facturo_sidebar_collapsed", next ? "1" : "0");
+                  return next;
+                });
+              }}
+            >
+              <i className={`fa-solid ${sidebarCollapsed ? "fa-angles-right" : "fa-angles-left"}`} />
+            </button>
+          )}
         </div>
         <nav className="app-shell__nav">
           <div className="app-shell__nav-title">Navigation</div>
@@ -574,7 +655,7 @@ export default function AppLayout() {
           ))}
         </nav>
         <div className="app-shell__footer">
-          <button type="button" className="app-shell__logout-btn" onClick={() => setConfirmLogoutOpen(true)}>
+          <button type="button" className="app-shell__logout-btn" onClick={requestLogout}>
             <i className="fa-solid fa-right-from-bracket" />
             <span>{t("profileMenu.logout")}</span>
           </button>
@@ -594,6 +675,9 @@ export default function AppLayout() {
             </button>
             <h1 className="app-shell__title">{pageTitle}</h1>
           </div>
+          <p className="app-shell__header-brand" aria-hidden="true">
+            Factu<span>ro</span>
+          </p>
           <div className="app-shell__header-right">
             {userName ? (
               <span className="app-shell__hello">
@@ -613,17 +697,18 @@ export default function AppLayout() {
               {profileOpen ? (
                 <div className="app-shell__profile-popover">
                   {me?.plan ? (
-                    <div className="app-shell__profile-plan" style={{ padding: "10px 12px", borderBottom: "1px solid var(--color-border)" }}>
-                      <PlanBadge plan={me.plan} />
+                    <div className="app-shell__profile-plan">
+                      <PlanBadge plan={me.plan} compact />
                     </div>
                   ) : null}
                   <button type="button" className="app-shell__profile-item" onClick={() => goTo("/app/profil")}>
                     <i className="fa-solid fa-user" /> {t("profileMenu.myProfile")}
                   </button>
+                  <AmountsPrivacyToggle menuItem />
                   <button type="button" className="app-shell__profile-item" onClick={() => goTo("/app/abonnement")}>
                     <i className="fa-solid fa-gem" /> {t("nav.billing")}
                   </button>
-                  <button type="button" className="app-shell__profile-item" onClick={() => setConfirmLogoutOpen(true)}>
+                  <button type="button" className="app-shell__profile-item app-shell__profile-item--danger" onClick={requestLogout}>
                     <i className="fa-solid fa-right-from-bracket" /> {t("profileMenu.logout")}
                   </button>
                 </div>
@@ -639,28 +724,30 @@ export default function AppLayout() {
 
       {confirmLogoutOpen ? (
         <ModalPortal>
-        <div className="app-shell__confirm-backdrop" onClick={() => setConfirmLogoutOpen(false)} role="dialog" aria-modal="true">
-          <div className="app-shell__confirm-modal" onClick={(e) => e.stopPropagation()}>
-            <h3>{t("logout.title")}</h3>
-            <p>{t("logout.message")}</p>
-            <div className="app-shell__confirm-actions">
-              <button
-                type="button"
-                className="app-shell__btn app-shell__btn--primary"
-                onClick={logout}
-              >
-                {t("logout.confirm")}
-              </button>
-              <button
-                type="button"
-                className="app-shell__btn app-shell__btn--soft-danger"
-                onClick={() => setConfirmLogoutOpen(false)}
-              >
-                {t("actions.cancel")}
-              </button>
+          <div
+            className="app-shell__confirm-backdrop"
+            onClick={() => setConfirmLogoutOpen(false)}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="logout-confirm-title"
+          >
+            <div className="app-shell__confirm-modal" onClick={(e) => e.stopPropagation()}>
+              <h3 id="logout-confirm-title">{t("logout.title")}</h3>
+              <p>{t("logout.message")}</p>
+              <div className="app-shell__confirm-actions">
+                <button type="button" className="app-shell__btn app-shell__btn--primary" onClick={logout}>
+                  {t("logout.confirm")}
+                </button>
+                <button
+                  type="button"
+                  className="app-shell__btn app-shell__btn--soft-danger"
+                  onClick={() => setConfirmLogoutOpen(false)}
+                >
+                  {t("actions.cancel")}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
         </ModalPortal>
       ) : null}
     </div>

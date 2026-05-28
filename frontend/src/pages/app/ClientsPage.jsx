@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiFetch, peekCache } from "../../api/client";
+import { paginatedFromCache } from "../../utils/listCache";
 import TableSkeleton from "../../components/skeleton/TableSkeleton";
 import FormActions from "../../components/FormActions";
 import AppModal from "../../components/AppModal";
@@ -8,7 +9,14 @@ import ConfirmDialog from "../../components/ConfirmDialog";
 import { AppSelect } from "../../components/AppFormControls";
 import ModalPortal from "../../components/ModalPortal";
 import { useAccountMe } from "../../hooks/useAccountMe";
+import { useAmountsPrivacy } from "../../hooks/useAmountsPrivacy";
 import { canImportClientsCsv } from "../../utils/planFeatures";
+import DocumentPreviewModal from "../../components/DocumentPreviewModal";
+import { clientDocumentPreviewPaths } from "../../utils/documentPreview";
+import ListFilterBar, { ListFilterField, ListFilterGrid } from "../../components/list/ListFilterBar";
+import ListPageHeader from "../../components/list/ListPageHeader";
+import ListPagination from "../../components/list/ListPagination";
+import ListIconButton from "../../components/list/ListIconButton";
 
 const emptyForm = {
   first_name: "",
@@ -24,17 +32,24 @@ const emptyForm = {
 export default function ClientsPage() {
   const { t } = useTranslation("app");
   const { t: tc } = useTranslation("common");
+  const { maskMoney } = useAmountsPrivacy();
   const { user } = useAccountMe();
   const csvImportEnabled = canImportClientsCsv(user?.plan_features || user?.plan);
-  const [clients, setClients] = useState([]);
-  const [meta, setMeta] = useState({ current_page: 1, last_page: 1, total: 0 });
+  const [clients, setClients] = useState(
+    () => paginatedFromCache(buildClientsUrl(1, "", "all", "recent"))?.rows ?? [],
+  );
+  const [meta, setMeta] = useState(
+    () =>
+      paginatedFromCache(buildClientsUrl(1, "", "all", "recent"))?.meta ?? {
+        current_page: 1,
+        last_page: 1,
+        total: 0,
+      },
+  );
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [page, setPage] = useState(1);
-  const [loading, setLoading] = useState(() => {
-    const q = new URLSearchParams({ page: "1", per_page: "12" });
-    return peekCache(`/api/clients?${q.toString()}`) == null;
-  });
+  const [loading, setLoading] = useState(() => paginatedFromCache(buildClientsUrl(1, "", "all", "recent")) == null);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [error, setError] = useState("");
@@ -46,14 +61,18 @@ export default function ClientsPage() {
   const [viewTarget, setViewTarget] = useState(null);
   const [clientDocs, setClientDocs] = useState(null);
   const [clientDocsLoading, setClientDocsLoading] = useState(false);
+  const [docPreview, setDocPreview] = useState(null);
+  const previewPaths = useMemo(
+    () => (docPreview ? clientDocumentPreviewPaths(docPreview, docPreview.kind) : null),
+    [docPreview],
+  );
   const [importOpen, setImportOpen] = useState(false);
   const [importCsv, setImportCsv] = useState("");
   const [importing, setImporting] = useState(false);
-  const [confirmSubmitOpen, setConfirmSubmitOpen] = useState(false);
-  const [pendingPayload, setPendingPayload] = useState(null);
   const [toasts, setToasts] = useState([]);
   const [filterCompany, setFilterCompany] = useState("all");
   const [sortBy, setSortBy] = useState("recent");
+  const [companyOptions, setCompanyOptions] = useState([]);
 
   const isEditing = editingId !== null;
 
@@ -101,17 +120,19 @@ export default function ClientsPage() {
   }
 
   async function loadClients({ requestedPage = page, requestedSearch = search } = {}) {
-    const query = new URLSearchParams({
-      page: String(requestedPage),
-      per_page: "12",
-    });
-    if (requestedSearch.trim()) query.set("q", requestedSearch.trim());
-    const url = `/api/clients?${query.toString()}`;
+    const url = buildClientsUrl(requestedPage, requestedSearch, filterCompany, sortBy);
+    const cached = paginatedFromCache(url);
+    if (cached) {
+      setClients(cached.rows);
+      setMeta(cached.meta);
+    }
     if (peekCache(url) == null) setLoading(true);
     setError("");
     try {
-      const data = await apiFetch(url);
+      const data = await apiFetch(url, { cacheTtl: 180_000 });
       setClients(Array.isArray(data?.data) ? data.data : []);
+      const companies = Array.isArray(data?.filter_options?.companies) ? data.filter_options.companies : [];
+      setCompanyOptions(companies);
       setMeta({
         current_page: Number(data?.current_page || requestedPage || 1),
         last_page: Number(data?.last_page || 1),
@@ -128,7 +149,7 @@ export default function ClientsPage() {
 
   useEffect(() => {
     loadClients();
-  }, [page, search]);
+  }, [page, search, filterCompany, sortBy]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -194,28 +215,21 @@ export default function ClientsPage() {
       return;
     }
     const payload = buildClientPayload(form);
-    setPendingPayload(payload);
-    setConfirmSubmitOpen(true);
-  }
-
-  async function confirmSubmit() {
-    if (!pendingPayload) return;
     setSaving(true);
     setError("");
     setSuccess("");
-    setConfirmSubmitOpen(false);
 
     try {
       if (isEditing) {
         await apiFetch(`/api/clients/${editingId}`, {
           method: "PUT",
-          body: JSON.stringify(pendingPayload),
+          body: JSON.stringify(payload),
         });
         pushToast("Client mis à jour.", "success");
       } else {
         await apiFetch("/api/clients", {
           method: "POST",
-          body: JSON.stringify(pendingPayload),
+          body: JSON.stringify(payload),
         });
         pushToast("Client ajouté.", "success");
       }
@@ -226,7 +240,6 @@ export default function ClientsPage() {
       setError(extractApiMessage(err, "Impossible d'enregistrer le client."));
       pushToast(extractApiMessage(err, "Impossible d'enregistrer le client."), "error");
     } finally {
-      setPendingPayload(null);
       setSaving(false);
     }
   }
@@ -267,29 +280,6 @@ export default function ClientsPage() {
     }, 2600);
   }
 
-  const companyOptions = useMemo(() => {
-    const options = new Set();
-    clients.forEach((client) => {
-      if (client.company) options.add(client.company);
-    });
-    return Array.from(options).sort((a, b) => a.localeCompare(b, "fr"));
-  }, [clients]);
-
-  const displayedClients = useMemo(() => {
-    let list = [...clients];
-    if (filterCompany !== "all") {
-      list = list.filter((c) => c.company === filterCompany);
-    }
-    if (sortBy === "name_desc") {
-      list.sort((a, b) => getClientDisplayName(b).localeCompare(getClientDisplayName(a), "fr"));
-    } else if (sortBy === "recent") {
-      list.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-    } else {
-      list.sort((a, b) => getClientDisplayName(a).localeCompare(getClientDisplayName(b), "fr"));
-    }
-    return list;
-  }, [clients, filterCompany, sortBy]);
-
   const companyFilterOptions = useMemo(
     () => [{ value: "all", label: "Toutes" }, ...companyOptions.map((option) => ({ value: option, label: option }))],
     [companyOptions]
@@ -303,8 +293,25 @@ export default function ClientsPage() {
     []
   );
 
+  function renderClientActions(client) {
+    return (
+      <>
+        <ListIconButton title="Voir" icon="fa-eye" onClick={() => setViewTarget(client)} />
+        <ListIconButton title="Modifier" icon="fa-pen" onClick={() => startEdit(client)} />
+        <ListIconButton
+          title="Supprimer"
+          icon="fa-trash"
+          danger
+          spinning={deletingId === client.id}
+          onClick={() => setDeleteTarget(client)}
+          disabled={deletingId === client.id}
+        />
+      </>
+    );
+  }
+
   return (
-    <div className="clients">
+    <div className="clients app-list-page">
       <style>{`
         .clients { color: var(--color-text); font-family: var(--sans); display: grid; gap: 18px; }
         .clients-grid { display: grid; grid-template-columns: 1fr; gap: 18px; align-items: start; }
@@ -446,13 +453,17 @@ export default function ClientsPage() {
           align-items: center;
           flex-wrap: nowrap;
         }
-        .clients-search input {
+        .clients-search input,
+        .clients-search-input {
           width: 100%;
+          box-sizing: border-box;
           border-radius: 10px;
           border: 1px solid var(--color-border-strong);
           height: 40px;
           padding: 8px 12px;
           font: 14px/1.3 var(--sans);
+          background: #fff;
+          color: var(--color-text);
         }
         .clients-select {
           width: 100%;
@@ -646,68 +657,55 @@ export default function ClientsPage() {
       {success ? <div className="clients-banner clients-banner--success">{success}</div> : null}
 
       <div className="clients-grid">
-        <section className="clients-search-card doc-filter-bar">
-          <div className="clients-filter-row">
-            <div className="clients-filter-item">
-              <label>Rechercher:</label>
-              <form className="clients-search" onSubmit={applySearch}>
-                <input
-                  type="text"
-                  placeholder="Rechercher nom, email, téléphone..."
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                />
-              </form>
-            </div>
-            <div className="clients-filter-item">
-              <label>Entreprise:</label>
+        <ListFilterBar>
+          <ListFilterGrid cols={3}>
+            <ListFilterField label="Rechercher">
+              <input
+                type="text"
+                className="clients-search-input"
+                placeholder="Rechercher nom, email, téléphone..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+              />
+            </ListFilterField>
+            <ListFilterField label="Entreprise">
               <AppSelect value={filterCompany} onChange={setFilterCompany} options={companyFilterOptions} />
-            </div>
-            <div className="clients-filter-item">
-              <label>Tri:</label>
+            </ListFilterField>
+            <ListFilterField label="Tri">
               <AppSelect value={sortBy} onChange={setSortBy} options={sortOptions} />
-            </div>
-            <button
-              className="clients-btn clients-btn--primary clients-filter-cta"
-              type="button"
-              onClick={() => {
-                setPage(1);
-                setSearch(searchInput.trim());
-                pushToast("Filtres appliqués.", "success");
-              }}
-            >
-              <i className="fa-solid fa-filter" /> Filtrer
-            </button>
-          </div>
-        </section>
+            </ListFilterField>
+          </ListFilterGrid>
+        </ListFilterBar>
 
-        <section className="clients-card doc-list-card">
-          <div className="clients-topbar">
-            <h2>Liste des clients</h2>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                className="clients-btn"
-                type="button"
-                title={csvImportEnabled ? "Importer des clients" : "Réservé à l'offre Pro"}
-                disabled={!csvImportEnabled}
-                onClick={() => {
-                  if (!csvImportEnabled) {
-                    setError("L'import CSV clients est réservé à l'offre Pro.");
-                    return;
-                  }
-                  setImportOpen(true);
-                }}
-              >
-                <i className="fa-solid fa-file-import" /> Import CSV
-              </button>
-              <button className="clients-btn clients-btn--accent" type="button" onClick={startCreate}>
-                <i className="fa-solid fa-plus" /> Nouveau client
-              </button>
-            </div>
-          </div>
+        <section className="clients-card app-list-card doc-list-card">
+          <ListPageHeader
+            title="Liste des clients"
+            actions={
+              <>
+                <button
+                  className="clients-btn app-list-btn"
+                  type="button"
+                  title={csvImportEnabled ? "Importer des clients" : "Réservé à l'offre Pro"}
+                  disabled={!csvImportEnabled}
+                  onClick={() => {
+                    if (!csvImportEnabled) {
+                      setError("L'import CSV clients est réservé à l'offre Pro.");
+                      return;
+                    }
+                    setImportOpen(true);
+                  }}
+                >
+                  <i className="fa-solid fa-file-import" /> <span className="btn-label-long">Import CSV</span>
+                </button>
+                <button className="clients-btn clients-btn--accent app-list-btn" type="button" onClick={startCreate}>
+                  <i className="fa-solid fa-plus" /> <span className="btn-label-long">Nouveau client</span>
+                </button>
+              </>
+            }
+          />
 
-          <div className="clients-table-wrap">
-            <table className="clients-table">
+          <div className="clients-table-wrap app-list-table-wrap">
+            <table className="clients-table app-list-table">
               <thead>
                 <tr>
                   <th>Client</th>
@@ -720,12 +718,12 @@ export default function ClientsPage() {
               <tbody>
                 {loading ? (
                   <TableSkeleton rows={8} columns={5} withActions actionColumnIndex={4} />
-                ) : displayedClients.length === 0 ? (
+                ) : clients.length === 0 ? (
                   <tr>
                     <td colSpan={5}>Aucun client trouvé.</td>
                   </tr>
                 ) : (
-                  displayedClients.map((client) => (
+                  clients.map((client) => (
                     <tr key={client.id}>
                       <td>
                         <strong>{getClientDisplayName(client)}</strong>
@@ -738,23 +736,7 @@ export default function ClientsPage() {
                       <td>{client.company || "—"}</td>
                       <td>{client.address || "—"}</td>
                       <td>
-                        <div className="clients-row-actions">
-                          <button className="clients-row-btn" type="button" onClick={() => setViewTarget(client)} title="Voir">
-                            <i className="fa-solid fa-eye" />
-                          </button>
-                          <button className="clients-row-btn" type="button" onClick={() => startEdit(client)} title="Modifier">
-                            <i className="fa-solid fa-pen" />
-                          </button>
-                          <button
-                            className="clients-row-btn clients-row-btn--warn"
-                            type="button"
-                            onClick={() => setDeleteTarget(client)}
-                            disabled={deletingId === client.id}
-                            title="Supprimer"
-                          >
-                            <i className={`fa-solid ${deletingId === client.id ? "fa-spinner fa-spin" : "fa-trash"}`} />
-                          </button>
-                        </div>
+                        <div className="clients-row-actions">{renderClientActions(client)}</div>
                       </td>
                     </tr>
                   ))
@@ -763,27 +745,49 @@ export default function ClientsPage() {
             </table>
           </div>
 
-          <div className="clients-pagination">
-            <button
-              className="clients-btn"
-              type="button"
-              disabled={meta.current_page <= 1 || loading}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-            >
-              Précédent
-            </button>
-            <span className="clients-pagination-info">
-              Page {meta.current_page} / {meta.last_page}
-            </span>
-            <button
-              className="clients-btn"
-              type="button"
-              disabled={meta.current_page >= meta.last_page || loading}
-              onClick={() => setPage((p) => Math.min(meta.last_page, p + 1))}
-            >
-              Suivant
-            </button>
+          <div className="app-list-cards">
+            {loading && clients.length === 0 ? (
+              <>
+                <div className="app-list-card-item app-list-card-item--skeleton" />
+                <div className="app-list-card-item app-list-card-item--skeleton" />
+                <div className="app-list-card-item app-list-card-item--skeleton" />
+              </>
+            ) : clients.length === 0 ? (
+              <div className="app-list-card-item app-list-card-item--empty">Aucun client trouvé.</div>
+            ) : (
+              clients.map((client) => (
+                <article key={client.id} className="app-list-card-item">
+                  <div className="app-list-card-item__head">
+                    <div>
+                      <div className="app-list-card-item__ref">{getClientDisplayName(client)}</div>
+                      <div className="app-list-card-item__sub">{client.company || "—"}</div>
+                    </div>
+                  </div>
+                  <div className="app-list-card-item__row">
+                    <span>{client.email || "—"}</span>
+                  </div>
+                  <div className="app-list-card-item__row">
+                    <span className="app-list-card-item__label">Tél.</span>
+                    <span>{client.phone || "—"}</span>
+                  </div>
+                  <div className="app-list-card-item__foot">
+                    <button type="button" className="clients-btn" style={{ padding: "6px 10px", fontSize: 12 }} onClick={() => setViewTarget(client)}>
+                      Détails
+                    </button>
+                    <div className="app-list-card-item__actions">{renderClientActions(client)}</div>
+                  </div>
+                </article>
+              ))
+            )}
           </div>
+
+          <ListPagination
+            page={meta.current_page}
+            lastPage={meta.last_page}
+            loading={loading}
+            onPrev={() => setPage((p) => Math.max(1, p - 1))}
+            onNext={() => setPage((p) => Math.min(meta.last_page, p + 1))}
+          />
         </section>
       </div>
 
@@ -848,17 +852,6 @@ export default function ClientsPage() {
         </ModalPortal>
       ) : null}
 
-      {confirmSubmitOpen ? (
-        <ConfirmDialog
-          open
-          title="Confirmer l'enregistrement"
-          description="Voulez-vous confirmer cette action ?"
-          onClose={() => setConfirmSubmitOpen(false)}
-          onConfirm={confirmSubmit}
-          saving={saving}
-        />
-      ) : null}
-
       {deleteTarget ? (
         <ConfirmDialog
           open
@@ -872,7 +865,10 @@ export default function ClientsPage() {
 
       <AppModal
         open={Boolean(viewTarget)}
-        onClose={() => setViewTarget(null)}
+        onClose={() => {
+          setViewTarget(null);
+          setDocPreview(null);
+        }}
         wide
         title={viewTarget ? getClientDisplayName(viewTarget) : t("clients.viewTitle")}
         description={
@@ -921,17 +917,23 @@ export default function ClientsPage() {
                   <>
                     <div className="app-modal-detail__kpi">
                       {t("clients.revenuePaid")} :{" "}
-                      <strong>{Number(clientDocs?.stats?.revenue_paid_cfa || 0).toLocaleString("fr-FR")} CFA</strong>
+                      <strong>
+                        {maskMoney(Number(clientDocs?.stats?.revenue_paid_cfa || 0), (v) =>
+                          `${Number(v).toLocaleString("fr-FR")} CFA`,
+                        )}
+                      </strong>
                     </div>
                     <DocumentChipGroup
                       label={t("clients.quotesHistory")}
-                      items={(clientDocs?.quotes || []).map((q) => q.number)}
+                      documents={clientDocs?.quotes || []}
                       emptyLabel={t("clients.noQuotes")}
+                      onOpen={(doc) => setDocPreview({ kind: "quote", ...doc })}
                     />
                     <DocumentChipGroup
                       label={t("clients.invoicesHistory")}
-                      items={(clientDocs?.invoices || []).map((i) => i.number)}
+                      documents={clientDocs?.invoices || []}
                       emptyLabel={t("clients.noInvoices")}
+                      onOpen={(doc) => setDocPreview({ kind: "invoice", ...doc })}
                     />
                   </>
                 ) : (
@@ -983,6 +985,17 @@ export default function ClientsPage() {
         </ModalPortal>
       ) : null}
 
+      {previewPaths ? (
+        <DocumentPreviewModal
+          open
+          onClose={() => setDocPreview(null)}
+          previewPath={previewPaths.preview}
+          pdfPath={previewPaths.pdf}
+          filename={previewPaths.filename}
+          title={previewPaths.title}
+        />
+      ) : null}
+
       {toasts.length ? (
         <div className="clients-toast-wrap" aria-live="polite">
           {toasts.map((toast) => (
@@ -1020,16 +1033,23 @@ function DetailField({ label, value, href = null, full = false }) {
   );
 }
 
-function DocumentChipGroup({ label, items, emptyLabel }) {
+function DocumentChipGroup({ label, documents, emptyLabel, onOpen }) {
   return (
     <div className="app-modal-detail__doc-group">
       <p className="app-modal-detail__doc-label">{label}</p>
-      {items.length ? (
+      {documents.length ? (
         <div className="app-modal-detail__chips">
-          {items.map((item) => (
-            <span key={item} className="app-modal-detail__chip">
-              {item}
-            </span>
+          {documents.map((doc) => (
+            <button
+              key={`${doc.id}-${doc.number}`}
+              type="button"
+              className="app-modal-detail__chip app-modal-detail__chip--btn"
+              onClick={() => onOpen?.(doc)}
+              title="Aperçu du document"
+            >
+              <i className="fa-solid fa-eye" aria-hidden />
+              {doc.number}
+            </button>
           ))}
         </div>
       ) : (
@@ -1096,6 +1116,17 @@ function buildClientPayload(form) {
     tax_id: normalizeNullable(form.tax_id),
     notes: normalizeNullable(form.notes),
   };
+}
+
+function buildClientsUrl(requestedPage, requestedSearch, filterCompany, sortBy) {
+  const query = new URLSearchParams({
+    page: String(requestedPage),
+    per_page: "12",
+    sort: sortBy,
+  });
+  if (requestedSearch.trim()) query.set("q", requestedSearch.trim());
+  if (filterCompany !== "all") query.set("company", filterCompany);
+  return `/api/clients?${query.toString()}`;
 }
 
 function validateClientForm(form) {

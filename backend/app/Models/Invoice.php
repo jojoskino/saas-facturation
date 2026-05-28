@@ -23,6 +23,7 @@ class Invoice extends Model
         'tax_amount',
         'total',
         'paid_at',
+        'discount_percent',
         'notes',
     ];
 
@@ -35,6 +36,7 @@ class Invoice extends Model
             'subtotal' => 'decimal:2',
             'tax_amount' => 'decimal:2',
             'total' => 'decimal:2',
+            'discount_percent' => 'decimal:2',
         ];
     }
 
@@ -66,5 +68,10 @@ class Invoice extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function items(): HasMany
+    {
+        return $this->hasMany(InvoiceItem::class)->orderBy('sort_order');
     }
 }

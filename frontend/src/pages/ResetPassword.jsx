@@ -51,7 +51,7 @@ export default function ResetPassword() {
   return (
     <AuthBrand
       title="Nouveau mot de passe"
-      subtitle="Choisissez un mot de passe sécurisé."
+      tagline="Choisissez un nouveau mot de passe pour retrouver votre compte."
       footer={<Link to="/login">Connexion</Link>}
     >
       {!token || !email ? <div className="auth-error">Lien invalide ou expiré.</div> : null}
