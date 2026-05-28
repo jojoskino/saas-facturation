@@ -37,43 +37,6 @@ function Reveal({ children, className = "" }: { children: React.ReactNode; class
   );
 }
 
-function HeroDashboardMock() {
-  return (
-    <div className="hero-mockup" aria-hidden>
-      <aside className="hero-mockup__sidebar">
-        <div className="hero-mockup__brand">Factu<span>ro</span></div>
-        <div className="hero-mockup__nav">
-          <span className="is-active" />
-          <span />
-          <span />
-          <span />
-        </div>
-        <div className="hero-mockup__user">
-          <span className="hero-mockup__avatar" />
-          <span className="hero-mockup__name" />
-          <i className="fa-solid fa-coins" aria-hidden />
-        </div>
-      </aside>
-      <div className="hero-mockup__main">
-        <div className="hero-mockup__kpis">
-          <div />
-          <div />
-          <div />
-          <div />
-        </div>
-        <div className="hero-mockup__charts">
-          <div className="hero-mockup__line">
-            <svg viewBox="0 0 200 80" preserveAspectRatio="none" aria-hidden>
-              <polyline points="0,60 40,45 80,52 120,28 160,35 200,18" />
-            </svg>
-          </div>
-          <div className="hero-mockup__donut" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function FeatureCard({
   icon,
   title,
@@ -272,13 +235,16 @@ export default function Page() {
         <div className="hero-blob hero-blob--1" aria-hidden />
         <div className="hero-blob hero-blob--2" aria-hidden />
         <div className="container hero-grid">
-          <Reveal>
+          <Reveal className="hero-reveal">
             <div className="hero-copy">
               <h1>
-                Facturez <em>simple</em>, vite
+                Facturez plus vite.
+                <br />
+                Encaissez <em>plus tôt</em>.
               </h1>
               <p className="hero-lead">
-                Devis et factures conformes pour freelances et TPE — gratuit pour démarrer.
+                Créez des devis et factures professionnels en quelques clics. Simple, rapide et pensé pour les
+                freelances et les petites entreprises — gratuit pour commencer.
               </p>
               <div className="hero-cta">
                 <Link
@@ -291,23 +257,6 @@ export default function Page() {
                   Voir les tarifs
                 </a>
               </div>
-            </div>
-          </Reveal>
-
-          <Reveal>
-            <div className="hero-visual-wrap">
-              <div className="hero-ring" aria-hidden />
-              <div className="hero-visual-card">
-                <HeroDashboardMock />
-              </div>
-              <span className="hero-chip hero-chip--top">
-                <i className="fa-solid fa-file-invoice" aria-hidden />
-                Factures conformes
-              </span>
-              <span className="hero-chip hero-chip--bottom">
-                <i className="fa-solid fa-bolt" aria-hidden />
-                Devis → facture en 1 clic
-              </span>
             </div>
           </Reveal>
         </div>

@@ -129,11 +129,12 @@ html { scroll-behavior: smooth; }
         .links a:hover,
         .links a:focus-visible {
           color: #14213d;
-          background: rgba(20, 33, 61, 0.05);
+          background: transparent;
         }
         .links a:hover::after,
         .links a:focus-visible::after {
-          transform: scaleX(1);
+          transform: scaleX(0.75);
+          opacity: 0.85;
         }
         .nav-pill .links a::after {
           background: #fca311;
@@ -242,7 +243,7 @@ html { scroll-behavior: smooth; }
         .mobile-menu a:hover,
         .mobile-menu a:focus-visible {
           color: #14213d;
-          background: rgba(20, 33, 61, 0.05);
+          background: rgba(20, 33, 61, 0.03);
         }
         .mobile-menu-divider {
           height: 1px;
@@ -262,9 +263,12 @@ html { scroll-behavior: smooth; }
 
         .hero {
           position: relative;
-          padding: 0 0 clamp(24px, 3.5vw, 40px);
+          padding: 0;
           overflow: hidden;
-          min-height: auto;
+          min-height: 100svh;
+          min-height: 100dvh;
+          display: flex;
+          flex-direction: column;
         }
         .hero::before {
           content: "";
@@ -285,41 +289,55 @@ html { scroll-behavior: smooth; }
           animation: hero-float 9s ease-in-out infinite;
         }
         .hero-blob--1 {
-          width: min(320px, 50vw);
-          height: min(320px, 50vw);
-          top: 8%;
-          right: 12%;
-          background: rgba(252, 163, 17, 0.22);
+          width: min(360px, 55vw);
+          height: min(360px, 55vw);
+          top: 18%;
+          left: 50%;
+          background: rgba(252, 163, 17, 0.16);
         }
         .hero-blob--2 {
-          width: min(240px, 40vw);
-          height: min(240px, 40vw);
-          bottom: 12%;
-          left: 4%;
-          background: rgba(20, 33, 61, 0.08);
+          width: min(280px, 45vw);
+          height: min(280px, 45vw);
+          bottom: 18%;
+          left: 50%;
+          background: rgba(20, 33, 61, 0.06);
+          animation: hero-float-alt 9s ease-in-out infinite;
           animation-delay: -3s;
         }
         @keyframes hero-float {
-          0%, 100% { transform: translate(0, 0) scale(1); }
-          50% { transform: translate(8px, -12px) scale(1.04); }
+          0%, 100% { transform: translate(-50%, 0) scale(1); }
+          50% { transform: translate(calc(-50% + 8px), -12px) scale(1.04); }
+        }
+        @keyframes hero-float-alt {
+          0%, 100% { transform: translate(-40%, 0) scale(1); }
+          50% { transform: translate(calc(-40% - 6px), 10px) scale(1.03); }
         }
         .hero-grid {
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
-          gap: clamp(20px, 3vw, 40px);
+          flex: 1;
+          display: flex;
           align-items: center;
+          justify-content: center;
           position: relative;
           z-index: 1;
-          padding-top: clamp(8px, 1.5vw, 16px);
+          width: 100%;
+          padding: clamp(16px, 3vw, 32px) 0;
+        }
+        .hero-reveal {
+          width: 100%;
+          display: flex;
+          justify-content: center;
         }
         .hero-copy {
-          max-width: 32rem;
+          max-width: 44rem;
+          width: 100%;
           padding-top: 0;
+          text-align: center;
         }
         .hero h1 {
-          font-size: clamp(34px, 5.2vw, 56px);
+          font-size: clamp(36px, 6vw, 64px);
           line-height: 1.08;
-          max-width: 12ch;
+          max-width: none;
+          margin: 0 auto;
           font-weight: 800;
           color: #14213d;
           letter-spacing: -0.035em;
@@ -329,10 +347,10 @@ html { scroll-behavior: smooth; }
           color: #fca311;
         }
         .hero-lead {
-          margin-top: 16px;
+          margin: 16px auto 0;
           font-size: clamp(16px, 1.9vw, 18px);
           line-height: 1.55;
-          max-width: 36ch;
+          max-width: 52ch;
           color: #4b5a74;
         }
         .hero-cta {
@@ -341,6 +359,7 @@ html { scroll-behavior: smooth; }
           gap: 12px;
           margin-top: 28px;
           align-items: center;
+          justify-content: center;
         }
         .btn-hero-primary {
           border-radius: 999px;
@@ -536,7 +555,7 @@ html { scroll-behavior: smooth; }
         }
 
         .section { padding: clamp(40px, 5vw, 56px) 0; }
-        .hero + .section { padding-top: clamp(24px, 3.5vw, 36px); }
+        .hero + .section { padding-top: clamp(40px, 5vw, 56px); }
         #features.section {
           padding-bottom: clamp(56px, 7vw, 80px);
         }
@@ -974,18 +993,11 @@ html { scroll-behavior: smooth; }
           }
         }
         @media (max-width: 1000px) {
-          .hero-grid, .features, .steps, .pricing-grid, .testimonials, .foot { grid-template-columns: 1fr 1fr; }
+          .features, .steps, .pricing-grid, .testimonials, .foot { grid-template-columns: 1fr 1fr; }
         }
         @media (max-width: 720px) {
-          .hero { padding-bottom: 28px; }
-          .hero-grid, .features, .steps, .pricing-grid, .testimonials, .foot { grid-template-columns: 1fr; }
-          .hero-visual-wrap { min-height: 220px; max-width: 420px; margin: 0 auto; }
-          .hero-copy { text-align: center; margin: 0 auto; }
-          .hero h1 { max-width: none; margin: 0 auto; }
-          .hero-lead { max-width: none; margin-left: auto; margin-right: auto; }
-          .hero-cta { justify-content: center; }
-          .hero-chip--top { right: 4px; }
-          .hero-chip--bottom { left: 4px; }
+          .hero-grid { padding: 20px 0 28px; }
+          .features, .steps, .pricing-grid, .testimonials, .foot { grid-template-columns: 1fr; }
           .nav-pill { padding: 10px 10px 10px 16px; }
           .logo { font-size: 20px; }
           .foot-bottom { flex-direction: column; align-items: flex-start; }
