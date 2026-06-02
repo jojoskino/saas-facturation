@@ -1,15 +1,20 @@
 import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { apiFetch, apiUpload, apiUrl } from "../../api/client";
+import { apiFetch, apiUpload, resolveAssetUrl } from "../../api/client";
 import { applyUserBranding } from "../../utils/branding";
 import { peekCache, setCache } from "../../api/cache";
 import { setAppLanguage } from "../../i18n";
 import AppModal from "../../components/AppModal";
 import AccountAlerts from "../../components/account/AccountAlerts";
+import AmountsPrivacyToggle from "../../components/AmountsPrivacyToggle";
 import SettingsListSkeleton from "../../components/skeleton/SettingsListSkeleton";
 import FormActions from "../../components/FormActions";
 import { FieldLabel } from "../../components/AppFormControls";
+import PasswordRequirements from "../../components/PasswordRequirements";
+import { evaluatePassword, passwordsMatch } from "../../utils/passwordPolicy";
 import { extractApiMessage, useAccountMe } from "../../hooks/useAccountMe";
+import { prepareLogoUpload } from "../../utils/logoImage";
 import "../../styles/account-pages.css";
 
 const TIMEZONE_KEYS = [
@@ -22,13 +27,6 @@ const TIMEZONE_KEYS = [
 
 const DEFAULT_DOC_PRIMARY = "#14213D";
 const DEFAULT_DOC_ACCENT = "#FCA311";
-
-function resolveAssetUrl(url) {
-  if (!url) return "";
-  if (/^https?:\/\//i.test(url)) return url;
-  if (url.startsWith("/")) return apiUrl(url);
-  return url;
-}
 
 const emptyCompany = {
   company_name: "",
@@ -50,11 +48,14 @@ export default function SettingsPage() {
   const [success, setSuccess] = useState("");
   const [companyOpen, setCompanyOpen] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
+  const [securityOpen, setSecurityOpen] = useState(false);
   const [savingCompany, setSavingCompany] = useState(false);
+  const [savingSecurity, setSavingSecurity] = useState(false);
   const [logoFile, setLogoFile] = useState(null);
   const [logoPreview, setLogoPreview] = useState("");
   const [removeLogo, setRemoveLogo] = useState(false);
   const [logoBroken, setLogoBroken] = useState(false);
+  const [rowLogoBroken, setRowLogoBroken] = useState(false);
   const logoInputRef = useRef(null);
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [company, setCompany] = useState(emptyCompany);
@@ -62,6 +63,11 @@ export default function SettingsPage() {
     locale: "fr",
     timezone: "Africa/Abidjan",
     notifications_email: true,
+  });
+  const [passwordForm, setPasswordForm] = useState({
+    current_password: "",
+    password: "",
+    password_confirmation: "",
   });
 
   useEffect(() => {
@@ -83,6 +89,7 @@ export default function SettingsPage() {
     setLogoFile(null);
     setRemoveLogo(false);
     setLogoBroken(false);
+    setRowLogoBroken(false);
     applyUserBranding(user);
     setPrefs({
       locale: user.locale || "fr",
@@ -101,13 +108,20 @@ export default function SettingsPage() {
     setPrefs((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
   }
 
-  function onLogoPick(e) {
+  async function onLogoPick(e) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setLogoFile(file);
     setRemoveLogo(false);
     setLogoBroken(false);
-    setLogoPreview(URL.createObjectURL(file));
+    setRowLogoBroken(false);
+    try {
+      const prepared = await prepareLogoUpload(file);
+      setLogoFile(prepared);
+      setLogoPreview(URL.createObjectURL(prepared));
+    } catch {
+      setLogoFile(file);
+      setLogoPreview(URL.createObjectURL(file));
+    }
   }
 
   async function saveCompany(e) {
@@ -153,6 +167,44 @@ export default function SettingsPage() {
       setError(extractApiMessage(err, t("company.error")));
     } finally {
       setSavingCompany(false);
+    }
+  }
+
+  function onPasswordChange(e) {
+    const { name, value } = e.target;
+    setPasswordForm((prev) => ({ ...prev, [name]: value }));
+  }
+
+  const newPasswordValid = evaluatePassword(passwordForm.password).valid;
+  const newPasswordMatch = passwordsMatch(passwordForm.password, passwordForm.password_confirmation);
+  const canSavePassword =
+    Boolean(passwordForm.current_password) && newPasswordValid && newPasswordMatch;
+
+  async function savePassword(e) {
+    e.preventDefault();
+    if (!canSavePassword) {
+      setError(t("security.hint"));
+      return;
+    }
+    setSavingSecurity(true);
+    setError("");
+    setSuccess("");
+    try {
+      const data = await apiFetch("/api/me/password", {
+        method: "PUT",
+        body: JSON.stringify({
+          current_password: passwordForm.current_password,
+          password: passwordForm.password,
+          password_confirmation: passwordForm.password_confirmation,
+        }),
+      });
+      setPasswordForm({ current_password: "", password: "", password_confirmation: "" });
+      setSuccess(data?.message || t("security.success"));
+      setSecurityOpen(false);
+    } catch (err) {
+      setError(extractApiMessage(err, t("security.error")));
+    } finally {
+      setSavingSecurity(false);
     }
   }
 
@@ -207,6 +259,19 @@ export default function SettingsPage() {
             <strong>{t("company.tileTitle")}</strong>
             <span>{t("company.tileDesc")}</span>
           </span>
+          {user?.company_logo_url && !rowLogoBroken ? (
+            <img
+              src={resolveAssetUrl(user.company_logo_url)}
+              alt=""
+              className="settings-row-logo"
+              decoding="sync"
+              onError={() => setRowLogoBroken(true)}
+            />
+          ) : (
+            <span className="settings-row-logo settings-row-logo--empty" aria-hidden>
+              <i className="fa-regular fa-image" />
+            </span>
+          )}
           <i className="fa-solid fa-chevron-right settings-row-chevron" aria-hidden />
         </button>
 
@@ -220,6 +285,30 @@ export default function SettingsPage() {
           </span>
           <i className="fa-solid fa-chevron-right settings-row-chevron" aria-hidden />
         </button>
+
+        <Link to="/app/abonnement" className="settings-row">
+          <span className="settings-row-icon" aria-hidden>
+            <i className="fa-solid fa-gem" />
+          </span>
+          <span className="settings-row-text">
+            <strong>{t("plan.tileTitle")}</strong>
+            <span>{t("plan.tileDesc")}</span>
+          </span>
+          <i className="fa-solid fa-chevron-right settings-row-chevron" aria-hidden />
+        </Link>
+
+        <button type="button" className="settings-row" onClick={() => setSecurityOpen(true)}>
+          <span className="settings-row-icon" aria-hidden>
+            <i className="fa-solid fa-shield-halved" />
+          </span>
+          <span className="settings-row-text">
+            <strong>{t("security.tileTitle")}</strong>
+            <span>{t("security.tileDesc")}</span>
+          </span>
+          <i className="fa-solid fa-chevron-right settings-row-chevron" aria-hidden />
+        </button>
+
+        <AmountsPrivacyToggle settingsRow />
       </div>
       )}
 
@@ -234,57 +323,75 @@ export default function SettingsPage() {
           <div className="app-modal-form__scroll account-form">
           <div className="account-field account-field--full account-branding-logo">
             <FieldLabel htmlFor="company_logo">{t("company.logo")}</FieldLabel>
-            <div className="account-logo-row">
-              {logoPreview && !logoBroken ? (
-                <img
-                  src={logoPreview}
-                  alt=""
-                  className="account-logo-preview"
-                  onError={() => setLogoBroken(true)}
-                />
-              ) : (
-                <div className="account-logo-placeholder" aria-hidden>
-                  <i className="fa-regular fa-image" />
-                </div>
-              )}
-              <div className="account-logo-actions">
-                <input
-                  ref={logoInputRef}
-                  id="company_logo"
-                  type="file"
-                  className="account-logo-file"
-                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                  onChange={onLogoPick}
-                  disabled={loading || savingCompany}
-                />
-                <button
-                  type="button"
-                  className="account-btn account-btn--ghost"
-                  onClick={() => logoInputRef.current?.click()}
-                  disabled={loading || savingCompany}
-                >
-                  <i className="fa-solid fa-upload" aria-hidden />
-                  {t("company.logoChoose")}
-                </button>
+            <div className="account-logo-card">
+              <button
+                type="button"
+                className="account-logo-card__preview"
+                onClick={() => logoInputRef.current?.click()}
+                disabled={loading || savingCompany}
+                aria-label={t("company.logoChoose")}
+              >
                 {logoPreview && !logoBroken ? (
+                  <img
+                    src={logoPreview}
+                    alt=""
+                    className="account-logo-preview"
+                    decoding="sync"
+                    onError={() => setLogoBroken(true)}
+                  />
+                ) : (
+                  <div className="account-logo-placeholder" aria-hidden>
+                    <i className="fa-regular fa-image" />
+                  </div>
+                )}
+                <span className="account-logo-card__overlay">
+                  <i className="fa-solid fa-pen" aria-hidden />
+                  {t("company.logoChange")}
+                </span>
+              </button>
+              <div className="account-logo-card__meta">
+                <p className="account-logo-card__status">
+                  {logoPreview && !logoBroken ? t("company.logoCurrent") : t("company.logoNone")}
+                </p>
+                <p className="account-field-hint">{t("company.logoHint")}</p>
+                <div className="account-logo-actions">
+                  <input
+                    ref={logoInputRef}
+                    id="company_logo"
+                    type="file"
+                    className="account-logo-file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    onChange={onLogoPick}
+                    disabled={loading || savingCompany}
+                  />
                   <button
                     type="button"
-                    className="account-link-btn"
-                    onClick={() => {
-                      setLogoFile(null);
-                      setLogoPreview("");
-                      setRemoveLogo(true);
-                      setLogoBroken(false);
-                      if (logoInputRef.current) logoInputRef.current.value = "";
-                    }}
+                    className="account-btn account-btn--ghost"
+                    onClick={() => logoInputRef.current?.click()}
                     disabled={loading || savingCompany}
                   >
-                    {t("company.logoRemove")}
+                    <i className="fa-solid fa-upload" aria-hidden />
+                    {t("company.logoChoose")}
                   </button>
-                ) : null}
+                  {logoPreview && !logoBroken ? (
+                    <button
+                      type="button"
+                      className="account-link-btn"
+                      onClick={() => {
+                        setLogoFile(null);
+                        setLogoPreview("");
+                        setRemoveLogo(true);
+                        setLogoBroken(false);
+                        if (logoInputRef.current) logoInputRef.current.value = "";
+                      }}
+                      disabled={loading || savingCompany}
+                    >
+                      {t("company.logoRemove")}
+                    </button>
+                  ) : null}
+                </div>
               </div>
             </div>
-            <p className="account-field-hint">{t("company.logoHint")}</p>
           </div>
           <div className="account-field-row account-field-row--colors">
             <div className="account-field">
@@ -492,6 +599,72 @@ export default function SettingsPage() {
             submitLabel={t("preferences.save")}
             saving={savingPrefs}
             submitDisabled={loading}
+          />
+        </form>
+      </AppModal>
+
+      <AppModal
+        open={securityOpen}
+        onClose={() => setSecurityOpen(false)}
+        title={t("security.modalTitle")}
+        description={t("security.modalDesc")}
+      >
+        <form className="account-form" onSubmit={savePassword}>
+          <div className="account-field account-field--full">
+            <FieldLabel htmlFor="settings_current_password" required>
+              {t("security.current")}
+            </FieldLabel>
+            <input
+              id="settings_current_password"
+              type="password"
+              name="current_password"
+              value={passwordForm.current_password}
+              onChange={onPasswordChange}
+              autoComplete="current-password"
+              required
+            />
+          </div>
+          <div className="account-field account-field--full">
+            <FieldLabel htmlFor="settings_password" required>
+              {t("security.new")}
+            </FieldLabel>
+            <input
+              id="settings_password"
+              type="password"
+              name="password"
+              value={passwordForm.password}
+              onChange={onPasswordChange}
+              autoComplete="new-password"
+              required
+              minLength={8}
+            />
+          </div>
+          <div className="account-field account-field--full">
+            <FieldLabel htmlFor="settings_password_confirmation" required>
+              {t("security.confirm")}
+            </FieldLabel>
+            <input
+              id="settings_password_confirmation"
+              type="password"
+              name="password_confirmation"
+              value={passwordForm.password_confirmation}
+              onChange={onPasswordChange}
+              autoComplete="new-password"
+              required
+              minLength={8}
+            />
+          </div>
+          <PasswordRequirements
+            className="account-field--full"
+            password={passwordForm.password}
+            confirmPassword={passwordForm.password_confirmation}
+            showConfirmation
+          />
+          <FormActions
+            onCancel={() => setSecurityOpen(false)}
+            submitLabel={t("security.save")}
+            saving={savingSecurity}
+            submitDisabled={loading || !canSavePassword}
           />
         </form>
       </AppModal>

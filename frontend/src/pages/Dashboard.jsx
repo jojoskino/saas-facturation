@@ -8,6 +8,7 @@ import { FieldLabel } from "../components/AppFormControls";
 import FormActions from "../components/FormActions";
 import DashboardSkeleton from "../components/skeleton/DashboardSkeleton";
 import TableSkeleton from "../components/skeleton/TableSkeleton";
+import StatusStatsList from "../components/StatusStatsList";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -16,8 +17,8 @@ export default function Dashboard() {
   });
   const summary = home?.summary;
   const showKpiSkeleton = homeLoading && !summary;
-  const recentQuotes = Array.isArray(home?.recent_quotes) ? home.recent_quotes : [];
-  const recentInvoices = Array.isArray(home?.recent_invoices) ? home.recent_invoices : [];
+  const recentQuotes = (Array.isArray(home?.recent_quotes) ? home.recent_quotes : []).slice(0, 4);
+  const recentInvoices = (Array.isArray(home?.recent_invoices) ? home.recent_invoices : []).slice(0, 4);
   const quotesLoading = homeLoading;
   const invoicesLoading = homeLoading;
   const [amountsVisible, setAmountsVisible] = useState(
@@ -112,12 +113,11 @@ export default function Dashboard() {
   const chartPoints = getLinePoints(monthlyTrend.map((p) => p.value), 580, 230, 48);
 
   const quoteBars = [
-    { key: "draft", label: "Brouillons", value: Number(quotesByStatus?.draft ?? 0), color: "#94a3b8" },
+    { key: "draft", label: "Brouillons", value: Number(quotesByStatus?.draft ?? 0), color: "#64748b" },
     { key: "sent", label: "Envoyés", value: Number(quotesByStatus?.sent ?? 0), color: "#2563eb" },
     { key: "accepted", label: "Acceptés", value: Number(quotesByStatus?.accepted ?? 0), color: "#16a34a" },
-    { key: "rejected", label: "Refusés", value: Number(quotesByStatus?.rejected ?? 0), color: "#ef4444" },
+    { key: "rejected", label: "Refusés", value: Number(quotesByStatus?.rejected ?? 0), color: "#dc2626" },
   ];
-  const quoteMax = Math.max(...quoteBars.map((b) => b.value), 1);
 
   async function requestUnlock() {
     const typed = codeInput.trim();
@@ -467,14 +467,9 @@ export default function Dashboard() {
           border-bottom: 1px solid var(--color-border);
         }
         .dash-table td { padding: 12px 0; border-bottom: 1px solid var(--color-border); }
-        .dash-pill {
-          display: inline-block;
-          font-size: 11px;
-          font-weight: 700;
-          padding: 4px 8px;
-          border-radius: 999px;
-          border: 1px solid transparent;
-          color: var(--color-text);
+        .dash-status {
+          font-size: 13px;
+          font-weight: 600;
         }
         .dash-quick {
           display: flex;
@@ -667,19 +662,7 @@ export default function Dashboard() {
           </div>
           <div className="dash-metric-row">
             <small>Répartition des devis</small>
-            <div className="dash-bars-list">
-              {quoteBars.map((bar) => (
-                <div className="dash-bar-item" key={bar.key}>
-                  <div className="dash-bar-top">
-                    <span>{bar.label}</span>
-                    <b>{bar.value}</b>
-                  </div>
-                  <div className="dash-track">
-                    <div className="dash-fill" style={{ width: `${quoteMax > 0 ? (bar.value / quoteMax) * 100 : 0}%`, background: bar.color }} />
-                  </div>
-                </div>
-              ))}
-            </div>
+            <StatusStatsList items={quoteBars} emptyLabel="Aucun devis." />
           </div>
         </section>
         </>
@@ -728,7 +711,7 @@ export default function Dashboard() {
                   <td>{row.client?.name || "—"}</td>
                   <td>{amountsVisible ? formatCfa(row.total) : "******"}</td>
                   <td>
-                    <span className="dash-pill" style={getStatusStyle(row.status, "quote")}>{toFrenchStatus(row.status, "quote")}</span>
+                    <span className="dash-status" style={{ color: getStatusColor(row.status, "quote") }}>{toFrenchStatus(row.status, "quote")}</span>
                   </td>
                 </tr>
               ))}
@@ -754,7 +737,7 @@ export default function Dashboard() {
                     <div className="app-list-card-item__amount">{amountsVisible ? formatCfa(row.total) : "******"}</div>
                   </div>
                   <div className="app-list-card-item__foot">
-                    <span className="dash-pill" style={getStatusStyle(row.status, "quote")}>{toFrenchStatus(row.status, "quote")}</span>
+                    <span className="dash-status" style={{ color: getStatusColor(row.status, "quote") }}>{toFrenchStatus(row.status, "quote")}</span>
                   </div>
                 </article>
               ))
@@ -790,7 +773,7 @@ export default function Dashboard() {
                   <td>{row.client?.name || "—"}</td>
                   <td>{formatDate(row.due_date)}</td>
                   <td>
-                    <span className="dash-pill" style={getStatusStyle(row.status, "invoice")}>{toFrenchStatus(row.status, "invoice")}</span>
+                    <span className="dash-status" style={{ color: getStatusColor(row.status, "invoice") }}>{toFrenchStatus(row.status, "invoice")}</span>
                   </td>
                 </tr>
               ))}
@@ -816,7 +799,7 @@ export default function Dashboard() {
                   </div>
                   <div className="app-list-card-item__foot">
                     <span className="app-list-card-item__label">Échéance {formatDate(row.due_date)}</span>
-                    <span className="dash-pill" style={getStatusStyle(row.status, "invoice")}>{toFrenchStatus(row.status, "invoice")}</span>
+                    <span className="dash-status" style={{ color: getStatusColor(row.status, "invoice") }}>{toFrenchStatus(row.status, "invoice")}</span>
                   </div>
                 </article>
               ))
@@ -914,21 +897,22 @@ function getLinePoints(values, width, height, padding) {
     .join(" ");
 }
 
-function getStatusStyle(status, type) {
+function getStatusColor(status, type) {
   const value = String(status || "").toLowerCase();
   if (type === "quote") {
-    if (value.includes("draft") || value.includes("brouillon")) return { background: "#f3f4f6", borderColor: "#d1d5db", color: "#4b5563" };
-    if (value.includes("sent") || value.includes("envoy")) return { background: "#e8f1ff", borderColor: "#bfdbfe", color: "#1d4ed8" };
-    if (value.includes("accepted") || value.includes("accept")) return { background: "#e9fbe8", borderColor: "#bbf7d0", color: "#15803d" };
-    if (value.includes("rejected") || value.includes("refus")) return { background: "#fff1f1", borderColor: "#fecaca", color: "#b91c1c" };
+    if (value.includes("draft") || value.includes("brouillon")) return "#64748b";
+    if (value.includes("sent") || value.includes("envoy")) return "#2563eb";
+    if (value.includes("accepted") || value.includes("accept")) return "#16a34a";
+    if (value.includes("rejected") || value.includes("refus")) return "#dc2626";
   }
   if (type === "invoice") {
-    if (value.includes("paid") || value.includes("pay")) return { background: "#e9fbe8", borderColor: "#bbf7d0", color: "#15803d" };
-    if (value.includes("sent") || value.includes("attente")) return { background: "#fff8e8", borderColor: "#fde68a", color: "#b45309" };
-    if (value.includes("overdue") || value.includes("retard")) return { background: "#fff1f1", borderColor: "#fecaca", color: "#b91c1c" };
-    if (value.includes("cancelled") || value.includes("annul")) return { background: "#f3f4f6", borderColor: "#d1d5db", color: "#4b5563" };
+    if (value.includes("paid") || value.includes("pay")) return "#16a34a";
+    if (value.includes("sent") || value.includes("attente")) return "#d97706";
+    if (value.includes("overdue") || value.includes("retard")) return "#dc2626";
+    if (value.includes("cancelled") || value.includes("annul")) return "#64748b";
+    if (value.includes("draft") || value.includes("brouillon")) return "#64748b";
   }
-  return { background: "#f3f4f6", borderColor: "#d1d5db", color: "#4b5563" };
+  return "#64748b";
 }
 
 function toFrenchStatus(status, type) {

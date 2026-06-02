@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import RouteFallback from "./components/RouteFallback";
+import RouteErrorBoundary from "./components/RouteErrorBoundary";
 import AppLayout from "./layout/AppLayout";
 
 const Home = lazy(() => import("./pages/Home"));
@@ -11,6 +12,8 @@ const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const LegalMentions = lazy(() => import("./pages/LegalMentions"));
 const LegalPrivacy = lazy(() => import("./pages/LegalPrivacy"));
+const LegalTerms = lazy(() => import("./pages/LegalTerms"));
+const LegalCookies = lazy(() => import("./pages/LegalCookies"));
 const ClientsPage = lazy(() => import("./pages/app/ClientsPage"));
 const DevisPage = lazy(() => import("./pages/app/DevisPage"));
 const FacturesPage = lazy(() => import("./pages/app/FacturesPage"));
@@ -21,7 +24,12 @@ const BillingPage = lazy(() => import("./pages/app/BillingPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 function LazyPage({ children }) {
-  return <Suspense fallback={<RouteFallback />}>{children}</Suspense>;
+  const location = useLocation();
+  return (
+    <RouteErrorBoundary key={location.pathname}>
+      <Suspense fallback={<RouteFallback />}>{children}</Suspense>
+    </RouteErrorBoundary>
+  );
 }
 
 function App() {
@@ -81,6 +89,22 @@ function App() {
           element={
             <LazyPage>
               <LegalPrivacy />
+            </LazyPage>
+          }
+        />
+        <Route
+          path="/legal/cgu"
+          element={
+            <LazyPage>
+              <LegalTerms />
+            </LazyPage>
+          }
+        />
+        <Route
+          path="/legal/cookies"
+          element={
+            <LazyPage>
+              <LegalCookies />
             </LazyPage>
           }
         />

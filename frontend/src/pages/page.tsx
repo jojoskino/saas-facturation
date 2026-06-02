@@ -102,60 +102,60 @@ export default function Page() {
   const features: Array<[string, string, string]> = [
     [
       "fa-file-invoice",
-      "Création de factures en 1 clic",
-      "Générez des factures conformes avec numérotation automatique et mentions obligatoires.",
+      "Devis et factures",
+      "Créez des devis, convertissez-les en factures et bénéficiez d'une numérotation automatique.",
     ],
     [
       "fa-wave-square",
-      "Suivi des paiements en temps réel",
-      "Visualisez le cycle de vie des factures : émise, envoyée, payée ou en retard.",
+      "Suivi des statuts et paiements",
+      "Pilotez le cycle de vie de vos documents (brouillon, envoyé, payé, en retard) et enregistrez les paiements.",
     ],
     [
       "fa-bell",
-      "Relances automatiques",
-      "Activez des rappels élégants pour limiter les impayés sans charge administrative.",
+      "Rappels par e-mail",
+      "Recevez des notifications sur les factures en retard lorsque l'option est activée dans vos paramètres.",
     ],
     [
       "fa-globe",
-      "Multi-devises",
-      "Facturez vos clients internationaux en gardant une expérience simple et claire.",
+      "Devises XOF, EUR, USD, GBP",
+      "Facturez en plusieurs devises ; les tableaux de bord s'expriment principalement en franc CFA.",
     ],
     [
       "fa-file-export",
-      "Export comptable",
-      "Exportez vers votre comptable avec des fichiers structurés et facilement exploitables.",
+      "Exports PDF et CSV",
+      "Téléchargez vos PDF et exportez vos revenus (Pro) ou vos clients via CSV (Pro).",
     ],
     [
       "fa-chart-line",
-      "Tableau de bord analytique",
-      "Suivez le chiffre d'affaires, les devis en attente et le taux de recouvrement.",
+      "Tableau de bord et rapports",
+      "Visualisez votre CA, vos impayés et, avec l'offre Pro, des rapports et graphiques détaillés.",
     ],
   ];
 
   const faqs: Array<[string, string]> = [
     [
-      "Facturo est-il conforme aux obligations de facturation ?",
-      "Oui. Mentions obligatoires, numerotation chronologique et structuration des documents sont integrees.",
+      "Comment personnaliser mes documents ?",
+      "Renseignez votre profil société (logo, couleurs, pied de page légal) dans les paramètres : ces éléments apparaissent sur vos PDF.",
     ],
     [
-      "Puis-je importer mes clients existants ?",
-      "Oui, import CSV avec mise en correspondance rapide des champs.",
+      "Puis-je importer mes clients ?",
+      "Oui, avec l'offre Pro : import CSV via un modèle d'en-têtes prédéfinis (prénom, nom, e-mail, etc.).",
     ],
     [
-      "Le plan Gratuit est-il limite dans le temps ?",
-      "Non. Il reste disponible sans limite de duree.",
+      "Le plan Gratuit est-il limité dans le temps ?",
+      "Non. Il reste disponible sans limite de durée, avec un plafond de 10 factures par mois.",
     ],
     [
-      "Puis-je collaborer avec mon comptable ?",
-      "Oui. Vous pouvez partager vos exports et donner un acces adapte.",
+      "Puis-je partager mes données avec mon comptable ?",
+      "Oui, en lui transmettant vos exports PDF ou CSV. Il n'existe pas encore de portail comptable dédié.",
     ],
     [
-      "Le service est-il securise ?",
-      "Oui. Isolation des comptes, protections d'acces et bonnes pratiques de securite applicative.",
+      "Le service est-il sécurisé ?",
+      "Chaque compte est isolé, l'accès API est authentifié par jeton, et les données sont validées côté client et serveur.",
     ],
     [
-      "Quels navigateurs sont supportes ?",
-      "Chrome, Firefox, Safari et Edge dans leurs versions recentes.",
+      "Quels navigateurs sont supportés ?",
+      "Chrome, Firefox, Safari et Edge dans leurs versions récentes.",
     ],
   ];
 
@@ -234,17 +234,67 @@ export default function Page() {
         </header>
         <div className="hero-blob hero-blob--1" aria-hidden />
         <div className="hero-blob hero-blob--2" aria-hidden />
+        <div className="hero-float-icons" aria-hidden>
+          <div className="hero-float-icon hero-float-icon--coin">
+            <svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg" role="presentation">
+              <ellipse cx="40" cy="68" rx="28" ry="8" fill="rgba(20,33,61,0.12)" />
+              <circle cx="40" cy="38" r="30" fill="url(#heroCoinGrad)" />
+              <circle cx="40" cy="38" r="30" stroke="rgba(255,255,255,0.35)" strokeWidth="2" />
+              <text x="40" y="48" textAnchor="middle" fill="#14213d" fontSize="28" fontWeight="800" fontFamily="system-ui,sans-serif">$</text>
+              <defs>
+                <linearGradient id="heroCoinGrad" x1="20" y1="12" x2="60" y2="64" gradientUnits="userSpaceOnUse">
+                  <stop stopColor="#ffd166" />
+                  <stop offset="1" stopColor="#fca311" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+          <div className="hero-float-icon hero-float-icon--chart">
+            <svg viewBox="0 0 88 88" fill="none" xmlns="http://www.w3.org/2000/svg" role="presentation">
+              <ellipse cx="44" cy="76" rx="30" ry="7" fill="rgba(20,33,61,0.1)" />
+              <rect x="14" y="52" width="60" height="14" rx="6" fill="#e8edf5" />
+              <rect x="22" y="36" width="14" height="30" rx="4" fill="#fff" stroke="rgba(20,33,61,0.08)" />
+              <rect x="40" y="28" width="14" height="38" rx="4" fill="#fff" stroke="rgba(20,33,61,0.08)" />
+              <rect x="58" y="20" width="14" height="46" rx="4" fill="#fca311" />
+              <path d="M26 24 L44 18 L58 12 L72 8" stroke="#94a3b8" strokeWidth="2.5" strokeLinecap="round" />
+              <path d="M72 8 L68 4 M72 8 L76 10" stroke="#fca311" strokeWidth="2.5" strokeLinecap="round" />
+            </svg>
+          </div>
+          <div className="hero-float-icon hero-float-icon--invoice">
+            <svg viewBox="0 0 72 88" fill="none" xmlns="http://www.w3.org/2000/svg" role="presentation">
+              <ellipse cx="36" cy="78" rx="26" ry="7" fill="rgba(20,33,61,0.1)" />
+              <rect x="10" y="8" width="52" height="64" rx="8" fill="#fff" stroke="rgba(20,33,61,0.1)" strokeWidth="1.5" />
+              <rect x="18" y="18" width="28" height="6" rx="3" fill="#14213d" opacity="0.85" />
+              <text x="18" y="24" fill="#fff" fontSize="5" fontWeight="700" fontFamily="system-ui,sans-serif">Invoice</text>
+              <rect x="18" y="32" width="36" height="4" rx="2" fill="#fca311" opacity="0.9" />
+              <rect x="18" y="42" width="30" height="3" rx="1.5" fill="#cbd5e1" />
+              <rect x="18" y="50" width="34" height="3" rx="1.5" fill="#cbd5e1" />
+              <rect x="18" y="58" width="24" height="3" rx="1.5" fill="#fca311" opacity="0.5" />
+            </svg>
+          </div>
+          <div className="hero-float-icon hero-float-icon--phone">
+            <svg viewBox="0 0 80 96" fill="none" xmlns="http://www.w3.org/2000/svg" role="presentation">
+              <ellipse cx="40" cy="86" rx="22" ry="6" fill="rgba(20,33,61,0.12)" />
+              <text x="8" y="28" fill="#64748b" fontSize="14" fontWeight="700" fontFamily="system-ui,sans-serif">€</text>
+              <text x="62" y="52" fill="#fca311" fontSize="12" fontWeight="700" fontFamily="system-ui,sans-serif">$</text>
+              <rect x="22" y="14" width="36" height="68" rx="10" fill="#14213d" />
+              <rect x="26" y="22" width="28" height="52" rx="6" fill="#f8faff" />
+              <text x="40" y="48" textAnchor="middle" fill="#fca311" fontSize="18" fontWeight="800" fontFamily="system-ui,sans-serif">$</text>
+              <rect x="30" y="54" width="20" height="3" rx="1.5" fill="#cbd5e1" />
+              <rect x="30" y="60" width="16" height="3" rx="1.5" fill="#cbd5e1" />
+            </svg>
+          </div>
+        </div>
         <div className="container hero-grid">
           <Reveal className="hero-reveal">
             <div className="hero-copy">
               <h1>
                 Facturez plus vite.
-                <br />
-                Encaissez <em>plus tôt</em>.
+                <span className="hero-title-accent"> Encaissez plus tôt.</span>
               </h1>
               <p className="hero-lead">
-                Créez des devis et factures professionnels en quelques clics. Simple, rapide et pensé pour les
-                freelances et les petites entreprises — gratuit pour commencer.
+                Créez des devis et factures professionnels en quelques clics. Simple, rapide et pensé pour
+                les freelances et les petites entreprises — gratuit pour commencer.
               </p>
               <div className="hero-cta">
                 <Link
@@ -264,22 +314,20 @@ export default function Page() {
 
         <section className="section" id="features">
           <div className="container">
-            <Reveal>
-              <div className="section-head">
-                <h2>Une solution claire pour la facturation moderne</h2>
-              </div>
-              <div className="features">
-                {features.map(([icon, title, description], index) => (
-                  <FeatureCard
-                    key={title}
-                    icon={icon}
-                    title={title}
-                    description={description}
-                    index={index}
-                  />
-                ))}
-              </div>
-            </Reveal>
+            <div className="section-head section-head--features">
+              <h2>Tout ce dont vous avez besoin pour facturer au quotidien</h2>
+            </div>
+            <div className="features">
+              {features.map(([icon, title, description], index) => (
+                <FeatureCard
+                  key={title}
+                  icon={icon}
+                  title={title}
+                  description={description}
+                  index={index}
+                />
+              ))}
+            </div>
           </div>
         </section>
 
@@ -293,19 +341,19 @@ export default function Page() {
                 {[
                   [
                     "Créez votre espace",
-                    "Inscription simple avec données isolées et sécurisées par compte utilisateur.",
+                    "Créez votre compte en quelques minutes. Vos données sont isolées par utilisateur.",
                   ],
                   [
                     "Gérez devis et factures",
-                    "Passez du devis à la facture sans ressaisie avec calculs automatiques HT/TVA/TTC.",
+                    "Éditez vos lignes HT/TVA/TTC, convertissez un devis accepté et reliez-le à une facture.",
                   ],
                   [
                     "Pilotez vos revenus",
-                    "Suivez KPIs, taux de recouvrement et impayes depuis un tableau de bord lisible.",
+                    "Consultez le tableau de bord et les rapports pour suivre encours, retards et recouvrement.",
                   ],
                 ].map(([title, text], i) => (
                   <article className="step" key={title}>
-                    <div className="num">{i + 1}</div>
+                    <div className="landing-step-num">{i + 1}</div>
                     <h3>{title}</h3>
                     <p className="muted">{text}</p>
                   </article>
@@ -322,7 +370,7 @@ export default function Page() {
                 <p className="pricing-kicker">Tarification</p>
                 <h2>Des offres lisibles, en franc CFA</h2>
                 <p>
-                  Pas de surprise : une hiérarchie claire entre l’entrée gratuite, l’usage intensif et le sur-mesure équipe.
+                  Commencez gratuitement, passez à Pro quand votre volume le demande. L&apos;offre Entreprise est étudiée sur devis.
                 </p>
               </div>
               <div className="pricing-grid">
@@ -338,7 +386,7 @@ export default function Page() {
                     cta: "Démarrer",
                     primary: false,
                     badge: null as string | null,
-                    items: ["10 factures / mois", "Export PDF", "Suivi client basique", "Support communautaire"],
+                    items: ["10 factures / mois", "Devis et factures PDF", "Gestion clients", "Tableau de bord"],
                   },
                   {
                     id: "pro" as const,
@@ -353,24 +401,24 @@ export default function Page() {
                     badge: "Populaire",
                     items: [
                       "Factures illimitées",
-                      "Relances automatiques",
-                      "Exports comptables avancés",
-                      "Tableau de bord analytique",
-                      "Support prioritaire e-mail",
+                      "Import clients CSV",
+                      "Exports CSV revenus",
+                      "Rapports et graphiques avancés",
+                      "Rappels e-mail configurables",
                     ],
                   },
                   {
                     id: "enterprise" as const,
                     eyebrow: "Équipes",
                     name: "Entreprise",
-                    desc: "Multi-utilisateurs, gouvernance et accompagnement dédié.",
+                    desc: "Pour les équipes : fonctionnalités et accompagnement définis ensemble.",
                     amount: "Sur devis",
                     suffix: "",
                     period: "selon périmètre",
                     cta: "Contacter les ventes",
                     primary: false,
                     badge: null as string | null,
-                    items: ["Gestion multi-utilisateurs", "SLA 99,5 %", "Onboarding dédié", "Intégrations sur mesure"],
+                    items: ["Volume et périmètre sur mesure", "Accompagnement dédié", "Évolutions prioritaires", "Contact commercial"],
                   },
                 ].map((plan) => {
                   const ctaHref = publicPlanCtaHref(plan.id);
@@ -435,13 +483,13 @@ export default function Page() {
           <div className="container">
             <Reveal>
               <div className="cta-band">
-                <h2>Passez a une facturation plus fiable, plus rapide, plus pro</h2>
+                <h2>Passez à une facturation plus fiable, plus rapide, plus pro</h2>
                 <p className="muted">
-                  Lancez-vous aujourd'hui avec une plateforme adaptee aux freelances, TPE et petites equipes B2B.
+                  Lancez-vous aujourd&apos;hui avec une plateforme adaptée aux freelances, TPE et petites équipes.
                 </p>
                 <div style={{ marginTop: 18 }}>
                   <a className="btn btn-primary" href="#pricing">
-                    Demarrer avec Facturo
+                    Démarrer avec Facturo
                   </a>
                 </div>
               </div>
@@ -487,6 +535,8 @@ export default function Page() {
             <ul className="foot-links" style={{ marginTop: 12 }}>
               <li><Link to="/legal/mentions">Mentions légales</Link></li>
               <li><Link to="/legal/confidentialite">Confidentialité</Link></li>
+              <li><Link to="/legal/cgu">CGU</Link></li>
+              <li><Link to="/legal/cookies">Cookies</Link></li>
             </ul>
             <div className="socials">
               <a href="https://www.linkedin.com" target="_blank" rel="noreferrer" aria-label="LinkedIn">
@@ -503,6 +553,8 @@ export default function Page() {
           <div className="foot-bottom-links">
             <Link to="/legal/mentions">Mentions légales</Link>
             <Link to="/legal/confidentialite">Confidentialité</Link>
+            <Link to="/legal/cgu">CGU</Link>
+            <Link to="/legal/cookies">Cookies</Link>
           </div>
         </div>
       </footer>

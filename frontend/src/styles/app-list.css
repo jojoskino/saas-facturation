@@ -91,7 +91,123 @@
   background: #fff;
 }
 
-/* Mobile cards */
+/* Table listes — même rendu que Clients ; unités (XOF…) dans les en-têtes */
+.entity-list-table,
+.clients-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 760px;
+  font-size: 14px;
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.entity-list-table--wide {
+  min-width: 860px;
+}
+
+.entity-list-table th {
+  text-align: left;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #14213d;
+  font-weight: 800;
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--color-border);
+  background: #f7f9fc;
+}
+
+.entity-list-table th.entity-list-table__amount,
+.entity-list-table th.entity-list-table__actions {
+  text-align: right;
+}
+
+.entity-list-table__unit {
+  display: block;
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+}
+
+.entity-list-table td {
+  padding: 11px 6px;
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
+}
+
+.entity-list-table tbody tr:hover {
+  background: #fbfcff;
+}
+
+.entity-list-table td strong {
+  color: #14213d;
+  font-weight: 700;
+}
+
+.entity-list-table__amount-cell {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.entity-list-table-row--muted {
+  color: #64748b;
+}
+
+.entity-list-table-row--muted td strong {
+  color: #55657a;
+  font-weight: 600;
+}
+
+.entity-list-row-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.entity-list-mini {
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.app-list-card-item--muted {
+  background: #f8fafc;
+  border-color: #e8edf3;
+}
+
+.app-list-card-item--muted .app-list-card-item__ref,
+.app-list-card-item--muted .app-list-card-item__amount {
+  color: #55657a;
+}
+
+.app-list-card-item--muted .app-list-card-item__sub,
+.app-list-card-item--muted .app-list-card-item__label {
+  color: #94a3b8;
+}
+
+.app-list-card-item__amount-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  font-weight: 700;
+  font-size: 14px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.app-list-card-item__amount-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+  text-transform: uppercase;
+}
+
 .app-list-cards {
   display: none;
   gap: 10px;

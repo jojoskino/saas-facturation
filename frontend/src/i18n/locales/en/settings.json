@@ -1,6 +1,6 @@
 {
   "title": "Settings",
-  "subtitle": "Configure your company, language and notifications.",
+  "subtitle": "Company, preferences, security and privacy.",
   "company": {
     "tileTitle": "Company & documents",
     "tileDesc": "Details shown on your quote and invoice PDFs.",
@@ -23,8 +23,11 @@
     "legalFooter": "Legal footer (PDF)",
     "legalFooterPlaceholder": "Share capital, registration number…",
     "logo": "Company logo",
+    "logoCurrent": "Current logo — click the preview to replace it.",
+    "logoNone": "No logo yet — add an image for your PDFs.",
     "logoChoose": "Choose image",
-    "logoHint": "PNG, JPG, WebP or SVG — max 2 MB. Shown on your PDFs.",
+    "logoChange": "Change",
+    "logoHint": "PNG, JPG, WebP or SVG — max 2 MB. Auto-optimized for sharp display in the app and PDFs.",
     "logoRemove": "Remove logo",
     "colorPrimary": "Primary color (documents)",
     "colorAccent": "Accent color (documents)",
@@ -54,5 +57,30 @@
     "casablanca": "Casablanca",
     "paris": "Paris",
     "utc": "UTC"
+  },
+  "plan": {
+    "tileTitle": "My plan",
+    "tileDesc": "Limits, CSV export and Pro features."
+  },
+  "security": {
+    "tileTitle": "Security",
+    "tileDesc": "Password and account protection.",
+    "modalTitle": "Security",
+    "modalDesc": "Change your password regularly.",
+    "current": "Current password",
+    "new": "New password",
+    "confirm": "Confirm password",
+    "hint": "At least 8 characters with a letter, a number and a symbol.",
+    "save": "Update password",
+    "success": "Password updated.",
+    "error": "Could not update password."
+  },
+  "privacy": {
+    "tileTitle": "Amount privacy",
+    "tileDesc": "Hide or show amounts across the app.",
+    "showAmounts": "Show amounts",
+    "hideAmounts": "Hide amounts",
+    "unlockTitle": "Show amounts",
+    "unlockDesc": "Enter your password to show amounts."
   }
 }

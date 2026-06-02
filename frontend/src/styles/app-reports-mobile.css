@@ -85,18 +85,17 @@
     gap: 12px;
   }
 
-  .rpt-locked .rpt-aging-item {
-    opacity: 0.45;
+  .rpt-pro-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
   }
 
-  .rpt-locked .app-list-cards {
-    opacity: 0.45;
-    pointer-events: none;
+  .pro-lock--locked .pro-lock__mask {
+    padding: 20px 14px;
   }
 
-  .rpt-pro-callout {
-    opacity: 1 !important;
-    pointer-events: auto;
+  .pro-lock--locked .pro-lock__content {
+    min-height: 80px;
   }
 }
 

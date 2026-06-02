@@ -1,17 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { apiFetch, peekCache } from "../../api/client";
 import { paginatedFromCache } from "../../utils/listCache";
 import TableSkeleton from "../../components/skeleton/TableSkeleton";
 import FormActions from "../../components/FormActions";
 import DocumentPreviewModal from "../../components/DocumentPreviewModal";
+import { invoiceHistoryPaths } from "../../utils/documentPreview";
 import { useTranslation } from "react-i18next";
 import { AppDateField, AppSelect, FieldLabel } from "../../components/AppFormControls";
 import InlineStatusSelect from "../../components/InlineStatusSelect";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import ModalPortal from "../../components/ModalPortal";
 import ToastStack, { useToasts } from "../../components/ToastStack";
-import DocumentLinesEditor, { computeLineTotals, createEmptyLine } from "../../components/DocumentLinesEditor";
+import DocumentLinesEditor, { computeLineTotals, createEmptyLine, validateDocumentLines } from "../../components/DocumentLinesEditor";
 import { useAccountMe } from "../../hooks/useAccountMe";
 import { useAmountsPrivacy } from "../../hooks/useAmountsPrivacy";
 import { invoiceQuotaFromUser } from "../../utils/planFeatures";
@@ -19,6 +20,7 @@ import ListFilterBar, { ListFilterField, ListFilterGrid } from "../../components
 import ListPageHeader from "../../components/list/ListPageHeader";
 import ListPagination from "../../components/list/ListPagination";
 import ListIconButton from "../../components/list/ListIconButton";
+import { PAYMENT_METHODS, paymentMethodLabel } from "../../constants/paymentMethods";
 import {
   canCreateCreditNote,
   canDeleteInvoice,
@@ -73,12 +75,15 @@ export default function FacturesPage() {
   );
   const [clients, setClients] = useState([]);
   const [quotes, setQuotes] = useState([]);
+  const [pinnedQuote, setPinnedQuote] = useState(null);
+  const formBaselineRef = useRef("");
 
   const [loading, setLoading] = useState(() => paginatedFromCache(buildInvoicesUrl(1, "", "all", "invoice")) == null);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [error, setError] = useState("");
   const [modalError, setModalError] = useState("");
+  const [lineHints, setLineHints] = useState(null);
 
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
@@ -93,11 +98,12 @@ export default function FacturesPage() {
   const [paymentsOpen, setPaymentsOpen] = useState(null);
   const [payments, setPayments] = useState([]);
   const [balanceDue, setBalanceDue] = useState(0);
-  const [paymentForm, setPaymentForm] = useState({ amount: "", method: "", reference: "", paid_at: "" });
+  const [paymentForm, setPaymentForm] = useState({ amount: "", method: "bank_transfer", reference: "", paid_at: "" });
   const [paymentSaving, setPaymentSaving] = useState(false);
   const [paymentError, setPaymentError] = useState("");
   const [paymentDeleteTarget, setPaymentDeleteTarget] = useState(null);
   const [previewTarget, setPreviewTarget] = useState(null);
+  const [historyTarget, setHistoryTarget] = useState(null);
   const [confirmState, setConfirmState] = useState(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [editingSnapshot, setEditingSnapshot] = useState(null);
@@ -162,12 +168,30 @@ export default function FacturesPage() {
     }
   }
 
+  const captureFormBaseline = useCallback((nextForm) => {
+    formBaselineRef.current = serializeFormSnapshot(nextForm);
+  }, []);
+
+  const isFormDirty = useCallback(() => {
+    return formBaselineRef.current !== "" && formBaselineRef.current !== serializeFormSnapshot(form);
+  }, [form]);
+
   function resetForm() {
     setEditingId(null);
     setEditingInvoice(null);
     setEditingSnapshot(null);
+    setPinnedQuote(null);
     setForm(defaultForm);
     setModalError("");
+    setLineHints(null);
+    formBaselineRef.current = "";
+  }
+
+  function requestCloseModal() {
+    if (isFormDirty() && !window.confirm("Des modifications non enregistrées seront perdues. Fermer quand même ?")) {
+      return;
+    }
+    closeModal();
   }
 
   function openCreate() {
@@ -177,8 +201,19 @@ export default function FacturesPage() {
     }
     setError("");
     resetForm();
+    captureFormBaseline(defaultForm);
     setModalOpen(true);
   }
+
+  useEffect(() => {
+    if (!modalOpen || !isFormDirty()) return undefined;
+    const onBeforeUnload = (event) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [modalOpen, isFormDirty]);
 
   async function openEdit(invoice) {
     if (invoice.document_type === "credit_note" || invoice.status === "cancelled") {
@@ -203,7 +238,7 @@ export default function FacturesPage() {
           tax_rate: String(item.tax_rate ?? "0"),
         }))
       : [createEmptyLine()];
-    setForm({
+    const nextForm = {
       client_id: full.client_id ? String(full.client_id) : "",
       quote_id: full.quote_id ? String(full.quote_id) : "",
       number: full.number || "",
@@ -218,7 +253,23 @@ export default function FacturesPage() {
       notes: full.notes || "",
       discount_percent: String(full.discount_percent ?? "0"),
       items,
-    });
+    };
+    setForm(nextForm);
+    captureFormBaseline(nextForm);
+    if (full.quote_id) {
+      setPinnedQuote({
+        id: full.quote_id,
+        number: full.quote?.number || `Devis #${full.quote_id}`,
+        client_id: full.client_id,
+        subtotal: full.subtotal,
+        tax_amount: full.tax_amount,
+        total: full.total,
+        currency: full.currency,
+        discount_percent: full.discount_percent,
+      });
+    } else {
+      setPinnedQuote(null);
+    }
     setEditingSnapshot({ number: invoice.number || `#${invoice.id}`, status: invoice.status || "draft" });
     setModalOpen(true);
   }
@@ -228,18 +279,42 @@ export default function FacturesPage() {
     resetForm();
   }
 
+  async function hydrateQuoteSelection(quoteId) {
+    const listQuote = quotes.find((q) => String(q.id) === String(quoteId));
+    let quote = listQuote;
+    try {
+      quote = await apiFetch(`/api/quotes/${quoteId}`);
+    } catch {
+      if (!listQuote) {
+        setModalError("Impossible de charger le devis source.");
+        return;
+      }
+    }
+    setForm((prev) => {
+      if (String(prev.quote_id) !== String(quoteId)) return prev;
+      return mapQuoteToForm(quote, prev);
+    });
+    setPinnedQuote(quote);
+  }
+
   function onChangeField(e) {
     const { name, value } = e.target;
+    if (name === "status" && editingId && value !== form.status) {
+      const invoiceRef = {
+        id: editingId,
+        number: editingSnapshot?.number || (editingId ? `#${editingId}` : "—"),
+        status: form.status,
+      };
+      setConfirmState({ type: "status", invoice: invoiceRef, toStatus: value });
+      return;
+    }
+    if (name === "quote_id" && value) {
+      const listQuote = quotes.find((q) => String(q.id) === String(value));
+      setForm((prev) => mapQuoteToForm(listQuote || { id: value }, prev));
+      void hydrateQuoteSelection(value);
+      return;
+    }
     setForm((prev) => {
-      if (name === "status" && editingId && value !== prev.status) {
-        const invoiceRef = {
-          id: editingId,
-          number: editingSnapshot?.number || (editingId ? `#${editingId}` : "—"),
-          status: prev.status,
-        };
-        setConfirmState({ type: "status", invoice: invoiceRef, toStatus: value });
-        return prev;
-      }
       const next = { ...prev, [name]: value };
       if (name === "subtotal" || name === "tax_amount") {
         const subtotal = Number.parseFloat(next.subtotal);
@@ -255,21 +330,22 @@ export default function FacturesPage() {
           next.due_date = issueDate.toISOString().slice(0, 10);
         }
       }
-      if (name === "quote_id" && value) {
-        const quote = quotes.find((q) => String(q.id) === String(value));
-        if (quote) {
-          next.client_id = quote.client_id ? String(quote.client_id) : next.client_id;
-          next.subtotal = toMoneyInput(quote.subtotal);
-          next.tax_amount = toMoneyInput(quote.tax_amount);
-          next.total = toMoneyInput(quote.total);
-          next.currency = quote.currency || next.currency;
-          next.discount_percent = String(quote.discount_percent ?? "0");
+      if (name === "client_id" && prev.quote_id) {
+        const linked = pinnedQuote || quotes.find((q) => String(q.id) === String(prev.quote_id));
+        if (linked?.client_id && String(value) !== String(linked.client_id)) {
+          next.quote_id = "";
+          setPinnedQuote(null);
+          const totals = computeLineTotals(next.items || [], next.discount_percent);
+          next.subtotal = totals.subtotal.toFixed(2);
+          next.tax_amount = totals.taxAmount.toFixed(2);
+          next.total = totals.total.toFixed(2);
         }
       }
       if (name === "quote_id" && !value && financialEditable) {
+        setPinnedQuote(null);
         const totals = computeLineTotals(next.items || [], next.discount_percent);
         next.subtotal = totals.subtotal.toFixed(2);
-        next.tax_amount = totals.tax_amount.toFixed(2);
+        next.tax_amount = totals.taxAmount.toFixed(2);
         next.total = totals.total.toFixed(2);
       }
       return next;
@@ -278,6 +354,10 @@ export default function FacturesPage() {
 
   function openPreview(invoice) {
     setPreviewTarget(invoice);
+  }
+
+  function openHistory(invoice) {
+    setHistoryTarget(invoice);
   }
 
   async function openPayments(invoice) {
@@ -308,7 +388,7 @@ export default function FacturesPage() {
           paid_at: paymentForm.paid_at || null,
         }),
       });
-      setPaymentForm({ amount: "", method: "", reference: "", paid_at: "" });
+      setPaymentForm({ amount: "", method: "bank_transfer", reference: "", paid_at: "" });
       await openPayments(paymentsOpen);
       await loadInvoices(page);
       pushToast("Paiement enregistré.", "success");
@@ -390,10 +470,17 @@ export default function FacturesPage() {
     e.preventDefault();
     const validation = validateInvoiceForm(form, t);
     if (!validation.valid) {
-      setModalError(validation.message);
+      if (validation.lineIssues) {
+        setLineHints(validation.lineIssues);
+        setModalError("");
+      } else {
+        setLineHints(null);
+        setModalError(validation.message);
+      }
       return;
     }
 
+    setLineHints(null);
     setSaving(true);
     setModalError("");
     setError("");
@@ -432,7 +519,7 @@ export default function FacturesPage() {
     setError("");
     try {
       await apiFetch(`/api/invoices/${deleteTarget.id}`, { method: "DELETE" });
-      pushToast("Facture supprimée.", "success");
+      pushToast("Facture archivée.", "success");
       const nextPage = invoices.length === 1 && page > 1 ? page - 1 : page;
       if (nextPage !== page) setPage(nextPage);
       await loadInvoices(nextPage);
@@ -452,13 +539,22 @@ export default function FacturesPage() {
     () => [{ value: "", label: "Aucun" }, ...clients.map((client) => ({ value: String(client.id), label: client.name }))],
     [clients]
   );
-  const quoteOptions = useMemo(
-    () => [
+  const quoteOptions = useMemo(() => {
+    const rows = [...quotes];
+    const pinnedId = form.quote_id || pinnedQuote?.id;
+    if (pinnedId && !rows.some((q) => String(q.id) === String(pinnedId))) {
+      rows.push(
+        pinnedQuote || {
+          id: pinnedId,
+          number: `Devis #${pinnedId}`,
+        },
+      );
+    }
+    return [
       { value: "", label: "Aucun" },
-      ...quotes.map((quote) => ({ value: String(quote.id), label: quote.number || `Devis #${quote.id}` })),
-    ],
-    [quotes]
-  );
+      ...rows.map((quote) => ({ value: String(quote.id), label: quote.number || `Devis #${quote.id}` })),
+    ];
+  }, [quotes, form.quote_id, pinnedQuote]);
   const currencyOptions = useMemo(
     () => [
       { value: "XOF", label: "XOF" },
@@ -481,6 +577,7 @@ export default function FacturesPage() {
     return (
       <>
         <ListIconButton title="Aperçu / PDF" icon="fa-eye" onClick={() => openPreview(invoice)} />
+        <ListIconButton title="Historique" icon="fa-clock-rotate-left" onClick={() => openHistory(invoice)} />
         {listTab === "invoice" && invoice.document_type !== "credit_note" ? (
           <>
             <ListIconButton
@@ -627,36 +724,6 @@ export default function FacturesPage() {
         }
         .inv-banner--error { background: #fff3f0; border-color: #f4c0b6; color: #b3412d; }
         .inv-banner--success { background: #effaf2; border-color: #b8e2c2; color: #1c6a33; }
-        .inv-table-wrap { overflow-x: auto; }
-        .inv-table {
-          width: 100%;
-          border-collapse: collapse;
-          min-width: 860px;
-          font-size: 14px;
-          background: #fff;
-          border-radius: 12px;
-          overflow: hidden;
-        }
-        .inv-table th {
-          text-align: left;
-          font-size: 11px;
-          text-transform: uppercase;
-          letter-spacing: 0.06em;
-          color: #14213d;
-          font-weight: 800;
-          padding: 8px 6px;
-          border-bottom: 1px solid var(--color-border);
-          background: #f7f9fc;
-        }
-        .inv-table td {
-          padding: 10px 6px;
-          border-bottom: 1px solid var(--color-border);
-          vertical-align: top;
-        }
-        .inv-mini { color: var(--color-text-muted); font-size: 12px; }
-        .inv-cell-date { font-size: 13px; color: var(--color-text); }
-        .inv-cell-amount { font-weight: 700; font-size: 14px; color: var(--color-text); }
-        .inv-cell-amount-wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
         .inv-tag {
           display: inline-flex;
           border-radius: 999px;
@@ -834,17 +901,23 @@ export default function FacturesPage() {
           }
         />
 
-        <div className="inv-table-wrap app-list-table-wrap">
-          <table className="inv-table app-list-table">
+        <div className="app-list-table-wrap">
+          <table className="entity-list-table entity-list-table--wide app-list-table">
             <thead>
               <tr>
-                <th>Numero</th>
+                <th>Numéro</th>
                 <th>Client</th>
                 <th>{listTab === "credit_note" ? "Facture d'origine" : "Devis"}</th>
-                <th>Dates</th>
-                <th>Montant</th>
+                <th>
+                  Dates
+                  <span className="entity-list-table__unit">Émission → échéance</span>
+                </th>
+                <th className="entity-list-table__amount">
+                  Montant
+                  <span className="entity-list-table__unit">XOF</span>
+                </th>
                 <th>Statut</th>
-                <th>Actions</th>
+                <th className="entity-list-table__actions">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -852,18 +925,15 @@ export default function FacturesPage() {
                 <TableSkeleton rows={7} columns={7} withActions actionColumnIndex={6} />
               ) : invoices.length === 0 ? (
                 <tr>
-                  <td colSpan={7}>Aucune facture trouvee.</td>
+                  <td colSpan={7}>Aucune facture trouvée.</td>
                 </tr>
               ) : (
                 invoices.map((invoice) => {
-                  const paid = invoicePaidTotal(invoice);
-                  const balance = invoiceBalanceDue(invoice);
                   const rowStatusOptions = inlineStatusOptionsForInvoice(invoice, editableStatusOptions, t);
                   return (
-                  <tr key={invoice.id}>
+                  <tr key={invoice.id} className={invoiceRowClassName(invoice)}>
                     <td>
                       <strong>{invoice.number}</strong>
-                      <div className="inv-mini">{invoice.currency || "XOF"}</div>
                     </td>
                     <td>{invoice.client?.name || "—"}</td>
                     <td>
@@ -871,21 +941,11 @@ export default function FacturesPage() {
                         ? invoice.parent_invoice?.number || "—"
                         : invoice.quote?.number || "—"}
                     </td>
-                    <td className="inv-cell-date">
+                    <td>
                       {formatDate(invoice.issue_date)} → {formatDate(invoice.due_date)}
                     </td>
-                    <td>
-                      <div className="inv-cell-amount-wrap">
-                        <span className="inv-cell-amount">
-                          {showMoney(invoice.total)} {invoice.currency || "XOF"}
-                        </span>
-                        {listTab === "invoice" && paid > 0 && balance > 0 ? (
-                          <span className="inv-tag inv-tag--sent">Partiel</span>
-                        ) : null}
-                        {listTab === "invoice" && balance <= 0 && paid > 0 ? (
-                          <span className="inv-tag inv-tag--paid">Soldé</span>
-                        ) : null}
-                      </div>
+                    <td className="entity-list-table__amount-cell">
+                      <strong>{showMoney(invoice.total)}</strong>
                     </td>
                     <td>
                       {listTab === "credit_note" ? (
@@ -900,7 +960,7 @@ export default function FacturesPage() {
                       )}
                     </td>
                     <td>
-                      <div className="inv-actions">{renderInvoiceActions(invoice)}</div>
+                      <div className="entity-list-row-actions">{renderInvoiceActions(invoice)}</div>
                     </td>
                   </tr>
                 );
@@ -921,18 +981,17 @@ export default function FacturesPage() {
             <div className="app-list-card-item app-list-card-item--empty">Aucune facture trouvee.</div>
           ) : (
             invoices.map((invoice) => {
-              const paid = invoicePaidTotal(invoice);
-              const balance = invoiceBalanceDue(invoice);
               const rowStatusOptions = inlineStatusOptionsForInvoice(invoice, editableStatusOptions, t);
               return (
-                <article key={invoice.id} className="app-list-card-item">
+                <article key={invoice.id} className={invoiceCardClassName(invoice)}>
                   <div className="app-list-card-item__head">
                     <div>
                       <div className="app-list-card-item__ref">{invoice.number}</div>
                       <div className="app-list-card-item__sub">{invoice.client?.name || "—"}</div>
                     </div>
-                    <div className="app-list-card-item__amount">
-                      {showMoney(invoice.total)} {invoice.currency || "XOF"}
+                    <div className="app-list-card-item__amount-stack">
+                      <span className="app-list-card-item__amount-label">XOF</span>
+                      <strong>{showMoney(invoice.total)}</strong>
                     </div>
                   </div>
                   <div className="app-list-card-item__row">
@@ -946,12 +1005,6 @@ export default function FacturesPage() {
                   <div className="app-list-card-item__row">
                     <span className="app-list-card-item__label">Échéance</span>
                     <span>{formatDate(invoice.due_date)}</span>
-                    {listTab === "invoice" && paid > 0 && balance > 0 ? (
-                      <span className="app-list-tag app-list-tag--sent">Partiel</span>
-                    ) : null}
-                    {listTab === "invoice" && balance <= 0 && paid > 0 ? (
-                      <span className="app-list-tag app-list-tag--paid">Soldé</span>
-                    ) : null}
                   </div>
                   <div className="app-list-card-item__foot">
                     {listTab === "credit_note" ? (
@@ -983,11 +1036,11 @@ export default function FacturesPage() {
 
       {modalOpen ? (
         <ModalPortal>
-        <div className="doc-modal-backdrop" role="dialog" aria-modal="true" onClick={closeModal}>
-          <section className="doc-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="doc-modal-backdrop" role="dialog" aria-modal="true" onClick={requestCloseModal}>
+          <section className="doc-modal doc-modal--wide" onClick={(e) => e.stopPropagation()}>
             <div className="doc-modal-head">
               <h2>{isEditing ? t("invoices.editModal") : t("invoices.createModal")}</h2>
-              <button className="doc-modal-close" type="button" onClick={closeModal} aria-label="Fermer">
+              <button className="doc-modal-close" type="button" onClick={requestCloseModal} aria-label="Fermer">
                 <i className="fa-solid fa-xmark" />
               </button>
             </div>
@@ -998,83 +1051,91 @@ export default function FacturesPage() {
               {!financialEditable ? (
                 <p className="inv-sub">{t("invoices.lockedEditHint")}</p>
               ) : null}
-              <div className="inv-form-grid">
-                <div className="inv-field">
-                  <FieldLabel required>Statut</FieldLabel>
-                  <AppSelect
-                    value={form.status === "paid" ? "sent" : form.status}
-                    onChange={(next) => onChangeField({ target: { name: "status", value: next } })}
-                    options={formStatusOptions}
-                    disabled={!financialEditable && editingInvoice?.status !== "draft"}
-                  />
-                  <p className="inv-sub" style={{ marginTop: 6 }}>
-                    {t("invoices.paidStatusHint")}
-                  </p>
-                </div>
+              <div className="doc-form-sections">
+                <section className="doc-form-card">
+                  <h3 className="doc-form-card__title">Document</h3>
+                  <div className="doc-form-card__grid">
+                    <div className="doc-form-field">
+                      <FieldLabel required>Statut</FieldLabel>
+                      <AppSelect
+                        value={form.status === "paid" ? "sent" : form.status}
+                        onChange={(next) => onChangeField({ target: { name: "status", value: next } })}
+                        options={formStatusOptions}
+                        disabled={!financialEditable && editingInvoice?.status !== "draft"}
+                      />
+                    </div>
+                    <div className="doc-form-field">
+                      <label>Devise</label>
+                      <AppSelect
+                        value={form.currency}
+                        onChange={(next) => onChangeField({ target: { name: "currency", value: next } })}
+                        options={currencyOptions}
+                        disabled={!financialEditable}
+                      />
+                    </div>
+                  </div>
+                </section>
 
-                <div className="inv-field">
-                  <FieldLabel required>Client</FieldLabel>
-                  <AppSelect
-                    value={form.client_id}
-                    onChange={(next) => onChangeField({ target: { name: "client_id", value: next } })}
-                    options={clientOptions}
-                    disabled={!financialEditable}
-                  />
-                  {!form.client_id ? <p className="inv-sub">{t("invoices.noClientWarning")}</p> : null}
-                </div>
-                <div className="inv-field">
-                  <label>Devis source</label>
-                  <AppSelect
-                    value={form.quote_id}
-                    onChange={(next) => onChangeField({ target: { name: "quote_id", value: next } })}
-                    options={quoteOptions}
-                    disabled={!financialEditable}
-                  />
-                </div>
+                <section className="doc-form-card">
+                  <h3 className="doc-form-card__title">Client & devis</h3>
+                  <div className="doc-form-card__grid">
+                    <div className="doc-form-field">
+                      <FieldLabel required>Client</FieldLabel>
+                      <AppSelect
+                        value={form.client_id}
+                        onChange={(next) => onChangeField({ target: { name: "client_id", value: next } })}
+                        options={clientOptions}
+                        disabled={!financialEditable || Boolean(form.quote_id)}
+                      />
+                    </div>
+                    <div className="doc-form-field">
+                      <label>Devis source</label>
+                      <AppSelect
+                        value={form.quote_id}
+                        onChange={(next) => onChangeField({ target: { name: "quote_id", value: next } })}
+                        options={quoteOptions}
+                        disabled={!financialEditable}
+                      />
+                    </div>
+                  </div>
+                </section>
 
-                <div className="inv-field">
-                  <label>Date d'émission</label>
-                  <AppDateField
-                    value={form.issue_date}
-                    onChange={(next) => onChangeField({ target: { name: "issue_date", value: next } })}
-                    disabled={!financialEditable}
-                  />
-                </div>
-                <div className="inv-field">
-                  <label>Date d'échéance</label>
-                  <AppDateField
-                    value={form.due_date}
-                    onChange={(next) => onChangeField({ target: { name: "due_date", value: next } })}
-                  />
-                </div>
+                <section className="doc-form-card">
+                  <h3 className="doc-form-card__title">Dates</h3>
+                  <div className="doc-form-card__grid">
+                    <div className="doc-form-field">
+                      <label>Date d&apos;émission</label>
+                      <AppDateField
+                        value={form.issue_date}
+                        onChange={(next) => onChangeField({ target: { name: "issue_date", value: next } })}
+                        disabled={!financialEditable}
+                      />
+                    </div>
+                    <div className="doc-form-field">
+                      <label>Date d&apos;échéance</label>
+                      <AppDateField
+                        value={form.due_date}
+                        onChange={(next) => onChangeField({ target: { name: "due_date", value: next } })}
+                      />
+                    </div>
+                  </div>
+                </section>
 
-                <div className="inv-field">
-                  <label>Devise</label>
-                  <AppSelect
-                    value={form.currency}
-                    onChange={(next) => onChangeField({ target: { name: "currency", value: next } })}
-                    options={currencyOptions}
-                    disabled={!financialEditable}
-                  />
-                </div>
+                {(form.quote_id || !showLinesEditor) && Number.parseFloat(form.total) > 0 ? (
+                  <div className="doc-form-total" aria-live="polite">
+                    <span className="doc-form-total__label">Total TTC</span>
+                    <span className="doc-form-total__value">
+                      {showMoney(form.total)} {form.currency}
+                    </span>
+                  </div>
+                ) : null}
 
-                <div className="inv-field inv-field--full">
-                  <p className="inv-sub" style={{ margin: 0 }}>
-                    {form.quote_id
-                      ? t("invoices.amountsHint")
-                      : "Saisissez les lignes ci-dessous ou sélectionnez un devis source."}
-                    {form.quote_id || !showLinesEditor ? (
-                      <>
-                        {" "}
-                        TTC : <strong>{showMoney(form.total)} {form.currency}</strong>
-                      </>
-                    ) : null}
-                  </p>
-                </div>
                 {showLinesEditor ? (
-                  <div className="inv-field inv-field--full">
+                  <section className="doc-form-card doc-form-card--lines">
+                    <h3 className="doc-form-card__title">Lignes</h3>
                     <DocumentLinesEditor
                       lines={form.items}
+                      lineHints={lineHints}
                       discountPercent={form.discount_percent}
                       onDiscountChange={(value) =>
                         setForm((prev) => {
@@ -1083,35 +1144,39 @@ export default function FacturesPage() {
                             ...prev,
                             discount_percent: value,
                             subtotal: totals.subtotal.toFixed(2),
-                            tax_amount: totals.tax_amount.toFixed(2),
+                            tax_amount: totals.taxAmount.toFixed(2),
                             total: totals.total.toFixed(2),
                           };
                         })
                       }
-                      onChange={(items) =>
+                      onChange={(items) => {
+                        setLineHints(null);
                         setForm((prev) => {
                           const totals = computeLineTotals(items, prev.discount_percent);
                           return {
                             ...prev,
                             items,
                             subtotal: totals.subtotal.toFixed(2),
-                            tax_amount: totals.tax_amount.toFixed(2),
+                            tax_amount: totals.taxAmount.toFixed(2),
                             total: totals.total.toFixed(2),
                           };
-                        })
-                      }
+                        });
+                      }}
                     />
-                  </div>
+                  </section>
                 ) : null}
-                <div className="inv-field inv-field--full">
-                  <label>Notes</label>
-                  <textarea className="inv-textarea" name="notes" value={form.notes} onChange={onChangeField} placeholder="Informations internes..." />
-                </div>
+
+                <section className="doc-form-card">
+                  <h3 className="doc-form-card__title">Notes</h3>
+                  <div className="doc-form-field doc-form-field--full">
+                    <textarea className="inv-textarea" name="notes" value={form.notes} onChange={onChangeField} placeholder="Optionnel — visible sur le PDF si renseigné" rows={3} />
+                  </div>
+                </section>
               </div>
               </div>
 
               <FormActions
-                onCancel={closeModal}
+                onCancel={requestCloseModal}
                 submitLabel={isEditing ? "Mettre a jour" : "Creer"}
                 saving={saving}
               />
@@ -1130,45 +1195,54 @@ export default function FacturesPage() {
         title={previewTarget ? `Aperçu — ${previewTarget.number}` : ""}
       />
 
+      <DocumentPreviewModal
+        open={Boolean(historyTarget)}
+        onClose={() => setHistoryTarget(null)}
+        previewPath={historyTarget ? invoiceHistoryPaths(historyTarget)?.preview : ""}
+        pdfPath={historyTarget ? invoiceHistoryPaths(historyTarget)?.pdf : ""}
+        filename={historyTarget ? invoiceHistoryPaths(historyTarget)?.filename : "historique.pdf"}
+        title={historyTarget ? invoiceHistoryPaths(historyTarget)?.title : ""}
+        subtitle="Chronologie du document — exportable en PDF."
+        downloadLabel="Télécharger l'historique PDF"
+      />
+
       {paymentsOpen ? (
         <ModalPortal>
         <div className="inv-modal-backdrop" role="dialog" aria-modal="true" onClick={() => setPaymentsOpen(null)}>
-          <section className="inv-modal" onClick={(e) => e.stopPropagation()}>
+          <section className="inv-modal inv-modal--payments" onClick={(e) => e.stopPropagation()}>
             <div className="inv-modal-head">
-              <h2>Paiements — {paymentsOpen.number}</h2>
+              <div>
+                <h2>Paiements — {paymentsOpen.number}</h2>
+                <p className="inv-modal-sub">
+                  Solde {formatMoney(balanceDue)} {paymentsOpen.currency || "XOF"}
+                  {balanceDue <= 0.001 ? ` · ${t("invoices.statusPaid")}` : null}
+                </p>
+              </div>
               <button className="inv-icon-btn" type="button" onClick={() => setPaymentsOpen(null)} aria-label="Fermer">
                 <i className="fa-solid fa-xmark" />
               </button>
             </div>
-            <p className="inv-sub">
-              {t("invoices.paymentPartialHint", {
-                paid: formatMoney(invoicePaidTotal(paymentsOpen) || payments.reduce((sum, p) => sum + Number(p.amount || 0), 0)),
-                total: formatMoney(paymentsOpen.total),
-                currency: paymentsOpen.currency || "XOF",
-              })}
-            </p>
-            <p className="inv-sub">
-              Solde restant : <strong>{formatMoney(balanceDue)} {paymentsOpen.currency}</strong>
-            </p>
             {paymentError ? <div className="inv-banner inv-banner--error">{paymentError}</div> : null}
-            <ul className="inv-sub" style={{ marginBottom: 12 }}>
-              {payments.length === 0 ? <li>Aucun paiement enregistré.</li> : null}
-              {payments.map((p) => (
-                <li key={p.id} style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
-                  <span>
-                    {formatMoney(p.amount)} — {p.method || "—"} — {formatDate(p.paid_at)}
-                  </span>
-                  <button
-                    className="inv-btn inv-btn--danger-soft"
-                    type="button"
-                    onClick={() => setPaymentDeleteTarget(p)}
-                    disabled={paymentSaving}
-                  >
-                    Supprimer
-                  </button>
-                </li>
-              ))}
-            </ul>
+            {payments.length > 0 ? (
+              <ul className="inv-payment-list">
+                {payments.map((p) => (
+                  <li key={p.id} className="inv-payment-item">
+                    <span>
+                      <strong>{formatMoney(p.amount)}</strong>
+                      <small>{paymentMethodLabel(p.method)} · {formatDate(p.paid_at)}</small>
+                    </span>
+                    <button
+                      className="inv-btn inv-btn--danger-soft"
+                      type="button"
+                      onClick={() => setPaymentDeleteTarget(p)}
+                      disabled={paymentSaving}
+                    >
+                      Supprimer
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
             {balanceDue > 0.001 ? (
             <form onSubmit={submitPayment}>
               <div className="inv-form-grid">
@@ -1185,20 +1259,13 @@ export default function FacturesPage() {
                     onChange={(e) => setPaymentForm((prev) => ({ ...prev, amount: e.target.value }))}
                     placeholder={formatMoney(balanceDue)}
                   />
-                  <p className="inv-sub">
-                    {t("invoices.paymentMaxHint", {
-                      amount: formatMoney(balanceDue),
-                      currency: paymentsOpen.currency || "XOF",
-                    })}
-                  </p>
                 </div>
                 <div className="inv-field">
-                  <label>Methode</label>
-                  <input
-                    className="inv-input"
+                  <FieldLabel required>Méthode</FieldLabel>
+                  <AppSelect
                     value={paymentForm.method}
-                    onChange={(e) => setPaymentForm((prev) => ({ ...prev, method: e.target.value }))}
-                    placeholder="Virement, especes..."
+                    onChange={(method) => setPaymentForm((prev) => ({ ...prev, method }))}
+                    options={PAYMENT_METHODS}
                   />
                 </div>
               </div>
@@ -1208,9 +1275,7 @@ export default function FacturesPage() {
                 saving={paymentSaving}
               />
             </form>
-            ) : (
-              <p className="inv-sub">{t("invoices.statusPaid")}</p>
-            )}
+            ) : null}
           </section>
         </div>
         </ModalPortal>
@@ -1267,8 +1332,67 @@ export default function FacturesPage() {
   );
 }
 
+function mapQuoteToForm(quote, prev) {
+  if (!quote) return prev;
+  const items =
+    Array.isArray(quote.items) && quote.items.length > 0
+      ? quote.items.map((item) => ({
+          description: item.description || "",
+          quantity: String(item.quantity ?? "1"),
+          unit_price: String(item.unit_price ?? ""),
+          tax_rate: String(item.tax_rate ?? "0"),
+        }))
+      : prev.items;
+  return {
+    ...prev,
+    quote_id: String(quote.id),
+    client_id: quote.client_id ? String(quote.client_id) : "",
+    subtotal: toMoneyInput(quote.subtotal),
+    tax_amount: toMoneyInput(quote.tax_amount),
+    total: toMoneyInput(quote.total),
+    currency: quote.currency || prev.currency,
+    discount_percent: String(quote.discount_percent ?? "0"),
+    notes: quote.notes ?? prev.notes,
+    items,
+  };
+}
+
+function serializeFormSnapshot(form) {
+  return JSON.stringify({
+    client_id: form.client_id || "",
+    quote_id: form.quote_id || "",
+    status: form.status || "draft",
+    issue_date: form.issue_date || "",
+    due_date: form.due_date || "",
+    currency: form.currency || "XOF",
+    subtotal: form.subtotal || "",
+    tax_amount: form.tax_amount || "",
+    total: form.total || "",
+    notes: form.notes || "",
+    discount_percent: form.discount_percent || "0",
+    items: (form.items || []).map((line) => ({
+      description: line.description || "",
+      quantity: line.quantity || "",
+      unit_price: line.unit_price || "",
+      tax_rate: line.tax_rate || "",
+    })),
+  });
+}
+
 function statusLabel(options, value) {
   return options.find((opt) => opt.value === value)?.label || value || "—";
+}
+
+function isInvoiceRowMuted(invoice) {
+  return invoice.status === "paid" || invoice.status === "cancelled";
+}
+
+function invoiceRowClassName(invoice) {
+  return isInvoiceRowMuted(invoice) ? "entity-list-table-row--muted" : "";
+}
+
+function invoiceCardClassName(invoice) {
+  return isInvoiceRowMuted(invoice) ? "app-list-card-item app-list-card-item--muted" : "app-list-card-item";
 }
 
 function validateInvoiceForm(form, t) {
@@ -1279,9 +1403,9 @@ function validateInvoiceForm(form, t) {
     return { valid: false, message: "La date d'échéance doit être postérieure à la date d'émission." };
   }
   if (!form.quote_id) {
-    const validLines = (form.items || []).filter((line) => String(line.description || "").trim() !== "");
-    if (validLines.length === 0) {
-      return { valid: false, message: "Ajoutez au moins une ligne de prestation ou sélectionnez un devis source." };
+    const lineCheck = validateDocumentLines(form.items);
+    if (!lineCheck.valid) {
+      return { valid: false, message: "", lineIssues: lineCheck.issues };
     }
     const totals = computeLineTotals(form.items, form.discount_percent);
     if (totals.total <= 0) {
@@ -1291,6 +1415,9 @@ function validateInvoiceForm(form, t) {
     const total = Number.parseFloat(form.total);
     if (!(Number.isFinite(total) && total > 0)) {
       return { valid: false, message: "Sélectionnez un devis source avec un montant valide." };
+    }
+    if (!form.client_id) {
+      return { valid: false, message: "Le devis source doit être associé à un client." };
     }
   }
   return { valid: true, message: "" };
@@ -1315,7 +1442,10 @@ function buildPayload(form, includeFinancial = true) {
 
     if (!form.quote_id) {
       const validLines = (form.items || [])
-        .filter((line) => String(line.description || "").trim() !== "")
+        .filter(
+          (line) =>
+            String(line.description || "").trim() !== "" && String(line.unit_price ?? "").trim() !== "",
+        )
         .map((line) => ({
           description: String(line.description).trim(),
           quantity: Number.parseFloat(line.quantity) || 0,
@@ -1325,7 +1455,7 @@ function buildPayload(form, includeFinancial = true) {
       const totals = computeLineTotals(form.items, form.discount_percent);
       payload.items = validLines;
       payload.subtotal = totals.subtotal;
-      payload.tax_amount = totals.tax_amount;
+      payload.tax_amount = totals.taxAmount;
       payload.total = totals.total;
     } else {
       payload.subtotal = roundMoney(form.subtotal);

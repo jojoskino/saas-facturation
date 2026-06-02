@@ -29,7 +29,7 @@ return Application::configure(basePath: dirname(__DIR__))
             if ($e instanceof QueryException) {
                 $status = 503;
                 $message = "Le service de base de donnees est indisponible pour le moment.";
-            } elseif ($e->getMessage() !== '') {
+            } elseif (config('app.debug') && $e->getMessage() !== '') {
                 $message = Utf8::clean($e->getMessage());
             }
 

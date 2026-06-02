@@ -5,18 +5,20 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
 use App\Models\Payment;
+use App\Services\DocumentActivityLogger;
 use App\Services\InvoicePaymentSync;
 use App\Support\UserAnalyticsCache;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Validation\Rule;
+use App\Support\PaymentMethods;
 
 class PaymentController extends Controller
 {
     public function __construct(
         private readonly InvoicePaymentSync $paymentSync,
+        private readonly DocumentActivityLogger $activityLogger,
     ) {}
 
     public function index(Request $request, string $invoiceId): JsonResponse
@@ -40,7 +42,7 @@ class PaymentController extends Controller
 
         $data = $request->validate([
             'amount' => ['required', 'numeric', 'min:0.01'],
-            'method' => ['nullable', 'string', 'max:64'],
+            'method' => PaymentMethods::validationRules(),
             'reference' => ['nullable', 'string', 'max:128'],
             'paid_at' => ['nullable', 'date'],
         ]);
@@ -60,9 +62,16 @@ class PaymentController extends Controller
             'paid_at' => isset($data['paid_at']) ? Carbon::parse($data['paid_at']) : now(),
         ]);
 
+        $statusBefore = $invoice->status;
         $fresh = $invoice->fresh(['client:id,name', 'payments']);
         $this->paymentSync->syncStatus($fresh);
         $fresh->refresh();
+        $statusNote = $this->activityLogger->statusChangeNote(
+            $statusBefore,
+            $fresh->status,
+            $fresh->document_type,
+        );
+        $this->activityLogger->logPaymentAdded($request->user(), $fresh, $payment, $statusNote);
         UserAnalyticsCache::bust((int) $request->user()->id);
 
         return response()->json([
@@ -82,9 +91,21 @@ class PaymentController extends Controller
             ->whereKey($paymentId)
             ->firstOrFail();
 
+        $statusBefore = $invoice->status;
+        $removedPayment = $payment->replicate();
+        $removedPayment->exists = true;
+        $removedPayment->id = $payment->id;
+
         $payment->delete();
         $fresh = $invoice->fresh(['payments']);
         $this->paymentSync->syncStatus($fresh);
+        $fresh->refresh();
+        $statusNote = $this->activityLogger->statusChangeNote(
+            $statusBefore,
+            $fresh->status,
+            $fresh->document_type,
+        );
+        $this->activityLogger->logPaymentRemoved($request->user(), $fresh, $removedPayment, $statusNote);
         UserAnalyticsCache::bust((int) $request->user()->id);
 
         return response()->noContent();

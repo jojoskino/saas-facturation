@@ -1,6 +1,6 @@
 {
   "title": "My profile",
-  "subtitle": "Your sign-in details and account security.",
+  "subtitle": "Your personal sign-in details.",
   "personal": {
     "tileTitle": "Personal information",
     "tileDesc": "Sign-in name and email.",
@@ -43,5 +43,13 @@
     "save": "Update password",
     "success": "Password updated.",
     "error": "Could not update password."
+  },
+  "privacy": {
+    "tileTitle": "Amount privacy",
+    "tileDesc": "Hide or show amounts across the app.",
+    "showAmounts": "Show amounts",
+    "hideAmounts": "Hide amounts",
+    "unlockTitle": "Show amounts",
+    "unlockDesc": "Enter your password to show amounts."
   }
 }

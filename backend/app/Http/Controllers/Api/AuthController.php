@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\CompanyLogoService;
 use App\Support\PasswordRules;
 use App\Support\BillingPayload;
 use App\Support\PlanFeatures;
@@ -37,7 +38,7 @@ class AuthController extends Controller
             )
         ),
         responses: [
-            new OA\Response(response: 201, description: 'Compte créé — connexion requise après vérification e-mail'),
+            new OA\Response(response: 201, description: 'Compte créé — connexion possible immédiatement'),
             new OA\Response(response: 422, description: 'Erreur de validation'),
         ]
     )]
@@ -69,13 +70,12 @@ class AuthController extends Controller
             'email' => $data['email'],
             'password' => $data['password'],
             'plan' => 'free',
+            'email_verified_at' => now(),
         ]);
-
-        $user->sendEmailVerificationNotification();
 
         return response()->json(
             [
-                'message' => 'Compte créé. Vérifiez votre e-mail puis connectez-vous.',
+                'message' => 'Compte créé. Vous pouvez vous connecter.',
                 'user' => $this->userPayload($user),
             ],
             201,
@@ -126,9 +126,7 @@ class AuthController extends Controller
         }
 
         if (! $user->hasVerifiedEmail()) {
-            throw ValidationException::withMessages([
-                'email' => ['Veuillez vérifier votre adresse e-mail avant de vous connecter. Consultez votre boîte de réception.'],
-            ]);
+            $user->forceFill(['email_verified_at' => now()])->save();
         }
 
         $user->tokens()->delete();
@@ -269,9 +267,9 @@ class AuthController extends Controller
             if ($user->company_logo_path) {
                 Storage::disk('public')->delete($user->company_logo_path);
             }
-            $data['company_logo_path'] = $request->file('company_logo')->store(
-                'company-logos/'.$user->id,
-                'public'
+            $data['company_logo_path'] = app(CompanyLogoService::class)->store(
+                $request->file('company_logo'),
+                (int) $user->id,
             );
         }
 
@@ -368,13 +366,14 @@ class AuthController extends Controller
 
     public function resendVerification(Request $request): JsonResponse
     {
-        if ($request->user()->hasVerifiedEmail()) {
-            return response()->json(['message' => 'Votre e-mail est déjà vérifié.']);
+        /** @var User $user */
+        $user = $request->user();
+
+        if (! $user->hasVerifiedEmail()) {
+            $user->forceFill(['email_verified_at' => now()])->save();
         }
 
-        $request->user()->sendEmailVerificationNotification();
-
-        return response()->json(['message' => 'E-mail de vérification renvoyé.']);
+        return response()->json(['message' => 'La vérification e-mail n\'est pas requise pour ce compte.']);
     }
 
     public function updatePassword(Request $request): JsonResponse
@@ -399,6 +398,7 @@ class AuthController extends Controller
         $user->update([
             'password' => $data['password'],
         ]);
+        $user->tokens()->delete();
 
         return response()->json(
             ['message' => 'Mot de passe mis à jour avec succès.'],
@@ -433,7 +433,7 @@ class AuthController extends Controller
             'company_bank_iban' => $user->company_bank_iban !== null ? Utf8::clean($user->company_bank_iban) : null,
             'company_bank_bic' => $user->company_bank_bic !== null ? Utf8::clean($user->company_bank_bic) : null,
             'company_legal_footer' => $user->company_legal_footer !== null ? Utf8::clean($user->company_legal_footer) : null,
-            'company_logo_url' => $user->company_logo_path
+            'company_logo_url' => ($user->company_logo_path && Storage::disk('public')->exists($user->company_logo_path))
                 ? Storage::disk('public')->url($user->company_logo_path)
                 : null,
             'document_color_primary' => $user->document_color_primary ?: '#14213D',

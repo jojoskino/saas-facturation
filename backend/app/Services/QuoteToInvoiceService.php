@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Invoice;
 use App\Models\Quote;
 use App\Models\User;
+use App\Services\DocumentActivityLogger;
 use App\Services\InvoiceQuotaService;
 use App\Support\DocumentNumberGenerator;
 use Carbon\Carbon;
@@ -15,6 +16,7 @@ class QuoteToInvoiceService
 {
     public function __construct(
         private readonly InvoiceQuotaService $quota,
+        private readonly DocumentActivityLogger $activityLogger,
     ) {}
 
     public function convert(User $user, Quote $quote): Invoice|JsonResponse
@@ -80,6 +82,9 @@ class QuoteToInvoiceService
             ]);
         }
 
-        return $invoice->load(['client:id,name', 'quote:id,number', 'payments', 'items']);
+        $invoice->load(['client:id,name', 'quote:id,number', 'payments', 'items']);
+        $this->activityLogger->logQuoteConverted($user, $quote, $invoice);
+
+        return $invoice;
     }
 }

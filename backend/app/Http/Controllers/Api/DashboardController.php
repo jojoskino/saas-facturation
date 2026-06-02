@@ -60,14 +60,14 @@ class DashboardController extends Controller
                     ->where('user_id', $userId)
                     ->with(['client:id,name'])
                     ->orderByDesc('id')
-                    ->limit(5)
+                    ->limit(4)
                     ->get(['id', 'number', 'status', 'total', 'currency']),
                 'recent_invoices' => Invoice::query()
                     ->where('user_id', $userId)
                     ->where('document_type', 'invoice')
                     ->with(['client:id,name'])
                     ->orderByDesc('id')
-                    ->limit(5)
+                    ->limit(4)
                     ->get(['id', 'number', 'status', 'due_date']),
             ]
         );

@@ -1,12 +1,12 @@
-import { Link } from "react-router-dom";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiDownload, getStoredToken } from "../../api/client";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { useAmountsPrivacy } from "../../hooks/useAmountsPrivacy";
-import AmountsPrivacyToggle from "../../components/AmountsPrivacyToggle";
 import ReportsSkeleton from "../../components/skeleton/ReportsSkeleton";
 import { canAdvancedReports, canExportCsv } from "../../utils/planFeatures";
+import StatusBarChart from "../../components/StatusBarChart";
+import ProLockedSection from "../../components/ProLockedSection";
 
 const PERIODS = [
   { value: "month", labelKey: "periodMonth" },
@@ -61,10 +61,10 @@ export default function RapportsPage() {
     data?.invoices_by_status,
     INVOICE_STATUS_LABELS,
     {
-      draft: "#94a3b8",
+      draft: "#64748b",
       sent: "#2563eb",
       paid: "#16a34a",
-      overdue: "#ef4444",
+      overdue: "#dc2626",
       cancelled: "#64748b",
     },
   );
@@ -72,11 +72,11 @@ export default function RapportsPage() {
     data?.quotes_by_status,
     QUOTE_STATUS_LABELS,
     {
-      draft: "#94a3b8",
+      draft: "#64748b",
       sent: "#2563eb",
       accepted: "#16a34a",
-      rejected: "#ef4444",
-      expired: "#f59e0b",
+      rejected: "#dc2626",
+      expired: "#d97706",
     },
   );
 
@@ -103,22 +103,15 @@ export default function RapportsPage() {
       label: t("revenuePaid"),
       value: shown(data?.revenue_paid_cfa),
       trend: formatTrend(data?.revenue_paid_trend_pct),
-      isMoney: true,
     },
-    { label: t("outstanding"), value: shown(data?.outstanding_cfa), isMoney: true },
-    { label: t("invoicesIssued"), value: String(data?.invoices_issued ?? 0), isMoney: false },
-    { label: t("invoicesPaid"), value: String(data?.invoices_paid ?? 0), isMoney: false },
-    { label: t("overdue"), value: String(data?.overdue_count ?? 0), isMoney: false },
+    { label: t("outstanding"), value: shown(data?.outstanding_cfa) },
+    { label: t("invoicesIssued"), value: String(data?.invoices_issued ?? 0) },
+    { label: t("invoicesPaid"), value: String(data?.invoices_paid ?? 0) },
+    { label: t("overdue"), value: String(data?.overdue_count ?? 0) },
     {
       label: t("conversion"),
       value: `${data?.conversion_rate_pct ?? 0}%`,
       sub: `${data?.quotes_accepted ?? 0} / ${data?.quotes_created ?? 0} devis`,
-      isMoney: false,
-    },
-    {
-      label: t("avgInvoice"),
-      value: shown(data?.avg_invoice_cfa),
-      isMoney: true,
     },
   ];
 
@@ -237,6 +230,11 @@ export default function RapportsPage() {
           grid-template-columns: 1.2fr 1fr;
           gap: 14px;
           margin-bottom: 14px;
+          align-items: stretch;
+        }
+        .rpt-panels > .rpt-panel,
+        .rpt-panels > .pro-lock {
+          min-height: 100%;
         }
         .rpt-panel {
           border-radius: 14px;
@@ -267,33 +265,21 @@ export default function RapportsPage() {
           -webkit-overflow-scrolling: touch;
           margin-top: 4px;
         }
-        .rpt-bars {
-          display: flex;
-          align-items: flex-end;
-          gap: 10px;
-          height: 160px;
-          min-width: min(100%, 280px);
+        .rpt-pro-row {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 14px;
+          margin-bottom: 14px;
+          align-items: stretch;
         }
-        .rpt-bars--wide { min-width: 420px; }
-        .rpt-bar-col { flex: 1; min-width: 52px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
-        .rpt-bar {
-          width: 100%;
-          max-width: 48px;
-          border-radius: 6px 6px 0 0;
-          min-height: 4px;
+        .rpt-pro-row > .rpt-panel,
+        .rpt-pro-row > .pro-lock {
+          min-height: 100%;
         }
-        .rpt-bar-label { font-size: 10px; color: var(--color-text-muted); text-align: center; line-height: 1.25; }
-        .rpt-pro-callout {
-          font-size: 12px;
-          line-height: 1.45;
-          padding: 10px 12px;
-          border-radius: 10px;
-          border: 1px solid rgba(252, 163, 17, 0.35);
-          background: rgba(252, 163, 17, 0.1);
-          color: #14213d;
-          margin-bottom: 12px;
+        @media (max-width: 900px) {
+          .rpt-panels { grid-template-columns: 1fr; }
+          .rpt-pro-row { grid-template-columns: 1fr; }
         }
-        .rpt-pro-callout a { font-weight: 700; color: #14213d; }
         .rpt-table { width: 100%; border-collapse: collapse; font-size: 13px; }
         .rpt-table th, .rpt-table td {
           padding: 10px 8px;
@@ -313,45 +299,6 @@ export default function RapportsPage() {
           border-radius: 4px;
           background: #fca311;
           margin: 8px 0 4px;
-        }
-        .rpt-locked {
-          position: relative;
-          min-height: 120px;
-        }
-        .rpt-locked::after {
-          content: "";
-          position: absolute;
-          inset: 0;
-          border-radius: 12px;
-          background: rgba(255,255,255,.72);
-          backdrop-filter: blur(3px);
-          pointer-events: none;
-        }
-        .rpt-locked-msg {
-          position: absolute;
-          inset: 0;
-          display: grid;
-          place-items: center;
-          z-index: 1;
-          font-size: 13px;
-          font-weight: 600;
-          color: #14213d;
-          text-align: center;
-          padding: 16px;
-          line-height: 1.45;
-        }
-        @media (max-width: 900px) {
-          .rpt-panels { grid-template-columns: 1fr; }
-        }
-        @media (max-width: 768px) {
-          .rpt-locked { min-height: 0; }
-          .rpt-locked::after { display: none; }
-          .rpt-locked-msg {
-            position: static;
-            display: block;
-            margin-bottom: 10px;
-            padding: 0;
-          }
         }
       `}</style>
 
@@ -374,7 +321,6 @@ export default function RapportsPage() {
           ))}
         </div>
         <div className="rpt-actions">
-          <AmountsPrivacyToggle />
           <button
             type="button"
             className={`rpt-btn rpt-btn--accent${csvEnabled ? "" : " is-locked"}`}
@@ -394,14 +340,6 @@ export default function RapportsPage() {
       ) : null}
       {error ? <div className="rpt-banner rpt-banner--warn">{error}</div> : null}
       {exportError ? <div className="rpt-banner rpt-banner--warn">{exportError}</div> : null}
-      {!advanced ? (
-        <div className="rpt-banner rpt-banner--pro">
-          {t("proBanner")}{" "}
-          <Link to="/app/abonnement?plan=pro&checkout=start" style={{ fontWeight: 700, color: "#14213d" }}>
-            Passer à Pro →
-          </Link>
-        </div>
-      ) : null}
 
       <div className="rpt-grid">
         {kpis.map((k) => (
@@ -454,21 +392,7 @@ export default function RapportsPage() {
         <section className="rpt-panel">
           <h3>{t("invoicesByStatus")}</h3>
           <div className="rpt-bars-scroll">
-          <div className={`rpt-bars${invoiceBarItems.length > 4 ? " rpt-bars--wide" : ""}`}>
-            {invoiceBarItems.map((b) => (
-              <div key={b.key} className="rpt-bar-col">
-                <div
-                  className="rpt-bar"
-                  style={{
-                    height: `${Math.max(8, (b.value / invoiceBarMax) * 140)}px`,
-                    background: b.color,
-                  }}
-                  title={`${b.label}: ${b.value}`}
-                />
-                <span className="rpt-bar-label">{b.label}</span>
-              </div>
-            ))}
-          </div>
+            <StatusBarChart items={invoiceBarItems} max={invoiceBarMax} emptyLabel="—" />
           </div>
         </section>
       </div>
@@ -477,32 +401,16 @@ export default function RapportsPage() {
         <section className="rpt-panel">
           <h3>{t("quotesByStatus")}</h3>
           <div className="rpt-bars-scroll">
-          <div className={`rpt-bars${quoteBarItems.length > 4 ? " rpt-bars--wide" : ""}`}>
-            {quoteBarItems.map((b) => (
-              <div key={b.key} className="rpt-bar-col">
-                <div
-                  className="rpt-bar"
-                  style={{
-                    height: `${Math.max(8, (b.value / quoteBarMax) * 140)}px`,
-                    background: b.color,
-                  }}
-                />
-                <span className="rpt-bar-label">{b.label}</span>
-              </div>
-            ))}
-          </div>
+            <StatusBarChart items={quoteBarItems} max={quoteBarMax} emptyLabel="—" />
           </div>
         </section>
 
-        <section className="rpt-panel">
-          <h3>{t("aging")}</h3>
-          <div className={`rpt-aging${advanced ? "" : " rpt-locked"}`}>
-            {!advanced ? (
-              <div className="rpt-locked-msg">
-                {t("proBanner")}{" "}
-                <Link to="/app/abonnement?plan=pro&checkout=start">Pro →</Link>
-              </div>
-            ) : null}
+        <ProLockedSection
+          title={t("aging")}
+          hint={t("agingHint")}
+          locked={!advanced}
+        >
+          <div className="rpt-aging">
             {[
               { key: "0_30", label: t("aging0_30") },
               { key: "31_60", label: t("aging31_60") },
@@ -518,18 +426,15 @@ export default function RapportsPage() {
               </div>
             ))}
           </div>
-        </section>
+        </ProLockedSection>
       </div>
 
-      <div className="rpt-panels">
-        <section className={`rpt-panel${advanced ? "" : " rpt-locked"}`}>
-          {!advanced ? (
-            <div className="rpt-pro-callout rpt-locked-msg">
-              {t("proBanner")}{" "}
-              <Link to="/app/abonnement?plan=pro&checkout=start">Passer à Pro →</Link>
-            </div>
-          ) : null}
-          <h3>{t("topClients")}</h3>
+      <div className="rpt-pro-row">
+        <ProLockedSection
+          title={t("topClients")}
+          hint={t("topClientsHint")}
+          locked={!advanced}
+        >
           <div className="app-list-table-wrap rpt-table-wrap">
             <table className="rpt-table">
               <thead>
@@ -574,7 +479,7 @@ export default function RapportsPage() {
               ))
             )}
           </div>
-        </section>
+        </ProLockedSection>
 
         <section className="rpt-panel">
           <h3>{t("overdueList")}</h3>

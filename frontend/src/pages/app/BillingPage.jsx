@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { apiFetch, getStoredToken } from "../../api/client";
 import { useApiQuery } from "../../hooks/useApiQuery";
@@ -278,14 +278,6 @@ export default function BillingPage() {
 
   return (
     <div className="account-page">
-      <nav className="account-subnav" aria-label="Compte">
-        <Link to="/app/profil">{tc("profileMenu.myProfile")}</Link>
-        <Link to="/app/abonnement" className="active">
-          {t("title")}
-        </Link>
-        <Link to="/app/parametres">{tc("nav.settings")}</Link>
-      </nav>
-
       <header className="account-header">
         <h1>{t("title")}</h1>
         <p>{t("subtitle")}</p>

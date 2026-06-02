@@ -1,51 +1,56 @@
 @extends('pdf.layout')
 
 @section('content')
-<table class="doc-header" style="border-collapse:collapse;">
+<table class="doc-top">
     <tr>
-        <td style="width:55%;">
-            <span class="doc-type">{{ $isCreditNote ? 'Avoir' : 'Facture' }}</span>
-            <p class="doc-brand">N° {{ $invoice->number }}</p>
-            <p class="doc-meta"><strong>Émise le</strong> {{ $invoice->issue_date?->format('d/m/Y') ?? '—' }}</p>
-            @if($invoice->due_date)
-                <p class="doc-meta"><strong>Échéance</strong> {{ $invoice->due_date->format('d/m/Y') }}</p>
-            @endif
-            @if($invoice->quote)
-                <p class="doc-meta"><strong>Réf. devis</strong> {{ $invoice->quote->number }}</p>
-            @endif
-            <p class="doc-meta" style="margin-top:8px;">
-                <span class="doc-status">{{ strtoupper($invoice->status) }}</span>
-            </p>
-        </td>
-        <td class="doc-issuer" style="width:45%;">
+        <td style="width:52%;">
             @if(!empty($branding['logoSrc']))
                 <img src="{{ $branding['logoSrc'] }}" alt="" class="doc-logo">
             @endif
             <div class="doc-issuer-name">{{ $issuer['name'] }}</div>
-            @if($issuer['address'])<div>{{ $issuer['address'] }}</div>@endif
-            @if($issuer['email'])<div>{{ $issuer['email'] }}</div>@endif
-            @if($issuer['phone'])<div>{{ $issuer['phone'] }}</div>@endif
-            @if($issuer['tax_id'])<div>N° fiscal : {{ $issuer['tax_id'] }}</div>@endif
+            <div class="doc-issuer-meta">
+                @if($issuer['address']){{ $issuer['address'] }}<br>@endif
+                @if($issuer['email']){{ $issuer['email'] }}@if($issuer['phone']) · @endif @endif
+                @if($issuer['phone']){{ $issuer['phone'] }}@endif
+                @if($issuer['tax_id'])<br>N° fiscal : {{ $issuer['tax_id'] }}@endif
+            </div>
+        </td>
+        <td class="doc-meta-box" style="width:48%;">
+            <span class="doc-type">{{ $isCreditNote ? 'Avoir' : 'Facture' }}</span>
+            <p class="doc-number">{{ $invoice->number }}</p>
+            <p class="doc-meta-line"><strong>Émise le</strong> {{ $invoice->issue_date?->format('d/m/Y') ?? '—' }}</p>
+            @if($invoice->due_date)
+                <p class="doc-meta-line"><strong>Échéance</strong> {{ $invoice->due_date->format('d/m/Y') }}</p>
+            @endif
+            @if($invoice->quote)
+                <p class="doc-meta-line"><strong>Réf. devis</strong> {{ $invoice->quote->number }}</p>
+            @endif
         </td>
     </tr>
 </table>
+
+<div class="doc-rule"></div>
 
 <table class="doc-parties">
     <tr>
         <td>
             <div class="doc-parties-label">Facturé à</div>
-            <strong>{{ $client['name'] }}</strong><br>
-            @if($client['address']){{ $client['address'] }}<br>@endif
-            @if($client['email']){{ $client['email'] }}<br>@endif
-            @if($client['phone']){{ $client['phone'] }}<br>@endif
-            @if($client['tax_id'])N° fiscal : {{ $client['tax_id'] }}@endif
+            <div class="doc-parties-name">{{ $client['name'] }}</div>
+            <div class="doc-parties-body">
+                @if($client['address']){{ $client['address'] }}<br>@endif
+                @if($client['email']){{ $client['email'] }}<br>@endif
+                @if($client['phone']){{ $client['phone'] }}<br>@endif
+                @if($client['tax_id'])N° fiscal : {{ $client['tax_id'] }}@endif
+            </div>
         </td>
         <td>
             <div class="doc-parties-label">Informations</div>
-            Devise : <strong>{{ $invoice->currency }}</strong><br>
-            @if(!$isCreditNote && $balance > 0)
-                <strong style="color:#14213d;">Solde dû : {{ number_format($balance, 2, ',', ' ') }} {{ $invoice->currency }}</strong>
-            @endif
+            <div class="doc-parties-body">
+                Devise : <strong>{{ $invoice->currency }}</strong><br>
+                @if(!$isCreditNote && $balance > 0)
+                    Solde dû : <strong>{{ number_format($balance, 2, ',', ' ') }} {{ $invoice->currency }}</strong>
+                @endif
+            </div>
         </td>
     </tr>
 </table>
@@ -76,8 +81,8 @@
 @if($issuer['footer'] || $issuer['bank'])
     <div class="doc-footer">
         @if($issuer['bank'])<div><strong>Paiement :</strong> {{ $issuer['bank'] }}</div>@endif
-        @if($issuer['footer'])<div style="margin-top:6px;">{{ $issuer['footer'] }}</div>@endif
-        <div style="margin-top:8px;">Document généré par Facturo — {{ $isCreditNote ? 'Avoir' : 'Facture' }} {{ $invoice->number }}</div>
+        @if($issuer['footer'])<div style="margin-top:4px;">{{ $issuer['footer'] }}</div>@endif
+        <div style="margin-top:6px;">Document généré par Facturo</div>
     </div>
 @endif
 @endsection

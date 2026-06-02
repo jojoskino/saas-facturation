@@ -58,7 +58,7 @@ export default function Login() {
         <div className="auth-success" role="status">
           {planIntent === "pro"
             ? "Compte créé. Connectez-vous pour finaliser votre abonnement Pro."
-            : "Compte créé. Vérifiez votre e-mail puis connectez-vous."}
+            : "Compte créé. Vous pouvez vous connecter."}
         </div>
       ) : null}
       {error ? <div className="auth-error">{error}</div> : null}

@@ -8,6 +8,8 @@
   "exportCsv": "Exporter CSV",
   "exportLocked": "Export CSV réservé à l'offre Pro.",
   "proBanner": "Passez à Pro pour le détail clients, l'ancienneté des retards et l'export CSV.",
+  "agingHint": "Répartition des factures en retard par tranche d'ancienneté.",
+  "topClientsHint": "Classement de vos clients par encaissements sur la période.",
   "revenuePaid": "Encaissements",
   "outstanding": "Encours",
   "invoicesIssued": "Factures émises",

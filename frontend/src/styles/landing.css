@@ -312,6 +312,66 @@ html { scroll-behavior: smooth; }
           0%, 100% { transform: translate(-40%, 0) scale(1); }
           50% { transform: translate(calc(-40% - 6px), 10px) scale(1.03); }
         }
+        .hero-float-icons {
+          position: absolute;
+          inset: 0;
+          z-index: 0;
+          pointer-events: none;
+        }
+        .hero-float-icon {
+          position: absolute;
+          width: clamp(56px, 8vw, 88px);
+          filter: drop-shadow(0 18px 32px rgba(20, 33, 61, 0.14));
+          will-change: transform;
+        }
+        .hero-float-icon svg {
+          display: block;
+          width: 100%;
+          height: auto;
+        }
+        .hero-float-icon--coin {
+          top: clamp(28%, 32vh, 38%);
+          left: clamp(4%, 6vw, 14%);
+          animation: hero-icon-coin 11s ease-in-out infinite;
+          animation-delay: -2s;
+        }
+        .hero-float-icon--chart {
+          top: clamp(22%, 26vh, 32%);
+          right: clamp(4%, 6vw, 12%);
+          width: clamp(64px, 9vw, 96px);
+          animation: hero-icon-chart 12s ease-in-out infinite;
+          animation-delay: -5s;
+        }
+        .hero-float-icon--invoice {
+          bottom: clamp(18%, 22vh, 28%);
+          left: clamp(6%, 8vw, 16%);
+          width: clamp(52px, 7.5vw, 80px);
+          animation: hero-icon-invoice 13s ease-in-out infinite;
+          animation-delay: -7s;
+        }
+        .hero-float-icon--phone {
+          bottom: clamp(16%, 20vh, 26%);
+          right: clamp(5%, 7vw, 14%);
+          width: clamp(58px, 8vw, 86px);
+          animation: hero-icon-phone 10.5s ease-in-out infinite;
+          animation-delay: -1s;
+        }
+        @keyframes hero-icon-coin {
+          0%, 100% { transform: rotate(-12deg) translateY(0); }
+          50% { transform: rotate(-10deg) translateY(-14px); }
+        }
+        @keyframes hero-icon-chart {
+          0%, 100% { transform: rotate(6deg) translate(0, 0); }
+          50% { transform: rotate(8deg) translate(6px, -12px); }
+        }
+        @keyframes hero-icon-invoice {
+          0%, 100% { transform: rotate(14deg) translateY(0); }
+          50% { transform: rotate(12deg) translateY(-12px); }
+        }
+        @keyframes hero-icon-phone {
+          0%, 100% { transform: rotate(-8deg) translateY(0); }
+          50% { transform: rotate(-6deg) translate(4px, -14px); }
+        }
         .hero-grid {
           flex: 1;
           display: flex;
@@ -328,7 +388,7 @@ html { scroll-behavior: smooth; }
           justify-content: center;
         }
         .hero-copy {
-          max-width: 44rem;
+          max-width: 40rem;
           width: 100%;
           padding-top: 0;
           text-align: center;
@@ -342,9 +402,14 @@ html { scroll-behavior: smooth; }
           color: #14213d;
           letter-spacing: -0.035em;
         }
-        .hero h1 em {
+        .hero h1 em,
+        .hero-title-accent {
           font-style: normal;
           color: #fca311;
+        }
+        .hero-title-accent {
+          display: block;
+          margin-top: 0.12em;
         }
         .hero-lead {
           margin: 16px auto 0;
@@ -559,8 +624,18 @@ html { scroll-behavior: smooth; }
         #features.section {
           padding-bottom: clamp(56px, 7vw, 80px);
         }
-        .section-head { margin-bottom: 24px; }
-        .section-head h2 { font-size: clamp(30px, 4.2vw, 44px); }
+        .section-head { margin-bottom: 28px; }
+        .section-head h2 {
+          font-size: clamp(1.65rem, 3.2vw, 2.25rem);
+          line-height: 1.2;
+          letter-spacing: -0.015em;
+          font-weight: 700;
+          max-width: 20em;
+          text-wrap: balance;
+        }
+        .section-head--features {
+          max-width: 36rem;
+        }
 
         .logos-marquee-wrap { margin-top: 8px; }
         .marquee {
@@ -624,6 +699,9 @@ html { scroll-behavior: smooth; }
           gap: 18px;
         }
         .features, .steps, .testimonials { grid-template-columns: repeat(3, minmax(0,1fr)); }
+        .features {
+          gap: 16px;
+        }
         .card, .step, .testimonial, .faq-item, .cta-band {
           border-radius: 16px;
           background: rgba(255, 255, 255, 0.58);
@@ -635,6 +713,46 @@ html { scroll-behavior: smooth; }
             0 12px 28px rgba(20, 33, 61, 0.08);
         }
         .card, .step, .testimonial { padding: 20px; }
+        .features .card {
+          background: #ffffff;
+          border: 1px solid #e4eaf3;
+          backdrop-filter: none;
+          -webkit-backdrop-filter: none;
+          box-shadow: 0 6px 18px rgba(20, 33, 61, 0.04);
+          padding: 22px;
+          transition:
+            transform 0.22s ease,
+            box-shadow 0.22s ease,
+            border-color 0.22s ease;
+        }
+        .features .card:hover {
+          transform: translateY(-2px);
+          border-color: #d4deef;
+          box-shadow: 0 12px 26px rgba(20, 33, 61, 0.07);
+        }
+        .features .card h3 {
+          font-size: 1.05rem;
+          font-weight: 700;
+          line-height: 1.35;
+          margin: 0 0 8px;
+          letter-spacing: -0.01em;
+        }
+        .features .card .muted {
+          font-size: 0.92rem;
+          line-height: 1.6;
+          margin: 0;
+        }
+        .features .icon {
+          width: 42px;
+          height: 42px;
+          margin-bottom: 14px;
+          border-radius: 11px;
+          background: #fff7ea;
+          border: 1px solid #fdeacc;
+          color: #b45309;
+          font-size: 0.95rem;
+          box-shadow: none;
+        }
         .pricing-grid {
           grid-template-columns: repeat(3, minmax(0, 1fr));
           align-items: stretch;
@@ -777,7 +895,7 @@ html { scroll-behavior: smooth; }
           font-size: 1rem;
           box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
         }
-        .num {
+        .facturo .landing-step-num {
           width: 32px;
           height: 32px;
           border-radius: 8px;
@@ -996,6 +1114,7 @@ html { scroll-behavior: smooth; }
           .features, .steps, .pricing-grid, .testimonials, .foot { grid-template-columns: 1fr 1fr; }
         }
         @media (max-width: 720px) {
+          .hero-float-icons { display: none; }
           .hero-grid { padding: 20px 0 28px; }
           .features, .steps, .pricing-grid, .testimonials, .foot { grid-template-columns: 1fr; }
           .nav-pill { padding: 10px 10px 10px 16px; }
@@ -1014,7 +1133,7 @@ html { scroll-behavior: smooth; }
 }
 .reveal-on-scroll.is-visible {
   opacity: 1;
-  transform: translateY(0);
+  transform: none;
 }
 
 .card.reveal-stagger {
@@ -1025,7 +1144,19 @@ html { scroll-behavior: smooth; }
 }
 .card.reveal-stagger.is-visible {
   opacity: 1;
-  transform: translateY(0);
+  transform: none;
+}
+.features .card.reveal-stagger.is-visible:hover {
+  transform: translateY(-2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal-on-scroll,
+  .card.reveal-stagger {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
 }
 
 .faq-toggle-icon {

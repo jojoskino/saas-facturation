@@ -153,6 +153,12 @@ class BillingController extends Controller
     )]
     public function simulate(Request $request): JsonResponse
     {
+        if (app()->environment('production')) {
+            return response()->json([
+                'message' => 'La simulation de facturation n\'est pas disponible en production.',
+            ], 403);
+        }
+
         if (! BillingPayload::isSimulation()) {
             return response()->json([
                 'message' => 'La simulation n\'est pas active sur cet environnement.',
@@ -161,7 +167,7 @@ class BillingController extends Controller
 
         $validated = $request->validate([
             'action' => ['required', 'string', 'in:checkout_pro,change_plan,update_card,cancel'],
-            'plan' => ['nullable', 'string', 'in:free,pro,enterprise'],
+            'plan' => ['nullable', 'string', 'in:free,pro'],
             'card' => ['nullable', 'array'],
             'card.brand' => ['nullable', 'string', 'max:20'],
             'card.last4' => ['nullable', 'string', 'max:4'],

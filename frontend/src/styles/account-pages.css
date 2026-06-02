@@ -271,6 +271,27 @@
   margin-top: 2px;
 }
 
+.account-form-card {
+  border-radius: 14px;
+  border: 1px solid var(--color-border);
+  background: var(--glass-surface-strong, #fff);
+  padding: 20px;
+}
+
+.account-form-card__title {
+  margin: 0 0 4px;
+  font-family: var(--heading);
+  font-size: 1.05rem;
+  color: var(--color-text);
+}
+
+.account-form-card__desc {
+  margin: 0 0 18px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  line-height: 1.45;
+}
+
 .account-avatar {
   width: 56px;
   height: 56px;
@@ -309,6 +330,8 @@
   cursor: pointer;
   transition: background 0.18s ease;
   font-family: var(--sans);
+  text-decoration: none;
+  color: inherit;
 }
 
 .settings-row:last-child,
@@ -364,33 +387,108 @@
   flex-shrink: 0;
 }
 
-.account-branding-logo .account-logo-row {
+.settings-row-logo {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  object-position: center;
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  background: #fff;
+  padding: 5px;
+  flex-shrink: 0;
+}
+
+.settings-row-logo--empty {
+  display: grid;
+  place-items: center;
+  color: #cbd5e1;
+  font-size: 16px;
+  border-style: dashed;
+}
+
+.account-branding-logo .account-logo-card {
   display: flex;
-  align-items: center;
-  gap: 14px;
+  align-items: flex-start;
+  gap: 16px;
   flex-wrap: wrap;
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: #f8fafc;
+}
+
+.account-logo-card__preview {
+  position: relative;
+  border: none;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.account-logo-card__preview:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.account-logo-card__preview:hover .account-logo-card__overlay,
+.account-logo-card__preview:focus-visible .account-logo-card__overlay {
+  opacity: 1;
+}
+
+.account-logo-card__overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-radius: 12px;
+  background: rgba(20, 33, 61, 0.55);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.account-logo-card__meta {
+  flex: 1;
+  min-width: 180px;
+}
+
+.account-logo-card__status {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
 }
 
 .account-logo-preview {
-  width: 72px;
-  height: 72px;
+  width: 128px;
+  height: 128px;
   object-fit: contain;
-  border-radius: 10px;
+  object-position: center;
+  border-radius: 12px;
   border: 1px solid var(--color-border);
-  background: #f8fafc;
-  padding: 6px;
+  background: #fff;
+  padding: 10px;
+  display: block;
 }
 
 .account-logo-placeholder {
-  width: 72px;
-  height: 72px;
-  border-radius: 10px;
+  width: 128px;
+  height: 128px;
+  border-radius: 12px;
   border: 1px dashed var(--color-border-strong);
-  background: #f4f7fc;
+  background: #fff;
   display: grid;
   place-items: center;
   color: #94a3b8;
-  font-size: 22px;
+  font-size: 28px;
 }
 
 .account-logo-actions {

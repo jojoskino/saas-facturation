@@ -5,6 +5,9 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Services\InvoiceQuotaService;
 use App\Models\Invoice;
+use App\Models\Quote;
+use App\Services\DocumentActivityLogger;
+use App\Services\DocumentHistoryService;
 use App\Services\DocumentPdfService;
 use App\Services\InvoiceDocumentRules;
 use App\Services\InvoicePaymentSync;
@@ -25,6 +28,7 @@ class InvoiceController extends Controller
     public function __construct(
         private readonly InvoicePaymentSync $paymentSync,
         private readonly InvoiceDocumentRules $documentRules,
+        private readonly DocumentActivityLogger $activityLogger,
     ) {}
 
     #[OA\Get(
@@ -117,7 +121,7 @@ class InvoiceController extends Controller
         $data = $request->validate([
             'client_id' => ['nullable', Rule::exists('clients', 'id')->where('user_id', $userId)],
             'quote_id' => ['nullable', Rule::exists('quotes', 'id')->where('user_id', $userId)],
-            'number' => ['nullable', 'string', 'max:64', Rule::unique('invoices', 'number')->where('user_id', $userId)],
+            'number' => ['nullable', 'string', 'max:64', Rule::unique('invoices', 'number')->where(fn ($q) => $q->where('user_id', $userId)->whereNull('deleted_at'))],
             'status' => ['nullable', 'string', Rule::in(['draft', 'sent', 'paid', 'overdue', 'cancelled'])],
             'issue_date' => ['nullable', 'date'],
             'due_date' => ['nullable', 'date'],
@@ -135,7 +139,12 @@ class InvoiceController extends Controller
             'items.*.tax_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
         ]);
 
+        $quoteLines = $this->applyQuoteSource($userId, $data);
+
         $amounts = $this->resolveAmountsFromInput($data);
+        if ($quoteLines !== null) {
+            $amounts = $quoteLines;
+        }
         if (empty($data['quote_id']) && count($amounts['lines']) === 0 && (float) $amounts['total'] <= 0.001) {
             throw ValidationException::withMessages([
                 'items' => ['Ajoutez au moins une ligne de prestation ou sélectionnez un devis source.'],
@@ -173,6 +182,7 @@ class InvoiceController extends Controller
         $this->syncInvoiceItems($invoice, $amounts['lines']);
 
         $invoice->load(['client:id,name', 'quote:id,number', 'items']);
+        $this->activityLogger->logInvoiceCreated($request->user(), $invoice);
         UserAnalyticsCache::bust((int) $userId);
 
         return response()->json($invoice, 201);
@@ -209,12 +219,26 @@ class InvoiceController extends Controller
     {
         $invoice = Invoice::query()
             ->where('user_id', $request->user()->id)
+            ->with([
+                'client',
+                'quote.items',
+                'payments',
+                'items',
+                'parentInvoice.items',
+                'parentInvoice.quote.items',
+            ])
             ->findOrFail($id);
 
         try {
             return $pdfService->invoicePreview($invoice, $request->user());
-        } catch (\Throwable) {
-            return response()->json(['message' => 'Aperçu indisponible pour ce document.'], 500);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'message' => config('app.debug')
+                    ? 'Aperçu indisponible : '.$e->getMessage()
+                    : 'Aperçu indisponible pour ce document.',
+            ], 500);
         }
     }
 
@@ -222,9 +246,65 @@ class InvoiceController extends Controller
     {
         $invoice = Invoice::query()
             ->where('user_id', $request->user()->id)
+            ->with([
+                'client',
+                'quote.items',
+                'payments',
+                'items',
+                'parentInvoice.items',
+                'parentInvoice.quote.items',
+            ])
             ->findOrFail($id);
 
-        return $pdfService->invoicePdf($invoice, $request->user());
+        try {
+            return $pdfService->invoicePdf($invoice, $request->user());
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'message' => config('app.debug')
+                    ? 'Export PDF impossible : '.$e->getMessage()
+                    : 'Export PDF impossible pour ce document.',
+            ], 500);
+        }
+    }
+
+    public function historyPreview(Request $request, string $id, DocumentHistoryService $historyService): \Symfony\Component\HttpFoundation\Response
+    {
+        $invoice = Invoice::query()
+            ->where('user_id', $request->user()->id)
+            ->findOrFail($id);
+
+        try {
+            return $historyService->invoiceHistoryPreview($invoice, $request->user());
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'message' => config('app.debug')
+                    ? 'Historique indisponible : '.$e->getMessage()
+                    : 'Historique indisponible pour ce document.',
+            ], 500);
+        }
+    }
+
+    public function historyPdf(Request $request, string $id, DocumentHistoryService $historyService): \Symfony\Component\HttpFoundation\Response
+    {
+        $invoice = Invoice::query()
+            ->where('user_id', $request->user()->id)
+            ->findOrFail($id);
+
+        try {
+            return $historyService->invoiceHistoryPdf($invoice, $request->user());
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'message' => config('app.debug')
+                    ? 'Export PDF impossible : '.$e->getMessage()
+                    : 'Export PDF impossible pour cet historique.',
+            ], 500);
+        }
     }
 
     public function createCreditNote(Request $request, string $id): JsonResponse
@@ -270,12 +350,14 @@ class InvoiceController extends Controller
         }
 
         $invoice->update(['status' => 'cancelled']);
+        $credit->load(['client:id,name', 'parentInvoice:id,number']);
+        $this->activityLogger->logCreditNoteCreated($request->user(), $invoice, $credit);
 
         UserAnalyticsCache::bust($userId);
 
         return response()->json([
             'message' => 'Avoir créé.',
-            'credit_note' => $credit->load(['client:id,name', 'parentInvoice:id,number']),
+            'credit_note' => $credit,
         ], 201);
     }
 
@@ -314,7 +396,7 @@ class InvoiceController extends Controller
 
         $invoice = Invoice::query()
             ->where('user_id', $userId)
-            ->with('payments')
+            ->with(['payments', 'items', 'client'])
             ->findOrFail($id);
 
         if ($invoice->document_type === 'credit_note') {
@@ -324,7 +406,7 @@ class InvoiceController extends Controller
         $data = $request->validate([
             'client_id' => ['nullable', Rule::exists('clients', 'id')->where('user_id', $userId)],
             'quote_id' => ['nullable', Rule::exists('quotes', 'id')->where('user_id', $userId)],
-            'number' => ['sometimes', 'nullable', 'string', 'max:64', Rule::unique('invoices', 'number')->where('user_id', $userId)->ignore($invoice->id)],
+            'number' => ['sometimes', 'nullable', 'string', 'max:64', Rule::unique('invoices', 'number')->where(fn ($q) => $q->where('user_id', $userId)->whereNull('deleted_at'))->ignore($invoice->id)],
             'status' => ['nullable', 'string', Rule::in(['draft', 'sent', 'paid', 'overdue', 'cancelled'])],
             'issue_date' => ['nullable', 'date'],
             'due_date' => ['nullable', 'date'],
@@ -342,9 +424,23 @@ class InvoiceController extends Controller
             'items.*.tax_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
         ]);
 
+        $beforeSnapshot = $this->activityLogger->snapshotInvoice($invoice);
+
+        $quoteLines = $this->applyQuoteSource($userId, $data, $invoice->id);
+
         $this->documentRules->assertCanUpdate($invoice, $data);
 
-        if (array_key_exists('items', $data)) {
+        if ($quoteLines !== null) {
+            $data['subtotal'] = $quoteLines['subtotal'];
+            $data['tax_amount'] = $quoteLines['tax_amount'];
+            $data['total'] = $quoteLines['total'];
+            $data['items'] = array_map(fn (array $line): array => [
+                'description' => $line['description'],
+                'quantity' => $line['quantity'],
+                'unit_price' => $line['unit_price'],
+                'tax_rate' => $line['tax_rate'],
+            ], $quoteLines['lines']);
+        } elseif (array_key_exists('items', $data)) {
             $amounts = $this->resolveAmountsFromInput(array_merge($invoice->toArray(), $data));
             $data['subtotal'] = $amounts['subtotal'];
             $data['tax_amount'] = $amounts['tax_amount'];
@@ -391,14 +487,15 @@ class InvoiceController extends Controller
         $invoice->fill($payload);
         $invoice->save();
 
-        if (array_key_exists('items', $data)) {
-            $amounts = $this->resolveAmountsFromInput(array_merge($invoice->fresh()->toArray(), $data));
+        if (array_key_exists('items', $data) || $quoteLines !== null) {
+            $amounts = $quoteLines ?? $this->resolveAmountsFromInput(array_merge($invoice->fresh()->toArray(), $data));
             $this->syncInvoiceItems($invoice, $amounts['lines']);
         }
 
         $invoice->load(['client', 'quote', 'payments', 'items']);
         $this->paymentSync->syncStatus($invoice);
         $invoice->refresh();
+        $this->activityLogger->logInvoiceUpdated($request->user(), $beforeSnapshot, $invoice);
         UserAnalyticsCache::bust($userId);
 
         return response()->json($invoice);
@@ -424,6 +521,7 @@ class InvoiceController extends Controller
 
         $this->documentRules->assertCanDelete($invoice);
 
+        $this->activityLogger->logInvoiceDeleted($request->user(), $invoice);
         $invoice->delete();
         UserAnalyticsCache::bust((int) $request->user()->id);
 
@@ -547,5 +645,73 @@ class InvoiceController extends Controller
         foreach ($lines as $line) {
             $invoice->items()->create($line);
         }
+    }
+
+    /**
+     * Align invoice with an accepted quote: enforce client, totals and line items.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array{lines: list<array<string, mixed>>, subtotal: string, tax_amount: string, total: string}|null
+     */
+    private function applyQuoteSource(int $userId, array &$data, ?int $ignoreInvoiceId = null): ?array
+    {
+        if (empty($data['quote_id'])) {
+            return null;
+        }
+
+        $quote = Quote::query()
+            ->where('user_id', $userId)
+            ->with('items')
+            ->findOrFail((int) $data['quote_id']);
+
+        if ($quote->status !== 'accepted') {
+            throw ValidationException::withMessages([
+                'quote_id' => ['Seuls les devis au statut « accepté » peuvent être utilisés comme source.'],
+            ]);
+        }
+
+        $duplicate = Invoice::query()
+            ->where('user_id', $userId)
+            ->where('quote_id', $quote->id)
+            ->where('document_type', 'invoice')
+            ->when($ignoreInvoiceId, fn ($q) => $q->where('id', '!=', $ignoreInvoiceId))
+            ->exists();
+
+        if ($duplicate) {
+            throw ValidationException::withMessages([
+                'quote_id' => ['Une facture existe déjà pour ce devis.'],
+            ]);
+        }
+
+        if (! empty($data['client_id']) && (int) $data['client_id'] !== (int) $quote->client_id) {
+            throw ValidationException::withMessages([
+                'client_id' => ['Le client sélectionné ne correspond pas au devis source.'],
+            ]);
+        }
+
+        $data['client_id'] = $quote->client_id;
+        $data['currency'] = $data['currency'] ?? $quote->currency;
+        $data['discount_percent'] = $data['discount_percent'] ?? $quote->discount_percent ?? 0;
+        $data['subtotal'] = $quote->subtotal;
+        $data['tax_amount'] = $quote->tax_amount;
+        $data['total'] = $quote->total;
+
+        if ($quote->items->isEmpty()) {
+            return [
+                'lines' => [],
+                'subtotal' => number_format((float) $quote->subtotal, 2, '.', ''),
+                'tax_amount' => number_format((float) $quote->tax_amount, 2, '.', ''),
+                'total' => number_format((float) $quote->total, 2, '.', ''),
+            ];
+        }
+
+        $inputLines = $quote->items->map(fn ($item): array => [
+            'description' => $item->description,
+            'quantity' => $item->quantity,
+            'unit_price' => $item->unit_price,
+            'tax_rate' => $item->tax_rate,
+        ])->all();
+
+        return DocumentMath::quoteLinesFromInput($inputLines, (float) ($data['discount_percent'] ?? 0));
     }
 }

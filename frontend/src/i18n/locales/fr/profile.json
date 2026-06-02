@@ -1,6 +1,6 @@
 {
   "title": "Mon profil",
-  "subtitle": "Vos informations de connexion et la sécurité de votre compte.",
+  "subtitle": "Vos informations personnelles de connexion.",
   "personal": {
     "tileTitle": "Informations personnelles",
     "tileDesc": "Nom et e-mail de connexion.",
@@ -43,5 +43,13 @@
     "save": "Mettre à jour le mot de passe",
     "success": "Mot de passe mis à jour.",
     "error": "Impossible de mettre à jour le mot de passe."
+  },
+  "privacy": {
+    "tileTitle": "Confidentialité des montants",
+    "tileDesc": "Masquer ou afficher les montants dans l'application.",
+    "showAmounts": "Afficher les montants",
+    "hideAmounts": "Masquer les montants",
+    "unlockTitle": "Afficher les montants",
+    "unlockDesc": "Saisissez votre mot de passe pour afficher les montants."
   }
 }

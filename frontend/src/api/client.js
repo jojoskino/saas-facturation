@@ -28,6 +28,32 @@ export function apiUrl(path) {
   return `${base}${p}`;
 }
 
+/** URLs d’assets Laravel (/storage) — corrige APP_URL vs VITE_API_BASE_URL en local. */
+export function resolveAssetUrl(url) {
+  if (!url) return "";
+  if (/^(blob:|data:)/i.test(url)) return url;
+
+  if (url.startsWith("/storage/") || url.startsWith("storage/")) {
+    const path = url.startsWith("/") ? url : `/${url}`;
+    return apiUrl(path);
+  }
+
+  if (/^https?:\/\//i.test(url)) {
+    try {
+      const parsed = new URL(url);
+      if (parsed.pathname.startsWith("/storage/")) {
+        return apiUrl(parsed.pathname + parsed.search);
+      }
+      return url;
+    } catch {
+      return url;
+    }
+  }
+
+  if (url.startsWith("/")) return apiUrl(url);
+  return url;
+}
+
 export function getStoredToken() {
   const sessionToken = sessionStorage.getItem("facturo_token");
   if (sessionToken) return sessionToken;
@@ -133,22 +159,35 @@ export async function apiFetch(path, options = {}) {
 
 export { peekCache } from "./cache.js";
 
+function parseErrorPayload(text) {
+  if (!text) return null;
+  try {
+    const data = JSON.parse(text);
+    if (data && typeof data === "object") {
+      return data?.message || null;
+    }
+  } catch {
+    // not JSON
+  }
+  return null;
+}
+
 export async function apiFetchHtml(path) {
-  const headers = new Headers({ Accept: "text/html" });
+  const headers = new Headers({ Accept: "text/html, application/json" });
   const token = getStoredToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
-  const res = await fetch(apiUrl(path), { headers });
+  let res;
+  try {
+    res = await fetch(apiUrl(path), { headers });
+  } catch {
+    throw networkError();
+  }
   const text = await res.text();
-  if (!res.ok) {
-    let data = null;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      data = { message: text };
-    }
-    const err = new Error(data?.message || "Aperçu indisponible");
+  const contentType = res.headers.get("content-type") || "";
+  if (!res.ok || contentType.includes("application/json")) {
+    const message = parseErrorPayload(text) || (res.ok ? "Réponse invalide du serveur." : "Aperçu indisponible");
+    const err = new Error(message);
     err.status = res.status;
-    err.body = data;
     throw err;
   }
   const { assertDocumentPreviewHtml } = await import("../utils/documentPreview.js");
@@ -159,25 +198,33 @@ export async function apiDownload(path, filename = "document.pdf", accept = "app
   const headers = new Headers({ Accept: accept });
   const token = getStoredToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
-  const res = await fetch(apiUrl(path), { headers });
+  let res;
+  try {
+    res = await fetch(apiUrl(path), { headers });
+  } catch {
+    throw networkError();
+  }
+  const contentType = res.headers.get("content-type") || "";
   if (!res.ok) {
     const text = await res.text();
-    let data = null;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      data = { message: text };
-    }
-    const err = new Error(data?.message || "Téléchargement impossible");
+    const err = new Error(parseErrorPayload(text) || "Téléchargement impossible");
     err.status = res.status;
-    err.body = data;
     throw err;
   }
+  if (contentType.includes("application/json") || contentType.includes("text/html")) {
+    const text = await res.text();
+    throw new Error(parseErrorPayload(text) || "Le serveur n'a pas renvoyé un PDF valide.");
+  }
   const blob = await res.blob();
+  if (!blob.size) {
+    throw new Error("Le fichier PDF reçu est vide.");
+  }
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
+  document.body.appendChild(a);
   a.click();
+  a.remove();
   URL.revokeObjectURL(url);
 }

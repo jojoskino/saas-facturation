@@ -1,14 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiFetch, peekCache } from "../../api/client";
 import { paginatedFromCache } from "../../utils/listCache";
 import TableSkeleton from "../../components/skeleton/TableSkeleton";
 import FormActions from "../../components/FormActions";
 import DocumentPreviewModal from "../../components/DocumentPreviewModal";
+import { quoteHistoryPaths } from "../../utils/documentPreview";
 import { AppDateField, AppSelect, FieldLabel } from "../../components/AppFormControls";
 import InlineStatusSelect from "../../components/InlineStatusSelect";
 import ConfirmDialog from "../../components/ConfirmDialog";
-import DocumentLinesEditor, { computeLineTotals, createEmptyLine } from "../../components/DocumentLinesEditor";
+import ModalPortal from "../../components/ModalPortal";
+import DocumentLinesEditor, { computeLineTotals, createEmptyLine, validateDocumentLines } from "../../components/DocumentLinesEditor";
 import ListFilterBar, { ListFilterField, ListFilterGrid } from "../../components/list/ListFilterBar";
 import ListPageHeader from "../../components/list/ListPageHeader";
 import ListPagination from "../../components/list/ListPagination";
@@ -49,7 +51,10 @@ export default function DevisPage() {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [error, setError] = useState("");
+  const [modalError, setModalError] = useState("");
+  const [lineHints, setLineHints] = useState(null);
   const [success, setSuccess] = useState("");
+  const formBaselineRef = useRef("");
 
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
@@ -59,6 +64,7 @@ export default function DevisPage() {
   const [editingId, setEditingId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [previewTarget, setPreviewTarget] = useState(null);
+  const [historyTarget, setHistoryTarget] = useState(null);
   const [form, setForm] = useState(defaultForm);
   const [confirmState, setConfirmState] = useState(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
@@ -113,12 +119,31 @@ export default function DevisPage() {
     setEditingId(null);
     setEditingSnapshot(null);
     setForm(defaultForm);
+    setModalError("");
+    setLineHints(null);
+    formBaselineRef.current = "";
+  }
+
+  const captureFormBaseline = useCallback((nextForm) => {
+    formBaselineRef.current = serializeQuoteFormSnapshot(nextForm);
+  }, []);
+
+  const isFormDirty = useCallback(() => {
+    return formBaselineRef.current !== "" && formBaselineRef.current !== serializeQuoteFormSnapshot(form);
+  }, [form]);
+
+  function requestCloseModal() {
+    if (isFormDirty() && !window.confirm("Des modifications non enregistrées seront perdues. Fermer quand même ?")) {
+      return;
+    }
+    closeModal();
   }
 
   function openCreate() {
     setError("");
     setSuccess("");
     resetForm();
+    captureFormBaseline(defaultForm);
     setModalOpen(true);
   }
 
@@ -139,12 +164,12 @@ export default function DevisPage() {
     const items = Array.isArray(full.items) && full.items.length > 0
       ? full.items.map((item) => ({
           description: item.description || "",
-          quantity: String(Math.max(0, Math.round(Number(item.quantity) || 1))),
+          quantity: String(item.quantity ?? "1"),
           unit_price: String(item.unit_price ?? ""),
           tax_rate: String(item.tax_rate ?? "0"),
         }))
       : [createEmptyLine()];
-    setForm({
+    const nextForm = {
       client_id: full.client_id ? String(full.client_id) : "",
       status: full.status || "draft",
       issue_date: toDateInput(full.issue_date),
@@ -153,13 +178,19 @@ export default function DevisPage() {
       notes: full.notes || "",
       discount_percent: String(full.discount_percent ?? "0"),
       items,
-    });
+    };
+    setForm(nextForm);
+    captureFormBaseline(nextForm);
     setEditingSnapshot({ number: full.number || `#${full.id}`, status: full.status || "draft" });
     setModalOpen(true);
   }
 
   function openPreview(quote) {
     setPreviewTarget(quote);
+  }
+
+  function openHistory(quote) {
+    setHistoryTarget(quote);
   }
 
   function requestStatusChange(quote, status) {
@@ -237,12 +268,20 @@ export default function DevisPage() {
     e.preventDefault();
     const validation = validateQuoteForm(form);
     if (!validation.valid) {
-      setError(validation.message);
+      if (validation.lineIssues) {
+        setLineHints(validation.lineIssues);
+        setModalError("");
+      } else {
+        setLineHints(null);
+        setModalError(validation.message);
+      }
       return;
     }
 
+    setLineHints(null);
     setSaving(true);
     setError("");
+    setModalError("");
     setSuccess("");
     try {
       const payload = buildPayload(form);
@@ -275,7 +314,7 @@ export default function DevisPage() {
     setSuccess("");
     try {
       await apiFetch(`/api/quotes/${deleteTarget.id}`, { method: "DELETE" });
-      setSuccess("Devis supprime.");
+      pushToast("Devis archivé.", "success");
       const nextPage = quotes.length === 1 && page > 1 ? page - 1 : page;
       if (nextPage !== page) setPage(nextPage);
       await loadQuotes(nextPage);
@@ -309,6 +348,7 @@ export default function DevisPage() {
     return (
       <>
         <ListIconButton title="Aperçu / PDF" icon="fa-eye" onClick={() => openPreview(quote)} />
+        <ListIconButton title="Historique" icon="fa-clock-rotate-left" onClick={() => openHistory(quote)} />
         {quote.status === "accepted" ? (
           <ListIconButton
             title={quote.has_invoice ? "Facture deja creee pour ce devis" : "Convertir en facture"}
@@ -419,45 +459,6 @@ export default function DevisPage() {
         }
         .quo-banner--error { background: #fff3f0; border-color: #f4c0b6; color: #b3412d; }
         .quo-banner--success { background: #effaf2; border-color: #b8e2c2; color: #1c6a33; }
-        .quo-table-wrap { overflow-x: auto; }
-        .quo-table {
-          width: 100%;
-          border-collapse: collapse;
-          min-width: 760px;
-          font-size: 14px;
-          background: #fff;
-          border-radius: 12px;
-          overflow: hidden;
-        }
-        .quo-table th {
-          text-align: left;
-          font-size: 11px;
-          text-transform: uppercase;
-          letter-spacing: 0.06em;
-          color: #14213d;
-          font-weight: 800;
-          padding: 8px 6px;
-          border-bottom: 1px solid var(--color-border);
-          background: #f7f9fc;
-        }
-        .quo-table td {
-          padding: 10px 6px;
-          border-bottom: 1px solid var(--color-border);
-          vertical-align: top;
-        }
-        .quo-mini { color: var(--color-text-muted); font-size: 12px; }
-        .quo-tag {
-          display: inline-flex;
-          border-radius: 999px;
-          padding: 3px 8px;
-          font-size: 11px;
-          font-weight: 700;
-          border: 1px solid transparent;
-        }
-        .quo-tag--draft { background: #f4f4f5; color: #3f3f46; border-color: #e4e4e7; }
-        .quo-tag--sent { background: #eaf5ff; color: #145ea8; border-color: #c9e4ff; }
-        .quo-tag--accepted { background: #ebfaef; color: #196f38; border-color: #bae8c8; }
-        .quo-tag--rejected { background: #fff1f2; color: #a11a3a; border-color: #f4c6d1; }
         .quo-actions { display: flex; gap: 6px; justify-content: flex-end; }
         .quo-icon-btn {
           border: 1px solid var(--color-border-strong);
@@ -535,16 +536,22 @@ export default function DevisPage() {
           }
         />
 
-        <div className="quo-table-wrap app-list-table-wrap">
-          <table className="quo-table app-list-table">
+        <div className="app-list-table-wrap">
+          <table className="entity-list-table app-list-table">
             <thead>
               <tr>
-                <th>Numero</th>
+                <th>Numéro</th>
                 <th>Client</th>
-                <th>Dates</th>
-                <th>Montant</th>
+                <th>
+                  Dates
+                  <span className="entity-list-table__unit">Émission → validité</span>
+                </th>
+                <th className="entity-list-table__amount">
+                  Montant
+                  <span className="entity-list-table__unit">XOF</span>
+                </th>
                 <th>Statut</th>
-                <th>Actions</th>
+                <th className="entity-list-table__actions">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -552,34 +559,31 @@ export default function DevisPage() {
                 <TableSkeleton rows={7} columns={6} withActions actionColumnIndex={5} />
               ) : quotes.length === 0 ? (
                 <tr>
-                  <td colSpan={6}>Aucun devis trouve.</td>
+                  <td colSpan={6}>Aucun devis trouvé.</td>
                 </tr>
               ) : (
                 quotes.map((quote) => (
-                  <tr key={quote.id}>
+                  <tr key={quote.id} className={quoteRowClassName(quote)}>
                     <td>
                       <strong>{quote.number}</strong>
-                      <div className="quo-mini">{quote.currency || "XOF"}</div>
                     </td>
                     <td>{quote.client?.name || "—"}</td>
                     <td>
                       {formatDate(quote.issue_date)} → {formatDate(quote.valid_until)}
                     </td>
-                    <td>
-                      <strong>
-                        {showMoney(quote.total)} {quote.currency || "XOF"}
-                      </strong>
+                    <td className="entity-list-table__amount-cell">
+                      <strong>{showMoney(quote.total)}</strong>
                     </td>
                     <td>
-                        <InlineStatusSelect
-                          value={quote.status || "draft"}
-                          options={statusOptions}
-                          onChange={(next) => requestStatusChange(quote, next)}
-                          disabled={Boolean(quote.has_invoice)}
-                        />
+                      <InlineStatusSelect
+                        value={quote.status || "draft"}
+                        options={statusOptions}
+                        onChange={(next) => requestStatusChange(quote, next)}
+                        disabled={Boolean(quote.has_invoice)}
+                      />
                     </td>
                     <td>
-                      <div className="quo-actions">{renderQuoteActions(quote)}</div>
+                      <div className="entity-list-row-actions">{renderQuoteActions(quote)}</div>
                     </td>
                   </tr>
                 ))
@@ -599,19 +603,22 @@ export default function DevisPage() {
             <div className="app-list-card-item app-list-card-item--empty">Aucun devis trouve.</div>
           ) : (
             quotes.map((quote) => (
-              <article key={quote.id} className="app-list-card-item">
+              <article key={quote.id} className={quoteCardClassName(quote)}>
                 <div className="app-list-card-item__head">
                   <div>
                     <div className="app-list-card-item__ref">{quote.number}</div>
                     <div className="app-list-card-item__sub">{quote.client?.name || "—"}</div>
                   </div>
-                  <div className="app-list-card-item__amount">
-                    {showMoney(quote.total)} {quote.currency || "XOF"}
+                  <div className="app-list-card-item__amount-stack">
+                    <span className="app-list-card-item__amount-label">XOF</span>
+                    <strong>{showMoney(quote.total)}</strong>
                   </div>
                 </div>
                 <div className="app-list-card-item__row">
                   <span className="app-list-card-item__label">Validité</span>
-                  <span>{formatDate(quote.issue_date)} → {formatDate(quote.valid_until)}</span>
+                  <span>
+                    {formatDate(quote.issue_date)} → {formatDate(quote.valid_until)}
+                  </span>
                 </div>
                 <div className="app-list-card-item__foot">
                   <InlineStatusSelect
@@ -638,17 +645,18 @@ export default function DevisPage() {
 
       {modalOpen ? (
         <ModalPortal>
-        <div className="doc-modal-backdrop" role="dialog" aria-modal="true" onClick={closeModal}>
+        <div className="doc-modal-backdrop" role="dialog" aria-modal="true" onClick={requestCloseModal}>
           <section className="doc-modal" onClick={(e) => e.stopPropagation()}>
             <div className="doc-modal-head">
               <h2>{isEditing ? "Modifier le devis" : "Creer un devis"}</h2>
-              <button className="doc-modal-close" type="button" onClick={closeModal} aria-label="Fermer">
+              <button className="doc-modal-close" type="button" onClick={requestCloseModal} aria-label="Fermer">
                 <i className="fa-solid fa-xmark" />
               </button>
             </div>
 
             <form className="doc-modal-form" onSubmit={onSubmit}>
               <div className="doc-modal-body">
+                {modalError ? <div className="inv-banner inv-banner--error">{modalError}</div> : null}
                 <div className="quo-form-grid">
                   <div className="quo-field">
                     <FieldLabel required>Statut</FieldLabel>
@@ -693,19 +701,23 @@ export default function DevisPage() {
                     <textarea className="quo-textarea" name="notes" value={form.notes} onChange={onChangeField} />
                   </div>
                   <div className="quo-field quo-field--full">
-                    <FieldLabel required>Lignes de prestation</FieldLabel>
+                    <FieldLabel>Lignes de prestation</FieldLabel>
                     <DocumentLinesEditor
                       lines={form.items}
+                      lineHints={lineHints}
                       discountPercent={form.discount_percent}
                       onDiscountChange={(value) => setForm((prev) => ({ ...prev, discount_percent: value }))}
-                      onChange={(items) => setForm((prev) => ({ ...prev, items }))}
+                      onChange={(items) => {
+                        setLineHints(null);
+                        setForm((prev) => ({ ...prev, items }));
+                      }}
                     />
                   </div>
                 </div>
               </div>
 
               <FormActions
-                onCancel={closeModal}
+                onCancel={requestCloseModal}
                 submitLabel={isEditing ? "Mettre a jour" : "Creer"}
                 saving={saving}
               />
@@ -722,6 +734,17 @@ export default function DevisPage() {
         pdfPath={previewTarget ? `/api/quotes/${previewTarget.id}/pdf` : ""}
         filename={previewTarget ? `${previewTarget.number}.pdf` : "document.pdf"}
         title={previewTarget ? `Aperçu — ${previewTarget.number}` : ""}
+      />
+
+      <DocumentPreviewModal
+        open={Boolean(historyTarget)}
+        onClose={() => setHistoryTarget(null)}
+        previewPath={historyTarget ? quoteHistoryPaths(historyTarget)?.preview : ""}
+        pdfPath={historyTarget ? quoteHistoryPaths(historyTarget)?.pdf : ""}
+        filename={historyTarget ? quoteHistoryPaths(historyTarget)?.filename : "historique.pdf"}
+        title={historyTarget ? quoteHistoryPaths(historyTarget)?.title : ""}
+        subtitle="Chronologie du document — exportable en PDF."
+        downloadLabel="Télécharger l'historique PDF"
       />
 
       {deleteTarget ? (
@@ -768,14 +791,38 @@ function statusLabel(options, value) {
   return options.find((opt) => opt.value === value)?.label || value || "—";
 }
 
+function serializeQuoteFormSnapshot(form) {
+  return JSON.stringify({
+    client_id: form.client_id || "",
+    status: form.status || "draft",
+    issue_date: form.issue_date || "",
+    valid_until: form.valid_until || "",
+    currency: form.currency || "XOF",
+    notes: form.notes || "",
+    discount_percent: form.discount_percent || "0",
+    items: (form.items || []).map((line) => ({
+      description: line.description || "",
+      quantity: line.quantity || "",
+      unit_price: line.unit_price || "",
+      tax_rate: line.tax_rate || "",
+    })),
+  });
+}
+
 function validateQuoteForm(form) {
+  if (!form.client_id) {
+    return { valid: false, message: "Sélectionnez un client pour ce devis." };
+  }
   if (form.valid_until && form.issue_date && form.valid_until < form.issue_date) {
     return { valid: false, message: "La date de validite doit etre superieure a la date d'emission." };
   }
-  const validLines = (form.items || []).filter((line) => String(line.description || "").trim() !== "");
-  if (validLines.length === 0) {
-    return { valid: false, message: "Ajoutez au moins une ligne de prestation." };
+  const lineCheck = validateDocumentLines(form.items);
+  if (!lineCheck.valid) {
+    return { valid: false, message: "", lineIssues: lineCheck.issues };
   }
+  const validLines = (form.items || []).filter(
+    (line) => String(line.description || "").trim() !== "" && String(line.unit_price ?? "").trim() !== "",
+  );
   for (const line of validLines) {
     if (!(Number.parseFloat(line.quantity) > 0)) {
       return { valid: false, message: "Chaque ligne doit avoir une quantite positive." };
@@ -786,7 +833,9 @@ function validateQuoteForm(form) {
 
 function buildPayload(form) {
   const validLines = (form.items || [])
-    .filter((line) => String(line.description || "").trim() !== "")
+    .filter(
+      (line) => String(line.description || "").trim() !== "" && String(line.unit_price ?? "").trim() !== "",
+    )
     .map((line) => ({
       description: String(line.description).trim(),
       quantity: Number.parseFloat(line.quantity) || 0,
@@ -846,4 +895,16 @@ function extractApiMessage(error, fallback) {
   }
   if (error?.body?.message) return String(error.body.message);
   return error?.message || fallback;
+}
+
+function isQuoteRowMuted(quote) {
+  return ["accepted", "rejected", "expired"].includes(quote.status);
+}
+
+function quoteRowClassName(quote) {
+  return isQuoteRowMuted(quote) ? "entity-list-table-row--muted" : "";
+}
+
+function quoteCardClassName(quote) {
+  return isQuoteRowMuted(quote) ? "app-list-card-item app-list-card-item--muted" : "app-list-card-item";
 }

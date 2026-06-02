@@ -3,7 +3,7 @@ import Skeleton from "./Skeleton";
 export default function SettingsListSkeleton() {
   return (
     <div className="settings-list" aria-busy="true" aria-label="Chargement des paramètres">
-      {[0, 1].map((row) => (
+      {[0, 1, 2, 3, 4].map((row) => (
         <div key={row} className="settings-row settings-row--skeleton">
           <Skeleton width={40} height={40} style={{ borderRadius: 10, flexShrink: 0 }} />
           <div style={{ flex: 1, minWidth: 0 }}>

@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Support\Utf8;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -10,7 +9,7 @@ use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Notifications\ResetPasswordNotification;
-use App\Notifications\VerifyEmailNotification;
+use Illuminate\Auth\MustVerifyEmail;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -34,18 +33,14 @@ use Laravel\Sanctum\HasApiTokens;
     'locale',
     'timezone',
     'notifications_email',
-    'plan',
-    'stripe_customer_id',
-    'stripe_subscription_id',
-    'billing_status',
     'plan_period_end',
     'billing_payment_method',
 ])]
 #[Hidden(['password', 'remember_token'])]
-class User extends Authenticatable implements MustVerifyEmail
+class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasApiTokens, HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, MustVerifyEmail, Notifiable;
 
     protected static function booted(): void
     {
@@ -83,11 +78,6 @@ class User extends Authenticatable implements MustVerifyEmail
             'plan_period_end' => 'datetime',
             'billing_payment_method' => 'array',
         ];
-    }
-
-    public function sendEmailVerificationNotification(): void
-    {
-        $this->notify(new VerifyEmailNotification);
     }
 
     public function sendPasswordResetNotification($token): void

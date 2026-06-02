@@ -3,7 +3,16 @@ import { apiDownload, apiFetchHtml } from "../api/client";
 import ModalPortal from "./ModalPortal";
 import Skeleton from "./skeleton/Skeleton";
 
-export default function DocumentPreviewModal({ open, onClose, previewPath, pdfPath, filename, title }) {
+export default function DocumentPreviewModal({
+  open,
+  onClose,
+  previewPath,
+  pdfPath,
+  filename,
+  title,
+  subtitle = "Vérifiez le rendu avant l'export PDF.",
+  downloadLabel = "Télécharger le PDF",
+}) {
   const [html, setHtml] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -49,7 +58,7 @@ export default function DocumentPreviewModal({ open, onClose, previewPath, pdfPa
   if (!open) return null;
 
   const hasContent = Boolean(html?.trim());
-  const showEmpty = !loading && !hasContent;
+  const showEmpty = !loading && !hasContent && !error;
 
   async function handleDownload() {
     if (!pdfPath) return;
@@ -64,6 +73,22 @@ export default function DocumentPreviewModal({ open, onClose, previewPath, pdfPa
     }
   }
 
+  async function retryPreview() {
+    if (!previewPath) return;
+    setLoading(true);
+    setError("");
+    setHtml("");
+    try {
+      const content = await apiFetchHtml(previewPath);
+      setHtml(content);
+    } catch (err) {
+      setHtml("");
+      setError(err?.message || "Impossible de charger l'aperçu.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <ModalPortal>
     <div className="doc-preview-backdrop" role="dialog" aria-modal="true" onClick={onClose}>
@@ -71,7 +96,7 @@ export default function DocumentPreviewModal({ open, onClose, previewPath, pdfPa
         <header className="doc-preview-head">
           <div>
             <h2>{title || "Aperçu du document"}</h2>
-            <p>Vérifiez le rendu avant l&apos;export PDF.</p>
+            <p>{subtitle}</p>
           </div>
           <button type="button" className="doc-preview-close" onClick={onClose} aria-label="Fermer">
             <i className="fa-solid fa-xmark" />
@@ -93,7 +118,12 @@ export default function DocumentPreviewModal({ open, onClose, previewPath, pdfPa
           ) : showEmpty ? (
             <div className="doc-preview-empty">
               <i className="fa-solid fa-file-circle-xmark" aria-hidden />
-              <p>Aperçu indisponible. Vérifiez que le backend est démarré.</p>
+              <p>{error || "Aperçu indisponible. Vérifiez que le backend est démarré."}</p>
+              {previewPath ? (
+                <button type="button" className="doc-preview-btn doc-preview-btn--ghost" onClick={retryPreview}>
+                  Réessayer l&apos;aperçu
+                </button>
+              ) : null}
             </div>
           ) : (
             <div
@@ -112,9 +142,9 @@ export default function DocumentPreviewModal({ open, onClose, previewPath, pdfPa
             type="button"
             className="doc-preview-btn doc-preview-btn--primary"
             onClick={handleDownload}
-            disabled={loading || downloading || !hasContent || !pdfPath}
+            disabled={loading || downloading || !pdfPath}
           >
-            <i className="fa-solid fa-file-pdf" /> {downloading ? "Export…" : "Télécharger le PDF"}
+            <i className="fa-solid fa-file-pdf" /> {downloading ? "Export…" : downloadLabel}
           </button>
         </footer>
       </section>
@@ -132,6 +162,8 @@ export default function DocumentPreviewModal({ open, onClose, previewPath, pdfPa
         .doc-preview-panel {
           width: min(920px, 100%);
           max-height: min(92vh, 900px);
+          min-height: 0;
+          min-width: 0;
           display: flex;
           flex-direction: column;
           background: #fff;
@@ -179,10 +211,12 @@ export default function DocumentPreviewModal({ open, onClose, previewPath, pdfPa
           font-size: 0.88rem;
         }
         .doc-preview-body {
-          flex: 1;
-          min-height: 200px;
-          overflow: auto;
-          padding: 12px 18px;
+          flex: 1 1 auto;
+          min-height: 0;
+          min-width: 0;
+          overflow-x: auto;
+          overflow-y: auto;
+          padding: 16px 20px 20px;
           background: #eef2f8;
           -webkit-overflow-scrolling: touch;
         }
@@ -196,11 +230,57 @@ export default function DocumentPreviewModal({ open, onClose, previewPath, pdfPa
           border: 1px solid #d8dbe3;
           border-radius: 8px;
           padding: 0;
-          min-height: min(62vh, 520px);
-          overflow: auto;
+          margin-bottom: 4px;
+          overflow-x: auto;
+          max-width: 100%;
+          box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+          -webkit-overflow-scrolling: touch;
         }
-        .doc-preview-html .doc-accent {
-          margin-bottom: 0;
+        .doc-preview-html .doc-page {
+          padding: 32px 36px 48px;
+          min-width: 0;
+          box-sizing: border-box;
+        }
+        .doc-preview-html table.doc-top,
+        .doc-preview-html table.doc-parties,
+        .doc-preview-html table.doc-totals-wrap {
+          max-width: 100%;
+        }
+        .doc-preview-html table.doc-lines {
+          display: block;
+          width: 100%;
+          max-width: 100%;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          border-collapse: collapse;
+        }
+        .doc-preview-html table.doc-lines thead,
+        .doc-preview-html table.doc-lines tbody {
+          display: table;
+          width: 100%;
+          min-width: 520px;
+          border-collapse: collapse;
+        }
+        .doc-preview-html table.doc-lines tr {
+          display: table-row;
+        }
+        .doc-preview-html table.doc-lines th,
+        .doc-preview-html table.doc-lines td {
+          display: table-cell;
+        }
+        .doc-preview-html table.doc-lines th.doc-col-num,
+        .doc-preview-html table.doc-lines td.doc-col-num {
+          width: auto;
+          height: auto;
+          min-width: 0;
+          border-radius: 0;
+          display: table-cell;
+          place-items: unset;
+          margin: 0;
+          background: transparent;
+          color: inherit;
+          font-weight: inherit;
+          text-align: right;
         }
         .doc-preview-empty {
           min-height: min(50vh, 400px);
@@ -261,8 +341,65 @@ export default function DocumentPreviewModal({ open, onClose, previewPath, pdfPa
             border-radius: 0;
             min-height: 100vh;
           }
+          .doc-preview-head {
+            padding: 14px 14px 12px;
+          }
+          .doc-preview-head h2 {
+            font-size: 1rem;
+            word-break: break-word;
+          }
+          .doc-preview-body {
+            padding: 10px 8px 14px;
+          }
+          .doc-preview-html .doc-page {
+            padding: 18px 12px 28px;
+          }
+          .doc-preview-html table.doc-top,
+          .doc-preview-html table.doc-parties {
+            display: block;
+          }
+          .doc-preview-html table.doc-top tbody,
+          .doc-preview-html table.doc-parties tbody {
+            display: block;
+          }
+          .doc-preview-html table.doc-top tr,
+          .doc-preview-html table.doc-parties tr {
+            display: block;
+          }
+          .doc-preview-html table.doc-top td,
+          .doc-preview-html table.doc-parties td {
+            display: block;
+            width: 100% !important;
+            box-sizing: border-box;
+          }
+          .doc-preview-html table.doc-parties td:first-child {
+            border-right: 1px solid #e8ecf1;
+          }
+          .doc-preview-html .doc-meta-box {
+            text-align: left;
+            margin-top: 10px;
+          }
+          .doc-preview-html .doc-issuer-meta,
+          .doc-preview-html .doc-parties-body,
+          .doc-preview-html .doc-meta-line {
+            word-break: break-word;
+            overflow-wrap: anywhere;
+          }
+          .doc-preview-html .doc-lines th,
+          .doc-preview-html .doc-lines td {
+            font-size: 9pt;
+            padding: 6px 4px;
+          }
+          .doc-preview-html .doc-th-unit {
+            font-size: 7pt;
+          }
+          .doc-preview-html table.doc-totals {
+            width: 100%;
+            max-width: 240px;
+          }
           .doc-preview-foot {
             flex-direction: column-reverse;
+            padding: 12px 14px;
           }
           .doc-preview-foot .doc-preview-btn {
             width: 100%;

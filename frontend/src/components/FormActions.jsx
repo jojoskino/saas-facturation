@@ -12,11 +12,13 @@ export default function FormActions({
   savingLabel,
   submitDisabled = false,
   cancelDisabled = false,
+  hideCancel = false,
 }) {
   const { t } = useTranslation("common");
 
   return (
     <div className="form-actions">
+      {!hideCancel ? (
       <button
         type="button"
         className="form-actions__btn"
@@ -25,6 +27,7 @@ export default function FormActions({
       >
         {cancelLabel ?? t("actions.cancel")}
       </button>
+      ) : null}
       <button
         type="submit"
         className="form-actions__btn form-actions__btn--primary"

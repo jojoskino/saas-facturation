@@ -4,11 +4,9 @@ import { useTranslation } from "react-i18next";
 import { clearApiCache } from "../api/cache";
 import { apiFetch, getStoredToken, setStoredToken } from "../api/client";
 import { useApiQuery } from "../hooks/useApiQuery";
-import PlanBadge from "../components/PlanBadge";
 import { setAppLanguage } from "../i18n";
 import { applyUserBranding } from "../utils/branding";
 import { prefetchAppData } from "../utils/prefetchAppData";
-import AmountsPrivacyToggle from "../components/AmountsPrivacyToggle";
 import ModalPortal from "../components/ModalPortal";
 
 const navItems = [
@@ -696,17 +694,8 @@ export default function AppLayout() {
               </button>
               {profileOpen ? (
                 <div className="app-shell__profile-popover">
-                  {me?.plan ? (
-                    <div className="app-shell__profile-plan">
-                      <PlanBadge plan={me.plan} compact />
-                    </div>
-                  ) : null}
                   <button type="button" className="app-shell__profile-item" onClick={() => goTo("/app/profil")}>
                     <i className="fa-solid fa-user" /> {t("profileMenu.myProfile")}
-                  </button>
-                  <AmountsPrivacyToggle menuItem />
-                  <button type="button" className="app-shell__profile-item" onClick={() => goTo("/app/abonnement")}>
-                    <i className="fa-solid fa-gem" /> {t("nav.billing")}
                   </button>
                   <button type="button" className="app-shell__profile-item app-shell__profile-item--danger" onClick={requestLogout}>
                     <i className="fa-solid fa-right-from-bracket" /> {t("profileMenu.logout")}

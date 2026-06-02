@@ -476,37 +476,6 @@ export default function ClientsPage() {
           color: var(--color-text);
         }
         .clients-filter-cta { align-self: end; }
-        .clients-table-wrap { overflow-x: auto; }
-        .clients-table {
-          width: 100%;
-          border-collapse: collapse;
-          min-width: 760px;
-          font-size: 14px;
-          background: #fff;
-          border-radius: 12px;
-          overflow: hidden;
-        }
-        .clients-table th {
-          text-align: left;
-          font-size: 11px;
-          text-transform: uppercase;
-          letter-spacing: 0.06em;
-          color: #14213d;
-          font-weight: 800;
-          padding: 8px 6px;
-          border-bottom: 1px solid var(--color-border);
-          background: #f7f9fc;
-        }
-        .clients-table td {
-          padding: 11px 6px;
-          border-bottom: 1px solid var(--color-border);
-          vertical-align: top;
-        }
-        .clients-table tbody tr:hover { background: #fbfcff; }
-        .clients-table td strong {
-          color: #14213d;
-          font-weight: 700;
-        }
         .clients-mini { color: var(--color-text-muted); font-size: 12px; }
         .clients-row-actions { display: flex; gap: 6px; }
         .clients-row-btn {
@@ -704,15 +673,15 @@ export default function ClientsPage() {
             }
           />
 
-          <div className="clients-table-wrap app-list-table-wrap">
-            <table className="clients-table app-list-table">
+          <div className="app-list-table-wrap">
+            <table className="entity-list-table app-list-table">
               <thead>
                 <tr>
                   <th>Client</th>
                   <th>Contact</th>
                   <th>Entreprise</th>
                   <th>Adresse</th>
-                  <th>Actions</th>
+                  <th className="entity-list-table__actions">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -727,16 +696,16 @@ export default function ClientsPage() {
                     <tr key={client.id}>
                       <td>
                         <strong>{getClientDisplayName(client)}</strong>
-                        {client.tax_id ? <div className="clients-mini">NIF: {client.tax_id}</div> : null}
+                        {client.tax_id ? <div className="entity-list-mini">NIF: {client.tax_id}</div> : null}
                       </td>
                       <td>
                         {client.email || "—"}
-                        <div className="clients-mini">{client.phone || "—"}</div>
+                        <div className="entity-list-mini">{client.phone || "—"}</div>
                       </td>
                       <td>{client.company || "—"}</td>
                       <td>{client.address || "—"}</td>
                       <td>
-                        <div className="clients-row-actions">{renderClientActions(client)}</div>
+                        <div className="entity-list-row-actions">{renderClientActions(client)}</div>
                       </td>
                     </tr>
                   ))

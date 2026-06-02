@@ -16,24 +16,13 @@ export default function ProfileSkeleton() {
         </div>
       </div>
 
-      <div className="profile-list">
-        {[0, 1].map((row) => (
-          <div key={row} className="profile-row profile-row--skeleton">
-            <Skeleton width={40} height={40} style={{ borderRadius: 10, flexShrink: 0 }} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <Skeleton width="50%" height={14} block />
-              <Skeleton width="72%" height={11} block style={{ marginTop: 8 }} />
-            </div>
-            <Skeleton width={12} height={12} />
-          </div>
-        ))}
+      <div className="account-form-card">
+        <Skeleton width="40%" height={16} block />
+        <Skeleton width="70%" height={12} block style={{ marginTop: 8, marginBottom: 18 }} />
+        <Skeleton width="100%" height={40} block style={{ marginBottom: 14 }} />
+        <Skeleton width="100%" height={40} block style={{ marginBottom: 18 }} />
+        <Skeleton width={140} height={38} block />
       </div>
-      <style>{`
-        .profile-row--skeleton {
-          pointer-events: none;
-          cursor: default;
-        }
-      `}</style>
     </div>
   );
 }

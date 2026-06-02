@@ -1,6 +1,5 @@
 @php
-    $docPrimary = $branding['primary'] ?? '#14213d';
-    $docAccent = $branding['accent'] ?? '#fca311';
+    $docPrimary = $branding['primary'] ?? '#1e293b';
 @endphp
 <!DOCTYPE html>
 <html lang="fr">
@@ -9,155 +8,214 @@
     <style>
         * { box-sizing: border-box; }
         body {
-            font-family: DejaVu Sans, sans-serif;
-            font-size: 10.5px;
-            color: {{ $docPrimary }};
+            font-family: "Times New Roman", Times, DejaVu Serif, serif;
+            font-size: 12pt;
+            color: #334155;
             margin: 0;
-            padding: 32px 36px 40px;
-            line-height: 1.45;
+            padding: 0;
+            line-height: 1.5;
+            background: #fff;
         }
-        .doc-accent {
-            height: 4px;
-            background: {{ $docAccent }};
-            margin: -32px -36px 24px;
-            width: calc(100% + 72px);
+        .doc-page {
+            padding: 28px 32px 40px;
         }
-        .doc-header {
+        .doc-top {
             width: 100%;
-            margin-bottom: 22px;
+            border-collapse: collapse;
+            margin-bottom: 20px;
         }
-        .doc-header td { vertical-align: top; padding: 0; border: none; }
+        .doc-top td {
+            vertical-align: top;
+            padding: 0;
+            border: none;
+        }
         .doc-logo {
-            max-height: 48px;
-            max-width: 160px;
-            margin-bottom: 8px;
+            max-height: 56px;
+            max-width: 200px;
+            width: auto;
+            height: auto;
+            margin-bottom: 10px;
         }
-        .doc-brand {
-            font-size: 22px;
+        .doc-issuer-name {
+            font-size: 12pt;
             font-weight: bold;
-            color: {{ $docPrimary }};
-            letter-spacing: -0.5px;
-            margin: 0 0 4px;
+            color: #1e293b;
+            margin-bottom: 4px;
+        }
+        .doc-issuer-meta {
+            font-size: 10pt;
+            color: #64748b;
+            line-height: 1.5;
+        }
+        .doc-meta-box {
+            text-align: right;
         }
         .doc-type {
-            display: inline-block;
-            background: {{ $docPrimary }};
-            color: #ffffff;
-            font-size: 11px;
-            font-weight: bold;
+            display: block;
+            font-size: 10pt;
+            font-weight: normal;
             letter-spacing: 0.08em;
             text-transform: uppercase;
-            padding: 5px 12px;
-            border-radius: 4px;
-            margin-bottom: 8px;
+            color: #64748b;
+            margin-bottom: 4px;
         }
-        .doc-meta { color: #5a6478; font-size: 10px; margin: 2px 0; }
-        .doc-meta strong { color: {{ $docPrimary }}; }
-        .doc-issuer {
-            text-align: right;
-            font-size: 10px;
+        .doc-number {
+            font-size: 14pt;
+            font-weight: bold;
             color: {{ $docPrimary }};
+            margin: 0 0 8px;
         }
-        .doc-issuer-name { font-size: 13px; font-weight: bold; margin-bottom: 4px; }
+        .doc-meta-line {
+            font-size: 10pt;
+            color: #64748b;
+            margin: 2px 0;
+            line-height: 1.5;
+        }
+        .doc-meta-line strong {
+            color: #475569;
+            font-weight: 600;
+        }
+        .doc-rule {
+            height: 1px;
+            background: #e2e8f0;
+            margin: 0 0 18px;
+        }
         .doc-parties {
             width: 100%;
-            margin-bottom: 20px;
             border-collapse: collapse;
+            margin-bottom: 20px;
         }
         .doc-parties td {
             width: 50%;
             vertical-align: top;
             padding: 12px 14px;
-            border: 1px solid #e8ebf0;
-            background: #f9fafc;
+            border: 1px solid #e8ecf1;
+            background: #fafbfc;
         }
+        .doc-parties td:first-child { border-right: none; }
         .doc-parties-label {
-            font-size: 9px;
+            font-size: 9pt;
             text-transform: uppercase;
             letter-spacing: 0.1em;
-            color: {{ $docAccent }};
-            font-weight: bold;
+            color: #94a3b8;
+            font-weight: 600;
             margin-bottom: 6px;
+        }
+        .doc-parties-name {
+            font-size: 11pt;
+            font-weight: bold;
+            color: #1e293b;
+            margin-bottom: 4px;
+        }
+        .doc-parties-body {
+            font-size: 10pt;
+            color: #64748b;
+            line-height: 1.5;
         }
         .doc-lines {
             width: 100%;
             border-collapse: collapse;
-            margin: 8px 0 16px;
+            margin: 0 0 18px;
+        }
+        .doc-lines thead tr {
+            border-bottom: 1px solid #94a3b8;
         }
         .doc-lines th {
-            background: {{ $docPrimary }};
-            color: #ffffff;
-            font-size: 9px;
+            background: transparent;
+            color: #64748b;
+            font-size: 9pt;
             text-transform: uppercase;
-            letter-spacing: 0.06em;
-            padding: 9px 10px;
+            letter-spacing: 0.08em;
+            padding: 0 6px 8px;
             text-align: left;
-            font-weight: bold;
+            font-weight: 600;
         }
-        .doc-lines th.num { text-align: right; }
+        .doc-lines th.doc-col-num { text-align: right; }
         .doc-lines td {
-            border-bottom: 1px solid #e8ebf0;
-            padding: 9px 10px;
-            font-size: 10px;
+            border-bottom: 1px solid #eef2f6;
+            padding: 8px 6px;
+            font-size: 11pt;
+            color: #334155;
+            line-height: 1.5;
         }
-        .doc-lines td.num { text-align: right; white-space: nowrap; }
-        .doc-lines tr:nth-child(even) td { background: #fafbfd; }
-        .doc-totals-wrap { width: 100%; margin-top: 4px; }
+        .doc-lines td.doc-col-num {
+            text-align: right;
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+        }
+        .doc-th-unit {
+            display: block;
+            margin-top: 2px;
+            font-size: 8pt;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            color: #94a3b8;
+            text-transform: uppercase;
+        }
+        .doc-totals-wrap { width: 100%; margin-top: 6px; }
         .doc-totals-wrap td { border: none; padding: 0; }
         .doc-totals {
-            width: 280px;
+            width: 240px;
             margin-left: auto;
             border-collapse: collapse;
         }
         .doc-totals td {
-            padding: 6px 12px;
-            font-size: 10px;
+            padding: 4px 0;
+            font-size: 11pt;
             border: none;
+            line-height: 1.5;
         }
-        .doc-totals td:last-child { text-align: right; font-weight: 600; }
-        .doc-totals tr.sub td { color: #5a6478; }
+        .doc-totals td:first-child { color: #64748b; }
+        .doc-totals td:last-child {
+            text-align: right;
+            font-weight: 600;
+            color: #334155;
+        }
         .doc-totals tr.total td {
-            background: {{ $docPrimary }};
-            color: #ffffff;
-            font-size: 12px;
+            padding-top: 8px;
+            border-top: 1px solid #334155;
+            font-size: 12pt;
             font-weight: bold;
-            padding: 10px 12px;
+            color: #1e293b;
         }
+        .doc-totals tr.total td:last-child { color: {{ $docPrimary }}; }
         .doc-totals tr.highlight td {
-            color: {{ $docPrimary }};
-            font-weight: bold;
-            border-top: 2px solid {{ $docAccent }};
+            font-size: 10pt;
+            color: #64748b;
         }
+        .doc-totals tr.highlight td:last-child { font-weight: 600; color: #475569; }
         .doc-notes {
             margin-top: 18px;
-            padding: 12px 14px;
-            background: #fff9ed;
-            border-left: 3px solid {{ $docAccent }};
-            font-size: 10px;
+            padding: 10px 12px;
+            background: #fafbfc;
+            border: 1px solid #e8ecf1;
+            font-size: 10pt;
+            color: #64748b;
+            line-height: 1.5;
         }
-        .doc-notes-title { font-weight: bold; margin-bottom: 4px; }
-        .doc-footer {
-            margin-top: 28px;
-            padding-top: 14px;
-            border-top: 1px solid #e8ebf0;
-            font-size: 9px;
-            color: #6b7280;
-        }
-        .doc-status {
-            display: inline-block;
-            padding: 3px 8px;
-            border-radius: 999px;
-            font-size: 9px;
-            font-weight: bold;
+        .doc-notes-title {
+            font-weight: 600;
+            color: #64748b;
+            margin-bottom: 4px;
+            font-size: 9pt;
             text-transform: uppercase;
-            background: #eef2ff;
-            color: {{ $docPrimary }};
+            letter-spacing: 0.08em;
         }
+        .doc-footer {
+            margin-top: 22px;
+            padding-top: 12px;
+            border-top: 1px solid #e8ecf1;
+            font-size: 9pt;
+            color: #94a3b8;
+            line-height: 1.5;
+        }
+        .doc-footer strong { color: #64748b; font-weight: 600; }
         .text-right { text-align: right; }
     </style>
 </head>
 <body>
-    <div class="doc-accent"></div>
-    @yield('content')
+    <div class="doc-page">
+        @yield('content')
+    </div>
 </body>
 </html>

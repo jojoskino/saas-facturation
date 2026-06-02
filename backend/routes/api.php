@@ -50,10 +50,14 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::post('/quotes/{id}/convert-to-invoice', [QuoteController::class, 'convertToInvoice']);
     Route::get('/quotes/{id}/preview', [QuoteController::class, 'preview']);
     Route::get('/quotes/{id}/pdf', [QuoteController::class, 'pdf']);
+    Route::get('/quotes/{id}/history/preview', [QuoteController::class, 'historyPreview']);
+    Route::get('/quotes/{id}/history/pdf', [QuoteController::class, 'historyPdf']);
     Route::apiResource('quotes', QuoteController::class);
 
     Route::get('/invoices/{id}/preview', [InvoiceController::class, 'preview']);
     Route::get('/invoices/{id}/pdf', [InvoiceController::class, 'pdf']);
+    Route::get('/invoices/{id}/history/preview', [InvoiceController::class, 'historyPreview']);
+    Route::get('/invoices/{id}/history/pdf', [InvoiceController::class, 'historyPdf']);
     Route::post('/invoices/{id}/credit-note', [InvoiceController::class, 'createCreditNote']);
     Route::get('/invoices/{invoice}/payments', [PaymentController::class, 'index']);
     Route::post('/invoices/{invoice}/payments', [PaymentController::class, 'store']);

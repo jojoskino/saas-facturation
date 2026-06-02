@@ -116,6 +116,14 @@ class DocumentPdfService
     /**
      * @return array{primary: string, accent: string, logoSrc: string|null}
      */
+    public function userBranding(User $user): array
+    {
+        return $this->branding($user);
+    }
+
+    /**
+     * @return array{primary: string, accent: string, logoSrc: string|null}
+     */
     private function branding(User $user): array
     {
         $primary = $user->document_color_primary ?: '#14213d';

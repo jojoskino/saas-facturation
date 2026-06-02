@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Quote;
+use App\Services\DocumentActivityLogger;
+use App\Services\DocumentHistoryService;
 use App\Services\DocumentPdfService;
 use App\Services\QuoteToInvoiceService;
 use App\Support\ApiListQuery;
@@ -20,6 +22,10 @@ use OpenApi\Attributes as OA;
 
 class QuoteController extends Controller
 {
+    public function __construct(
+        private readonly DocumentActivityLogger $activityLogger,
+    ) {}
+
     #[OA\Get(
         path: '/api/quotes',
         tags: ['Devis'],
@@ -113,8 +119,8 @@ class QuoteController extends Controller
         $userId = $request->user()->id;
 
         $data = $request->validate([
-            'client_id' => ['nullable', Rule::exists('clients', 'id')->where('user_id', $userId)],
-            'number' => ['nullable', 'string', 'max:64', Rule::unique('quotes', 'number')->where('user_id', $userId)],
+            'client_id' => ['required', Rule::exists('clients', 'id')->where('user_id', $userId)],
+            'number' => ['nullable', 'string', 'max:64', Rule::unique('quotes', 'number')->where(fn ($q) => $q->where('user_id', $userId)->whereNull('deleted_at'))],
             'status' => ['nullable', 'string', Rule::in(['draft', 'sent', 'accepted', 'rejected', 'expired'])],
             'discount_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'issue_date' => ['nullable', 'date'],
@@ -155,6 +161,7 @@ class QuoteController extends Controller
         }
 
         $quote->load(['client:id,name', 'items']);
+        $this->activityLogger->logQuoteCreated($request->user(), $quote);
         UserAnalyticsCache::bust((int) $userId);
 
         return response()->json($quote, 201);
@@ -213,14 +220,17 @@ class QuoteController extends Controller
 
         $quote = Quote::query()
             ->where('user_id', $userId)
+            ->with(['items', 'client'])
             ->withCount(['invoices as has_invoice' => fn ($builder) => $builder->where('document_type', 'invoice')])
             ->findOrFail($id);
 
         $this->assertQuoteMutable($quote);
 
+        $beforeSnapshot = $this->activityLogger->snapshotQuote($quote);
+
         $data = $request->validate([
-            'client_id' => ['nullable', Rule::exists('clients', 'id')->where('user_id', $userId)],
-            'number' => ['sometimes', 'nullable', 'string', 'max:64', Rule::unique('quotes', 'number')->where('user_id', $userId)->ignore($quote->id)],
+            'client_id' => ['sometimes', 'required', Rule::exists('clients', 'id')->where('user_id', $userId)],
+            'number' => ['sometimes', 'nullable', 'string', 'max:64', Rule::unique('quotes', 'number')->where(fn ($q) => $q->where('user_id', $userId)->whereNull('deleted_at'))->ignore($quote->id)],
             'status' => ['nullable', 'string', Rule::in(['draft', 'sent', 'accepted', 'rejected', 'expired'])],
             'discount_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'issue_date' => ['nullable', 'date'],
@@ -264,6 +274,7 @@ class QuoteController extends Controller
 
         $quote->save();
         $quote->load(['client', 'items']);
+        $this->activityLogger->logQuoteUpdated($request->user(), $beforeSnapshot, $quote);
         UserAnalyticsCache::bust($userId);
 
         return response()->json($quote);
@@ -311,6 +322,44 @@ class QuoteController extends Controller
         return $pdfService->quotePdf($quote, $request->user());
     }
 
+    public function historyPreview(Request $request, string $id, DocumentHistoryService $historyService): \Symfony\Component\HttpFoundation\Response
+    {
+        $quote = Quote::query()
+            ->where('user_id', $request->user()->id)
+            ->findOrFail($id);
+
+        try {
+            return $historyService->quoteHistoryPreview($quote, $request->user());
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'message' => config('app.debug')
+                    ? 'Historique indisponible : '.$e->getMessage()
+                    : 'Historique indisponible pour ce document.',
+            ], 500);
+        }
+    }
+
+    public function historyPdf(Request $request, string $id, DocumentHistoryService $historyService): \Symfony\Component\HttpFoundation\Response
+    {
+        $quote = Quote::query()
+            ->where('user_id', $request->user()->id)
+            ->findOrFail($id);
+
+        try {
+            return $historyService->quoteHistoryPdf($quote, $request->user());
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'message' => config('app.debug')
+                    ? 'Export PDF impossible : '.$e->getMessage()
+                    : 'Export PDF impossible pour cet historique.',
+            ], 500);
+        }
+    }
+
     #[OA\Delete(
         path: '/api/quotes/{id}',
         tags: ['Devis'],
@@ -331,6 +380,7 @@ class QuoteController extends Controller
 
         $this->assertQuoteMutable($quote);
 
+        $this->activityLogger->logQuoteDeleted($request->user(), $quote);
         $quote->delete();
         UserAnalyticsCache::bust((int) $request->user()->id);
 

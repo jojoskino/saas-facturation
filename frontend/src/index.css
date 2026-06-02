@@ -403,6 +403,62 @@ p {
   padding: 2rem;
 }
 
+.route-error {
+  display: grid;
+  gap: 12px;
+  place-items: center;
+  text-align: center;
+  min-height: 50vh;
+  padding: 2rem 1.5rem;
+  color: var(--color-text);
+  font-family: var(--sans);
+}
+
+.route-error h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.route-error p {
+  margin: 0;
+  max-width: 36ch;
+  color: var(--color-text-muted);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.route-error__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.route-error__btn {
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-weight: 700;
+  font-size: 0.88rem;
+  cursor: pointer;
+  background: #14213d;
+  color: #fff;
+}
+
+.route-error__link {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border-strong);
+  font-weight: 600;
+  font-size: 0.88rem;
+  text-decoration: none;
+  color: var(--color-text);
+  background: #fff;
+}
+
 .route-fallback__spinner {
   width: 36px;
   height: 36px;
