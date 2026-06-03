@@ -1,5 +1,4 @@
 /** Logo LAFACTURE — icône + wordmark (même rendu partout dans l’app). */
-import React from "react";
 
 export default function AppLogo({ size = "md", showText = true, className = "" }) {
   const markSize = size === "sm" ? 28 : size === "lg" ? 40 : 32;

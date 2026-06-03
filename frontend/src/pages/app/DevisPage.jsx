@@ -10,7 +10,7 @@ import { AppDateField, AppSelect, FieldLabel } from "../../components/AppFormCon
 import InlineStatusSelect from "../../components/InlineStatusSelect";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import ModalPortal from "../../components/ModalPortal";
-import DocumentLinesEditor, { computeLineTotals, createEmptyLine, validateDocumentLines } from "../../components/DocumentLinesEditor";
+import DocumentLinesEditor, { createEmptyLine, validateDocumentLines } from "../../components/DocumentLinesEditor";
 import ListFilterBar, { ListFilterField, ListFilterGrid } from "../../components/list/ListFilterBar";
 import ListPageHeader from "../../components/list/ListPageHeader";
 import ListPagination from "../../components/list/ListPagination";
@@ -75,6 +75,14 @@ export default function DevisPage() {
   useEffect(() => {
     loadQuotes(page);
   }, [page, search, filterStatus]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setPage(1);
+      setSearch(searchInput.trim());
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [searchInput]);
 
   useEffect(() => {
     loadClients();
@@ -314,7 +322,7 @@ export default function DevisPage() {
     setSuccess("");
     try {
       await apiFetch(`/api/quotes/${deleteTarget.id}`, { method: "DELETE" });
-      pushToast("Devis archivé.", "success");
+      setSuccess("Devis archivé.");
       const nextPage = quotes.length === 1 && page > 1 ? page - 1 : page;
       if (nextPage !== page) setPage(nextPage);
       await loadQuotes(nextPage);

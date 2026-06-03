@@ -265,13 +265,6 @@ export default function ClientsPage() {
     }
   }
 
-  function applySearch(e) {
-    e.preventDefault();
-    const next = searchInput.trim();
-    setPage(1);
-    setSearch(next);
-  }
-
   function pushToast(message, type = "info") {
     const id = `${Date.now()}-${Math.random()}`;
     setToasts((prev) => [...prev, { id, message, type }]);

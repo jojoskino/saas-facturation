@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class ApiBillingTest extends TestCase
@@ -24,8 +25,9 @@ class ApiBillingTest extends TestCase
 
         $user = User::factory()->create(['plan' => 'free']);
 
-        $this->actingAs($user)
-            ->getJson('/api/billing')
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/billing')
             ->assertOk()
             ->assertJsonPath('plan', 'free')
             ->assertJsonPath('configured', false)
@@ -49,8 +51,9 @@ class ApiBillingTest extends TestCase
 
         $user = User::factory()->create(['plan' => 'free']);
 
-        $this->actingAs($user)
-            ->postJson('/api/billing/checkout', ['plan' => 'pro'])
+        Sanctum::actingAs($user);
+
+        $this->postJson('/api/billing/checkout', ['plan' => 'pro'])
             ->assertStatus(503);
     }
 }

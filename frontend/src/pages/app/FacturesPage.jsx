@@ -26,8 +26,6 @@ import {
   canDeleteInvoice,
   canEditFinancialFields,
   inlineStatusOptionsForInvoice,
-  invoiceBalanceDue,
-  invoicePaidTotal,
 } from "../../utils/invoiceRules";
 
 const defaultForm = {
