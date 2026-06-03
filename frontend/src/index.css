@@ -99,11 +99,53 @@ p {
   margin: 0;
 }
 
+.app-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.app-logo__mark {
+  flex-shrink: 0;
+  display: block;
+  border-radius: 8px;
+}
+
+.app-logo__text {
+  font-family: var(--heading);
+  font-weight: 800;
+  font-size: 1.12rem;
+  letter-spacing: -0.03em;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.app-logo--sm .app-logo__text { font-size: 0.92rem; letter-spacing: -0.04em; }
+.app-logo--lg .app-logo__text { font-size: 1.35rem; }
+
+.app-logo__text span {
+  color: var(--color-accent);
+}
+
+.auth-brand-lockup-inline {
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.auth-brand-lockup-inline .app-logo__text {
+  font-size: 1.45rem;
+}
+
+.auth-mobile-logo .auth-brand-lockup-inline {
+  margin-bottom: 4px;
+}
+
 /* Global glass surfaces for authenticated app */
 .app-shell__sidebar,
 .app-shell__header,
 .app-shell__profile-popover,
-.app-shell__confirm-modal,
 .clients-card,
 .clients-search-card,
 .inv-card,

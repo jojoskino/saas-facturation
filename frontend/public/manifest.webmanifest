@@ -1,0 +1,24 @@
+{
+  "name": "LAFACTURE",
+  "short_name": "LAFACTURE",
+  "description": "Facturation moderne pour freelances et TPE",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#14213d",
+  "theme_color": "#14213d",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

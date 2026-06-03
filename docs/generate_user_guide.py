@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate Facturo user guide (DOCX) — IEC/IEEE 26514 aligned."""
+"""Generate LAFACTURE user guide (DOCX) — IEC/IEEE 26514 aligned."""
 
 from datetime import date
 from pathlib import Path
@@ -10,7 +10,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor
 
-OUTPUT = Path(__file__).parent / "Guide-utilisateur-Facturo.docx"
+OUTPUT = Path(__file__).parent / "Guide-utilisateur-LAFACTURE.docx"
 APP_VERSION = "1.0"
 GUIDE_DATE = date(2026, 5, 27).strftime("%d/%m/%Y")
 NAVY = RGBColor(0x14, 0x21, 0x3D)
@@ -175,20 +175,20 @@ def build_intro(doc):
     add_heading(doc, "1. Introduction et objectifs du guide", 1)
     add_body(
         doc,
-        "Ce guide utilisateur décrit l'utilisation de Facturo, application web de facturation "
+        "Ce guide utilisateur décrit l'utilisation de LAFACTURE, application web de facturation "
         "et de gestion commerciale destinée aux freelances, TPE et petites équipes B2B, "
         "notamment en Afrique de l'Ouest.",
     )
     add_body(
         doc,
-        "Facturo permet de créer des devis et des factures conformes, de gérer une base clients, "
+        "LAFACTURE permet de créer des devis et des factures conformes, de gérer une base clients, "
         "de suivre les paiements et les impayés, et de piloter votre chiffre d'affaires via un "
         "tableau de bord et des rapports.",
     )
 
     add_heading(doc, "1.1 Objectifs du guide", 2)
     objectives = [
-        "Présenter les prérequis nécessaires à l'utilisation de Facturo.",
+        "Présenter les prérequis nécessaires à l'utilisation de LAFACTURE.",
         "Décrire les procédures d'inscription, de connexion et de récupération de compte.",
         "Expliquer l'organisation de l'interface et la navigation entre les modules.",
         "Guider pas à pas la réalisation des tâches courantes : clients, devis, factures, paiements, paramètres et abonnement.",
@@ -235,7 +235,7 @@ def build_prerequisites(doc):
     add_bullet(doc, "Connaître les informations légales de votre entreprise (raison sociale, NIF, coordonnées bancaires).")
 
     add_heading(doc, "2.2 Configuration système recommandée", 2)
-    add_body(doc, "Facturo est une application web accessible depuis un navigateur. Aucune installation locale n'est requise.")
+    add_body(doc, "LAFACTURE est une application web accessible depuis un navigateur. Aucune installation locale n'est requise.")
     table = doc.add_table(rows=1, cols=2)
     table.style = "Table Grid"
     table.rows[0].cells[0].text = "Élément"
@@ -256,13 +256,13 @@ def build_prerequisites(doc):
     add_heading(doc, "2.3 Accès à l'application", 2)
     add_step(doc, 1, "Ouvrez votre navigateur web.")
     add_step(doc, 2, "Saisissez l'adresse https://saas-facturation.vercel.app dans la barre d'adresse.")
-    add_step(doc, 3, "Appuyez sur Entrée pour afficher la page d'accueil Facturo.")
-    add_screenshot_box(doc, "Page d'accueil Facturo — vue d'ensemble")
+    add_step(doc, 3, "Appuyez sur Entrée pour afficher la page d'accueil LAFACTURE.")
+    add_screenshot_box(doc, "Page d'accueil LAFACTURE — vue d'ensemble")
 
     add_note_box(
         doc,
         "Remarque",
-        "Facturo fonctionne entièrement en ligne. Vos données sont synchronisées avec le serveur "
+        "LAFACTURE fonctionne entièrement en ligne. Vos données sont synchronisées avec le serveur "
         "à chaque action ; une connexion Internet est indispensable.",
     )
     add_page_break(doc)
@@ -272,7 +272,7 @@ def build_auth(doc):
     add_heading(doc, "3. Inscription et connexion", 1)
 
     add_heading(doc, "3.1 Créer un compte", 2)
-    add_step(doc, 1, "Accédez à la page d'accueil Facturo.")
+    add_step(doc, 1, "Accédez à la page d'accueil LAFACTURE.")
     add_step(doc, 2, "Cliquez sur « Commencer gratuitement » ou « S'inscrire ».")
     add_step(doc, 3, "Renseignez votre nom complet.")
     add_step(doc, 4, "Saisissez votre adresse e-mail professionnelle.")
@@ -317,7 +317,7 @@ def build_auth(doc):
 
     add_heading(doc, "3.5 Sécurité du compte", 2)
     add_bullet(doc, "Ne partagez jamais votre mot de passe.")
-    add_bullet(doc, "Utilisez un mot de passe unique pour Facturo.")
+    add_bullet(doc, "Utilisez un mot de passe unique pour LAFACTURE.")
     add_bullet(doc, "Déconnectez-vous après utilisation sur un poste partagé.")
     add_bullet(doc, "Activez la protection des montants sur le tableau de bord en environnement partagé (voir section 7.1).")
     add_page_break(doc)
@@ -552,7 +552,7 @@ def build_features(doc):
     add_note_box(
         doc,
         "Remarque",
-        "Avec les notifications activées et un abonnement Pro, Facturo envoie des relances automatiques "
+        "Avec les notifications activées et un abonnement Pro, LAFACTURE envoie des relances automatiques "
         "hebdomadaires pour les factures en retard (chaque lundi à 8 h, fuseau serveur).",
     )
 
@@ -566,7 +566,7 @@ def build_features(doc):
 
     # 5.8 Abonnement
     add_heading(doc, "5.8 Gestion de l'abonnement", 2)
-    add_body(doc, "Facturo propose trois offres :")
+    add_body(doc, "LAFACTURE propose trois offres :")
     table = doc.add_table(rows=1, cols=3)
     table.style = "Table Grid"
     table.rows[0].cells[0].text = "Offre"
@@ -604,8 +604,8 @@ def build_faq(doc):
 
     faqs = [
         (
-            "6.1 Facturo est-il conforme aux exigences de facturation ?",
-            "Oui. Facturo génère des documents structurés avec numérotation chronologique, "
+            "6.1 LAFACTURE est-il conforme aux exigences de facturation ?",
+            "Oui. LAFACTURE génère des documents structurés avec numérotation chronologique, "
             "mentions légales configurables et calcul automatique des montants HT, TVA et TTC.",
         ),
         (
@@ -618,7 +618,7 @@ def build_faq(doc):
         ),
         (
             "6.4 Quelles devises sont prises en charge ?",
-            "Facturo prend en charge le franc CFA (XOF) par défaut, ainsi que l'euro (EUR) et le dollar US (USD).",
+            "LAFACTURE prend en charge le franc CFA (XOF) par défaut, ainsi que l'euro (EUR) et le dollar US (USD).",
         ),
         (
             "6.5 Les relances de paiement sont-elles automatiques ?",
@@ -626,8 +626,8 @@ def build_faq(doc):
             "envoyées pour les factures en retard.",
         ),
         (
-            "6.6 Mes clients peuvent-ils payer en ligne via Facturo ?",
-            "Facturo permet d'enregistrer manuellement les paiements reçus. Le paiement en ligne direct "
+            "6.6 Mes clients peuvent-ils payer en ligne via LAFACTURE ?",
+            "LAFACTURE permet d'enregistrer manuellement les paiements reçus. Le paiement en ligne direct "
             "par vos clients n'est pas disponible dans la version actuelle.",
         ),
         (
@@ -641,12 +641,12 @@ def build_faq(doc):
             "Consultez la politique de confidentialité sur /legal/confidentialite.",
         ),
         (
-            "6.9 Puis-je utiliser Facturo sur mobile ?",
+            "6.9 Puis-je utiliser LAFACTURE sur mobile ?",
             "Oui. L'interface web est responsive et utilisable depuis un navigateur mobile récent.",
         ),
         (
             "6.10 Comment contacter le support ?",
-            "Envoyez un e-mail à contact@facturo.app. Les abonnés Pro bénéficient d'un support prioritaire.",
+            "Envoyez un e-mail à contact@lafacture.app. Les abonnés Pro bénéficient d'un support prioritaire.",
         ),
     ]
     for title, answer in faqs:
@@ -723,7 +723,7 @@ def build_troubleshooting(doc):
             [
                 "Vérifiez que votre carte bancaire est valide et dispose de fonds suffisants.",
                 "Réessayez depuis la page Abonnement.",
-                "Contactez contact@facturo.app si le problème persiste.",
+                "Contactez contact@lafacture.app si le problème persiste.",
             ],
         ),
         (
@@ -761,9 +761,9 @@ def build_support(doc):
     table.rows[0].cells[0].text = "Type de demande"
     table.rows[0].cells[1].text = "Contact"
     contacts = [
-        ("Support général", "contact@facturo.app"),
-        ("Confidentialité et RGPD", "privacy@facturo.app"),
-        ("Offre Entreprise", "contact@facturo.app (objet : Offre Entreprise Facturo)"),
+        ("Support général", "contact@lafacture.app"),
+        ("Confidentialité et RGPD", "privacy@lafacture.app"),
+        ("Offre Entreprise", "contact@lafacture.app (objet : Offre Entreprise LAFACTURE)"),
         ("Site web", "https://saas-facturation.vercel.app"),
     ]
     for a, b in contacts:
@@ -798,7 +798,7 @@ def build_support(doc):
     row = history.add_row().cells
     row[0].text = APP_VERSION
     row[1].text = GUIDE_DATE
-    row[2].text = "Équipe Facturo"
+    row[2].text = "Équipe LAFACTURE"
     row[3].text = "Publication initiale du guide utilisateur"
 
 

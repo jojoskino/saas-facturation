@@ -8,6 +8,7 @@ use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\Quote;
 use App\Models\User;
+use App\Support\DocumentFormat;
 use App\Support\PaymentMethods;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -288,7 +289,7 @@ class DocumentActivityLogger
     {
         return $items->map(fn ($item): array => [
             'description' => trim((string) $item->description),
-            'quantity' => number_format((float) $item->quantity, 4, '.', ''),
+            'quantity' => DocumentFormat::quantity($item->quantity),
             'unit_price' => number_format((float) $item->unit_price, 2, '.', ''),
             'tax_rate' => number_format((float) $item->tax_rate, 2, '.', ''),
         ])->values()->all();

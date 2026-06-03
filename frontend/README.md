@@ -1,16 +1,44 @@
-# React + Vite
+# LAFACTURE — Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Application React (Vite) : landing, authentification, espace facturation (devis, factures, clients, rapports).
 
-Currently, two official plugins are available:
+## Développement
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```powershell
+npm install
+npm run dev
+```
 
-## React Compiler
+API locale attendue sur `http://127.0.0.1:8000` (`php artisan serve` dans `backend/`).
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+En local, **ne définissez pas** `VITE_API_BASE_URL` dans `.env` : le proxy Vite redirige `/api` vers le backend (évite les erreurs CORS).
 
-## Expanding the ESLint configuration
+## Tests
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```powershell
+npm run test          # Vitest (unitaires / composants)
+npm run build         # build production
+npm run test:e2e      # Playwright (nécessite le build)
+npm run test:watch    # Vitest en mode watch
+```
+
+Première exécution E2E :
+
+```powershell
+npx playwright install chromium
+```
+
+Voir aussi [TESTING.md](../TESTING.md) à la racine du dépôt.
+
+## Mot de passe oublié (local)
+
+Configurer le backend avec `MAIL_MAILER=log` — voir [MAIL-SETUP.md](../MAIL-SETUP.md) et [TESTING.md](../TESTING.md).
+
+## Build
+
+```powershell
+npm run build
+npm run preview
+```
+
+Sortie : `dist/` (déployée sur Vercel).

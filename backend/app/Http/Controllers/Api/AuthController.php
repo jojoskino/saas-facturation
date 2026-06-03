@@ -315,12 +315,10 @@ class AuthController extends Controller
     {
         $request->validate(['email' => ['required', 'email']]);
 
-        $status = PasswordBroker::sendResetLink($request->only('email'));
+        PasswordBroker::sendResetLink($request->only('email'));
 
         return response()->json([
-            'message' => $status === PasswordBroker::RESET_LINK_SENT
-                ? 'Si cette adresse existe, un e-mail de réinitialisation a été envoyé.'
-                : 'Si cette adresse existe, un e-mail de réinitialisation a été envoyé.',
+            'message' => 'Si un compte existe avec cette adresse, vous recevrez un e-mail avec un lien de réinitialisation (valable 60 minutes).',
         ]);
     }
 
@@ -341,12 +339,18 @@ class AuthController extends Controller
         );
 
         if ($status !== PasswordBroker::PASSWORD_RESET) {
+            $message = match ($status) {
+                PasswordBroker::INVALID_TOKEN => 'Ce lien de réinitialisation est invalide ou a déjà été utilisé.',
+                PasswordBroker::INVALID_USER => 'Aucun compte ne correspond à cette adresse.',
+                default => 'Impossible de réinitialiser le mot de passe. Demandez un nouveau lien.',
+            };
+
             throw ValidationException::withMessages([
-                'email' => [__($status)],
+                'email' => [$message],
             ]);
         }
 
-        return response()->json(['message' => 'Mot de passe réinitialisé. Vous pouvez vous connecter.']);
+        return response()->json(['message' => 'Mot de passe réinitialisé. Connectez-vous avec votre nouveau mot de passe.']);
     }
 
     public function verifyEmail(Request $request, string $id, string $hash): RedirectResponse

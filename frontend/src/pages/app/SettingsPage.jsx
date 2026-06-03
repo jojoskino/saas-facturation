@@ -592,6 +592,9 @@ export default function SettingsPage() {
                 disabled={loading}
               />
             </label>
+            <p className="account-muted" style={{ marginTop: 8, fontSize: 13 }}>
+              {t("preferences.notificationsServerHint")}
+            </p>
           </div>
           </div>
           <FormActions

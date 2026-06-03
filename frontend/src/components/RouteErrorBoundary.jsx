@@ -12,7 +12,7 @@ export default class RouteErrorBoundary extends Component {
   }
 
   componentDidCatch(error, info) {
-    console.error("[Facturo] Erreur interface", error, info);
+    console.error("[LAFACTURE] Erreur interface", error, info);
   }
 
   render() {

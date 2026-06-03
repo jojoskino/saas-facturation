@@ -1,4 +1,4 @@
-# Déploiement Facturo (GitHub + Vercel)
+# Déploiement LAFACTURE (GitHub + Vercel)
 
 Ce dépôt contient **deux parties** :
 
@@ -192,6 +192,12 @@ vercel domains add app.votredomaine.com
 ```
 
 Mettre à jour `FRONTEND_URL` et `CORS_ALLOWED_ORIGINS` sur le backend.
+
+---
+
+## Tests
+
+Voir [TESTING.md](./TESTING.md) pour lancer PHPUnit, Vitest et Playwright depuis la racine du dépôt.
 
 ---
 

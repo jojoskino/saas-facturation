@@ -82,7 +82,7 @@
     <div class="doc-footer">
         @if($issuer['bank'])<div><strong>Paiement :</strong> {{ $issuer['bank'] }}</div>@endif
         @if($issuer['footer'])<div style="margin-top:4px;">{{ $issuer['footer'] }}</div>@endif
-        <div style="margin-top:6px;">Document généré par Facturo</div>
+        <div style="margin-top:6px;">Document généré par LAFACTURE</div>
     </div>
 @endif
 @endsection

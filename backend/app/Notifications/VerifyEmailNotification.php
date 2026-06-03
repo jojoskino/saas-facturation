@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use App\Support\BrandedMailMessage;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\URL;
@@ -22,10 +23,13 @@ class VerifyEmailNotification extends VerifyEmail
 
     public function toMail($notifiable): MailMessage
     {
-        return (new MailMessage)
-            ->subject('Confirmez votre adresse e-mail — Facturo')
-            ->line('Merci de vous être inscrit sur Facturo.')
-            ->action('Confirmer mon e-mail', $this->verificationUrl($notifiable))
-            ->line('Si vous n\'êtes pas à l\'origine de cette inscription, ignorez ce message.');
+        $app = config('app.name', 'LAFACTURE');
+
+        return BrandedMailMessage::make()
+            ->subject("Confirmez votre adresse e-mail — {$app}")
+            ->markdown('mail.verify-email', [
+                'name' => $notifiable->name ?? null,
+                'actionUrl' => $this->verificationUrl($notifiable),
+            ]);
     }
 }

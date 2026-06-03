@@ -47,6 +47,7 @@
     "timezone": "Fuseau horaire",
     "notifications": "Notifications par e-mail",
     "notificationsHint": "Relances et rappels de factures en retard",
+    "notificationsServerHint": "L'envoi automatique nécessite un serveur SMTP configuré et le planificateur Laravel (voir TESTING.md).",
     "save": "Enregistrer les préférences",
     "success": "Paramètres enregistrés.",
     "error": "Impossible d'enregistrer les paramètres."

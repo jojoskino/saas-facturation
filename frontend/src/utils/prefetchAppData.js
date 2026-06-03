@@ -1,16 +1,26 @@
 import { apiFetch } from "../api/client";
 
-const PREFETCH_PATHS = [
-  "/api/me",
-  "/api/dashboard/home",
-  "/api/invoices?page=1&document_type=invoice",
-  "/api/quotes?page=1",
-  "/api/clients?page=1&per_page=12&sort=recent",
-];
+/** Une requête par route — évite de saturer le serveur PHP local au chargement. */
+const ROUTE_PREFETCH = {
+  "/app": ["/api/dashboard/home"],
+  "/app/factures": ["/api/invoices?page=1&document_type=invoice"],
+  "/app/devis": [
+    "/api/quotes?page=1",
+    "/api/clients?per_page=200&minimal=1",
+  ],
+  "/app/clients": ["/api/clients?page=1&per_page=12&sort=recent"],
+  "/app/rapports": ["/api/reports/summary?period=year"],
+  "/app/abonnement": ["/api/billing"],
+};
 
-/** Précharge les données essentielles après connexion (fire-and-forget). */
-export function prefetchAppData() {
-  PREFETCH_PATHS.forEach((path) => {
+function resolvePrefetchPaths(pathname) {
+  const base = (pathname || "/app").split("?")[0];
+  return ROUTE_PREFETCH[base] ?? ROUTE_PREFETCH["/app"];
+}
+
+/** Précharge les données de la page courante (fire-and-forget). /api/me est déjà chargé par AppLayout. */
+export function prefetchAppData(pathname = "/app") {
+  resolvePrefetchPaths(pathname).forEach((path) => {
     apiFetch(path, { cacheTtl: 180_000 }).catch(() => {});
   });
 }

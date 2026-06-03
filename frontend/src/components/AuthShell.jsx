@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import AppLogo from "./AppLogo";
 
 export function AuthBrand({ title, tagline, children, footer }) {
   return (
@@ -13,12 +14,7 @@ export function AuthBrand({ title, tagline, children, footer }) {
 
             <div className="auth-form-inner">
               <div className="auth-mobile-logo">
-                <span className="auth-brand-mark auth-brand-mark--sm" aria-hidden>
-                  <i className="fa-solid fa-file-invoice" />
-                </span>
-                <p className="auth-brand-name auth-brand-name--sm">
-                  Factu<span>ro</span>
-                </p>
+                <AppLogo size="md" className="auth-brand-lockup-inline" />
                 {tagline ? <p className="auth-brand-tagline auth-brand-tagline--mobile">{tagline}</p> : null}
               </div>
               <h1>{title}</h1>
@@ -28,14 +24,9 @@ export function AuthBrand({ title, tagline, children, footer }) {
             </div>
           </section>
 
-          <aside className="auth-brand-panel auth-panel--glass" aria-label="Facturo">
+          <aside className="auth-brand-panel auth-panel--glass" aria-label="LAFACTURE">
             <div className="auth-brand-lockup">
-              <span className="auth-brand-mark" aria-hidden>
-                <i className="fa-solid fa-file-invoice" />
-              </span>
-              <p className="auth-brand-name">
-                Factu<span>ro</span>
-              </p>
+              <AppLogo size="lg" className="auth-brand-lockup-inline" />
               {tagline ? <p className="auth-brand-tagline">{tagline}</p> : null}
             </div>
           </aside>

@@ -1,9 +1,9 @@
-/* Charte Facturo : #14213D, #FCA311, #FFFFFF — auth glass soft */
+/* Charte LAFACTURE : #14213D, #2c4570, #FFFFFF — auth glass soft */
 .auth-page {
   --auth-navy: #14213d;
   --auth-navy-hover: #0f1a2e;
-  --auth-accent: #fca311;
-  --auth-accent-soft: rgba(252, 163, 17, 0.16);
+  --auth-accent: #2c4570;
+  --auth-accent-soft: rgba(44, 69, 112, 0.16);
   --auth-cream: rgba(255, 255, 255, 0.72);
   --auth-text: #14213d;
   --auth-muted: #4b5a74;
@@ -18,7 +18,7 @@
   padding: clamp(16px, 3vw, 32px);
   font-family: var(--sans);
   background:
-    radial-gradient(900px 520px at 8% 12%, rgba(252, 163, 17, 0.12), transparent 58%),
+    radial-gradient(900px 520px at 8% 12%, rgba(44, 69, 112, 0.12), transparent 58%),
     radial-gradient(700px 480px at 92% 88%, rgba(214, 227, 255, 0.55), transparent 62%),
     linear-gradient(165deg, #e8efff 0%, #f4f7ff 48%, #eef3fc 100%);
   -webkit-font-smoothing: antialiased;
@@ -182,7 +182,7 @@
 
 .auth-input-wrap:focus-within,
 .auth-pass-wrap:focus-within {
-  border-color: rgba(252, 163, 17, 0.55);
+  border-color: rgba(44, 69, 112, 0.55);
   box-shadow: 0 0 0 3px var(--auth-accent-soft);
 }
 
@@ -321,7 +321,7 @@
   text-decoration: underline;
 }
 
-/* — Panneau marque (droite) : logo Facturo uniquement — */
+/* — Panneau marque (droite) : logo LAFACTURE uniquement — */
 .auth-brand-panel {
   background: linear-gradient(155deg, rgba(255, 255, 255, 0.78) 0%, rgba(237, 244, 255, 0.65) 100%);
   display: flex;
@@ -338,7 +338,7 @@
   width: 320px;
   height: 320px;
   border-radius: 50%;
-  background: rgba(252, 163, 17, 0.14);
+  background: rgba(44, 69, 112, 0.14);
   filter: blur(56px);
   top: -80px;
   right: -60px;

@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { APP_NAME, CONTACT_EMAIL } from "../constants/brand";
 
 export default function LegalMentions() {
   return (
@@ -11,34 +12,30 @@ export default function LegalMentions() {
       <section style={{ display: "grid", gap: 14, lineHeight: 1.6, fontSize: 15 }}>
         <h2>Éditeur du service</h2>
         <p>
-          <strong>Facturo</strong> — application SaaS de facturation pour freelances et TPE.
+          <strong>{APP_NAME}</strong> — application SaaS de facturation pour freelances et TPE.
           <br />
-          E-mail : <a href="mailto:contact@facturo.app">contact@facturo.app</a>
-        </p>
-        <p>
-          <strong>Statut juridique :</strong> renseignez ici la forme sociale, le capital, le siège social et le numéro
-          d&apos;immatriculation (RCCM / SIREN ou équivalent) de votre structure avant mise en production publique.
+          E-mail : <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
         </p>
 
         <h2>Directeur de la publication</h2>
-        <p>Le représentant légal de la société éditrice, désigné dans les statuts de la structure exploitant Facturo.</p>
+        <p>Le représentant légal de la société éditrice de {APP_NAME}.</p>
 
         <h2>Hébergement</h2>
         <p>
-          L&apos;application et les données sont hébergées chez un prestataire d&apos;infrastructure cloud. Les coordonnées
-          complètes de l&apos;hébergeur (raison sociale, adresse, contact) doivent figurer ici pour la version publiée en
-          production.
+          L&apos;application est hébergée par des prestataires d&apos;infrastructure cloud (frontend et API). Les
+          coordonnées détaillées de l&apos;hébergeur sont disponibles sur demande à {CONTACT_EMAIL}.
         </p>
 
         <h2>Propriété intellectuelle</h2>
         <p>
-          L&apos;interface, les textes, la charte graphique, le nom Facturo et les éléments logiciels associés sont protégés.
-          Toute reproduction, représentation ou extraction non autorisée est interdite.
+          L&apos;interface, les textes, la charte graphique, le nom {APP_NAME} et les éléments logiciels associés sont
+          protégés. Toute reproduction, représentation ou extraction non autorisée est interdite.
         </p>
 
         <h2>Signalement</h2>
         <p>
-          Pour signaler un contenu illicite ou une faille de sécurité : <a href="mailto:contact@facturo.app">contact@facturo.app</a>
+          Pour signaler un contenu illicite ou une faille de sécurité :{" "}
+          <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
         </p>
       </section>
 

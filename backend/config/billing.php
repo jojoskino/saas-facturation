@@ -31,7 +31,7 @@ return [
             'price_label' => 'Sur devis',
             'price_cents' => null,
             'self_serve' => false,
-            'contact_email' => env('BILLING_ENTERPRISE_EMAIL', 'contact@facturo.app'),
+            'contact_email' => env('BILLING_ENTERPRISE_EMAIL', 'contact@lafacture.app'),
         ],
     ],
 

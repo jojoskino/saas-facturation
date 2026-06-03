@@ -5,10 +5,10 @@ import { apiFetch, getStoredToken } from "../../api/client";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import PlanBadge from "../../components/PlanBadge";
 import AccountAlerts from "../../components/account/AccountAlerts";
-import { BillingSimCheckoutModal, BillingSimPortalModal } from "../../components/BillingSimulateModals";
 import { BILLING_PLANS } from "../../utils/billingFlow";
 import { normalizePlan } from "../../utils/planFeatures";
 import { useAccountMe } from "../../hooks/useAccountMe";
+import { CONTACT_EMAIL } from "../../constants/brand";
 import "../../styles/account-pages.css";
 
 function formatDate(value) {
@@ -31,8 +31,6 @@ export default function BillingPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [actionLoading, setActionLoading] = useState("");
-  const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
-  const [portalModalOpen, setPortalModalOpen] = useState(false);
   const autoCheckoutStarted = useRef(false);
 
   const planIntent = searchParams.get("plan");
@@ -65,40 +63,12 @@ export default function BillingPage() {
   const plan = normalizePlan(data?.plan);
   const plans = Array.isArray(data?.plans) ? data.plans : [];
   const paymentMethod = data?.payment_method;
-  const isSimulation = Boolean(data?.simulation);
   const hasActiveSub = data?.has_subscription && ["active", "trialing"].includes(data?.billing_status);
-  const billingReady = Boolean(data?.configured);
-
-  async function applySimulation(payload) {
-    setActionLoading("simulate");
-    setError("");
-    try {
-      const res = await apiFetch("/api/billing/simulate", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-      setSuccess(res?.message || t("checkoutSuccess"));
-      setCheckoutModalOpen(false);
-      setPortalModalOpen(false);
-      await refresh();
-      const me = await apiFetch("/api/me");
-      if (me) {
-        setUser(me);
-        if (normalizePlan(me.plan) === BILLING_PLANS.pro) {
-          const next = new URLSearchParams(searchParams);
-          next.delete("plan");
-          next.delete("checkout");
-          setSearchParams(next, { replace: true });
-        }
-      }
-    } catch (err) {
-      setError(err?.body?.message || err?.message || t("errors.checkout"));
-    } finally {
-      setActionLoading("");
-    }
-  }
+  const paymentAvailable = Boolean(data?.configured);
 
   async function startCheckout(targetPlan) {
+    if (!paymentAvailable) return;
+
     setActionLoading(`checkout-${targetPlan}`);
     setError("");
     try {
@@ -106,10 +76,6 @@ export default function BillingPage() {
         method: "POST",
         body: JSON.stringify({ plan: targetPlan }),
       });
-      if (res?.mode === "simulation" && res?.requires_confirmation) {
-        setCheckoutModalOpen(true);
-        return;
-      }
       if (res?.url) {
         window.location.href = res.url;
         return;
@@ -128,14 +94,12 @@ export default function BillingPage() {
   }
 
   async function openPortal() {
+    if (!paymentAvailable) return;
+
     setActionLoading("portal");
     setError("");
     try {
       const res = await apiFetch("/api/billing/portal", { method: "POST" });
-      if (res?.mode === "simulation" && res?.portal) {
-        setPortalModalOpen(true);
-        return;
-      }
       if (res?.url) {
         window.location.href = res.url;
         return;
@@ -147,6 +111,7 @@ export default function BillingPage() {
       setActionLoading("");
     }
   }
+
   const planFeatures = useMemo(() => {
     if (plan === "enterprise" || plan === "pro") {
       return [t("features.proInvoices"), t("features.csvExport"), t("features.csvImport"), t("features.reports")];
@@ -158,28 +123,19 @@ export default function BillingPage() {
     if (!data || loading || autoCheckoutStarted.current) return;
     if (checkoutIntent !== "start" || planIntent !== BILLING_PLANS.pro) return;
 
-    if (hasActiveSub || plan === BILLING_PLANS.pro) {
-      autoCheckoutStarted.current = true;
-      const next = new URLSearchParams(searchParams);
-      next.delete("checkout");
-      next.delete("plan");
-      setSearchParams(next, { replace: true });
-      setSuccess(t("alreadyProPortal"));
-      openPortal();
-      return;
-    }
-
-    if (!billingReady || plan !== BILLING_PLANS.free) return;
-
     autoCheckoutStarted.current = true;
     const next = new URLSearchParams(searchParams);
     next.delete("checkout");
+    next.delete("plan");
     setSearchParams(next, { replace: true });
 
-    if (isSimulation) {
-      setCheckoutModalOpen(true);
+    if (hasActiveSub || plan === BILLING_PLANS.pro) {
+      setSuccess(t("alreadyProPortal"));
+      if (paymentAvailable) openPortal();
       return;
     }
+
+    if (!paymentAvailable || plan !== BILLING_PLANS.free) return;
 
     startCheckout(BILLING_PLANS.pro);
   }, [
@@ -189,8 +145,7 @@ export default function BillingPage() {
     planIntent,
     plan,
     hasActiveSub,
-    billingReady,
-    isSimulation,
+    paymentAvailable,
     searchParams,
     setSearchParams,
     t,
@@ -210,7 +165,7 @@ export default function BillingPage() {
       return (
         <>
           <span className="account-billing-current-tag">{t("current")}</span>
-          {isPro && data?.can_manage_portal ? (
+          {isPro && data?.can_manage_portal && paymentAvailable ? (
             <button
               type="button"
               className="account-btn account-btn--secondary"
@@ -224,7 +179,7 @@ export default function BillingPage() {
       );
     }
 
-    if (isPro && billingReady) {
+    if (isPro && paymentAvailable) {
       return (
         <>
           <button
@@ -246,7 +201,7 @@ export default function BillingPage() {
       );
     }
 
-    if (isFree && plan !== BILLING_PLANS.free && data?.can_manage_portal) {
+    if (isFree && plan !== BILLING_PLANS.free && data?.can_manage_portal && paymentAvailable) {
       return (
         <>
           <button
@@ -283,21 +238,17 @@ export default function BillingPage() {
         <p>{t("subtitle")}</p>
       </header>
 
-      {planIntent === BILLING_PLANS.pro && plan === BILLING_PLANS.free ? (
+      {planIntent === BILLING_PLANS.pro && plan === BILLING_PLANS.free && paymentAvailable ? (
         <div className="account-card account-billing-intent">
           <p>{t("proIntentBanner")}</p>
-          {billingReady ? (
-            <button
-              type="button"
-              className="account-btn account-btn--primary account-billing-action"
-              onClick={() => (isSimulation ? setCheckoutModalOpen(true) : startCheckout(BILLING_PLANS.pro))}
-              disabled={actionLoading === "checkout-pro" || actionLoading === "simulate"}
-            >
-              {actionLoading === "checkout-pro" || actionLoading === "simulate"
-                ? tc("actions.saving")
-                : t("upgradePro")}
-            </button>
-          ) : null}
+          <button
+            type="button"
+            className="account-btn account-btn--primary account-billing-action"
+            onClick={() => startCheckout(BILLING_PLANS.pro)}
+            disabled={actionLoading === "checkout-pro"}
+          >
+            {actionLoading === "checkout-pro" ? tc("actions.saving") : t("upgradePro")}
+          </button>
         </div>
       ) : null}
 
@@ -309,16 +260,10 @@ export default function BillingPage() {
         </div>
       ) : null}
 
-      {isSimulation ? (
-        <div className="account-card account-billing-intent">
-          <p>{t("sim.banner")}</p>
-        </div>
-      ) : null}
-
-      {data && !billingReady ? (
+      {data && !paymentAvailable ? (
         <div className="account-card account-billing-notice">
           <h2>{t("notConfiguredTitle")}</h2>
-          <p>{t("notConfiguredDesc")}</p>
+          <p>{t("notConfiguredDesc", { email: CONTACT_EMAIL })}</p>
         </div>
       ) : null}
 
@@ -372,11 +317,15 @@ export default function BillingPage() {
               ) : (
                 <p className="account-muted">{t("noPaymentMethod")}</p>
               )}
-              {billingReady && (data.can_manage_portal || plan === BILLING_PLANS.free) ? (
+              {paymentAvailable && (data.can_manage_portal || plan === BILLING_PLANS.free) ? (
                 <button
                   type="button"
                   className="account-btn account-btn--secondary account-billing-action"
-                  onClick={() => (data.can_manage_portal && (hasActiveSub || paymentMethod) ? openPortal() : startCheckout(BILLING_PLANS.pro))}
+                  onClick={() =>
+                    data.can_manage_portal && (hasActiveSub || paymentMethod)
+                      ? openPortal()
+                      : startCheckout(BILLING_PLANS.pro)
+                  }
                   disabled={actionLoading === "portal" || actionLoading === "checkout-pro"}
                 >
                   {actionLoading === "portal" || actionLoading === "checkout-pro"
@@ -389,10 +338,10 @@ export default function BillingPage() {
             </div>
           </section>
 
-          {(data.can_manage_portal || isSimulation) ? (
+          {data.can_manage_portal && paymentAvailable ? (
             <div className="account-card account-billing-portal-hint">
               <h2>{t("changePlanTitle")}</h2>
-              <p>{isSimulation ? t("sim.portalDesc") : t("changePlanDesc")}</p>
+              <p>{t("changePlanDesc")}</p>
               <button
                 type="button"
                 className="account-btn account-btn--primary"
@@ -421,21 +370,6 @@ export default function BillingPage() {
           </section>
         </>
       ) : null}
-
-      <BillingSimCheckoutModal
-        open={checkoutModalOpen}
-        onClose={() => setCheckoutModalOpen(false)}
-        saving={actionLoading === "simulate"}
-        onConfirm={(card) => applySimulation({ action: "checkout_pro", card })}
-      />
-
-      <BillingSimPortalModal
-        open={portalModalOpen}
-        onClose={() => setPortalModalOpen(false)}
-        currentPlan={plan}
-        saving={actionLoading === "simulate"}
-        onAction={applySimulation}
-      />
     </div>
   );
 }

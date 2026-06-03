@@ -8,7 +8,7 @@ use OpenApi\Attributes as OA;
 
 #[OA\Info(
     version: '1.0.0',
-    title: 'Facturo API',
+    title: 'LAFACTURE API',
     description: 'API REST : authentification (Sanctum), clients, devis, factures, synthèse tableau de bord.'
 )]
 #[OA\Server(

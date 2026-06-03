@@ -1,17 +1,18 @@
 import { Link } from "react-router-dom";
+import { APP_NAME, PRIVACY_EMAIL } from "../constants/brand";
 
 export default function LegalPrivacy() {
   return (
     <main style={{ maxWidth: 900, margin: "0 auto", padding: "32px 20px", color: "var(--color-text)" }}>
       <h1 style={{ marginBottom: 14 }}>Politique de confidentialité</h1>
       <p className="muted" style={{ marginBottom: 24 }}>
-        Cette politique décrit comment Facturo traite les données personnelles dans le cadre du service de facturation.
+        Cette politique décrit comment {APP_NAME} traite les données personnelles dans le cadre du service de facturation.
       </p>
 
       <section style={{ display: "grid", gap: 14, lineHeight: 1.6, fontSize: 15 }}>
         <h2>1. Responsable du traitement</h2>
         <p>
-          L&apos;éditeur de Facturo, joignable à <a href="mailto:privacy@facturo.app">privacy@facturo.app</a>, agit en qualité
+          L&apos;éditeur de {APP_NAME}, joignable à <a href={`mailto:${PRIVACY_EMAIL}`}>{PRIVACY_EMAIL}</a>, agit en qualité
           de responsable du traitement pour les données liées à votre compte et à l&apos;utilisation de l&apos;application.
         </p>
 
@@ -38,7 +39,7 @@ export default function LegalPrivacy() {
         <p>
           Les données sont stockées de manière isolée par compte utilisateur. Selon la configuration, des sous-traitants
           peuvent intervenir pour l&apos;hébergement, l&apos;envoi d&apos;e-mails transactionnels ou le paiement en ligne (Stripe).
-          Une liste actualisée peut être obtenue sur demande à privacy@facturo.app.
+          Une liste actualisée peut être obtenue sur demande à {PRIVACY_EMAIL}.
         </p>
 
         <h2>5. Durées de conservation</h2>
@@ -56,7 +57,7 @@ export default function LegalPrivacy() {
         <h2>7. Vos droits</h2>
         <p>
           Vous disposez des droits d&apos;accès, de rectification, d&apos;effacement, de limitation, d&apos;opposition et de portabilité
-          lorsque applicable. Adressez votre demande à <a href="mailto:privacy@facturo.app">privacy@facturo.app</a> avec une
+          lorsque applicable. Adressez votre demande à <a href={`mailto:${PRIVACY_EMAIL}`}>{PRIVACY_EMAIL}</a> avec une
           preuve d&apos;identité. Vous pouvez introduire une réclamation auprès de l&apos;autorité de protection des données compétente.
         </p>
 

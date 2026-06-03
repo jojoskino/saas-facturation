@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { APP_NAME, CONTACT_EMAIL } from "../constants/brand";
 
 const sectionStyle = { display: "grid", gap: 12, lineHeight: 1.6, fontSize: 15 };
 
@@ -7,18 +8,18 @@ export default function LegalTerms() {
     <main style={{ maxWidth: 900, margin: "0 auto", padding: "32px 20px", color: "var(--color-text)" }}>
       <h1 style={{ marginBottom: 14 }}>Conditions générales d&apos;utilisation</h1>
       <p className="muted" style={{ marginBottom: 24 }}>
-        Dernière mise à jour : mai 2026 — Facturo, service de facturation en ligne.
+        Dernière mise à jour : mai 2026 — {APP_NAME}, service de facturation en ligne.
       </p>
 
       <section style={sectionStyle}>
         <h2>1. Objet</h2>
         <p>
-          Les présentes conditions régissent l&apos;accès et l&apos;utilisation de l&apos;application Facturo (site vitrine et
+          Les présentes conditions régissent l&apos;accès et l&apos;utilisation de l&apos;application {APP_NAME} (site vitrine et
           espace connecté). En créant un compte, vous acceptez ces conditions dans leur intégralité.
         </p>
 
         <h2>2. Description du service</h2>
-        <p>Facturo permet notamment de :</p>
+        <p>{APP_NAME} permet notamment de :</p>
         <ul style={{ paddingLeft: 20, margin: 0 }}>
           <li>gérer une fiche clients ;</li>
           <li>créer, modifier et suivre des devis et factures ;</li>
@@ -48,9 +49,8 @@ export default function LegalTerms() {
         <h2>5. Abonnements et facturation</h2>
         <p>
           Le plan Gratuit est soumis à des limites d&apos;usage (notamment le nombre de factures par mois). L&apos;offre Pro est
-          facturée selon les tarifs affichés sur le site au moment de la souscription. Les paiements peuvent être traités
-          par un prestataire tiers (Stripe) lorsque la facturation en ligne est activée. En environnement de démonstration,
-          aucun prélèvement réel n&apos;est effectué.
+          facturée selon les tarifs affichés sur le site au moment de la souscription. Les paiements sont traités
+          par un prestataire tiers (Stripe) lorsque la facturation en ligne est activée.
         </p>
 
         <h2>6. Disponibilité et évolutions</h2>
@@ -62,7 +62,7 @@ export default function LegalTerms() {
 
         <h2>7. Responsabilité</h2>
         <p>
-          Facturo aide à produire des documents commerciaux mais ne se substitue pas à un conseil juridique, fiscal ou
+          {APP_NAME} aide à produire des documents commerciaux mais ne se substitue pas à un conseil juridique, fiscal ou
           comptable. Vous restez responsable de la conformité de vos factures et devis au regard de la réglementation
           applicable, ainsi que du choix des mentions affichées sur vos PDF (paramètres société).
         </p>
@@ -87,7 +87,7 @@ export default function LegalTerms() {
 
         <h2>10. Contact</h2>
         <p>
-          Questions relatives aux CGU : <a href="mailto:contact@facturo.app">contact@facturo.app</a>
+          Questions relatives aux CGU : <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
         </p>
       </section>
 

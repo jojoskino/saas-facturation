@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import "../styles/auth-pages.css";
 import { apiFetch, setStoredToken } from "../api/client";
 import { prefetchAppData } from "../utils/prefetchAppData";
@@ -11,7 +11,9 @@ import { authRedirectPath } from "../utils/billingFlow";
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
+  const passwordResetMessage = location.state?.passwordResetMessage;
   const registered = searchParams.get("registered") === "1";
   const planIntent = searchParams.get("plan");
   const [email, setEmail] = useState("");
@@ -30,8 +32,9 @@ export default function Login() {
         body: JSON.stringify({ email, password }),
       });
       setStoredToken(data.token, { remember });
-      prefetchAppData();
-      navigate(authRedirectPath(searchParams), { replace: true });
+      const redirectTo = authRedirectPath(searchParams);
+      prefetchAppData(redirectTo);
+      navigate(redirectTo, { replace: true });
     } catch (err) {
       const msg =
         err.body?.errors?.email?.[0] ||
@@ -54,6 +57,11 @@ export default function Login() {
         </>
       }
     >
+      {passwordResetMessage ? (
+        <div className="auth-success" role="status">
+          {passwordResetMessage}
+        </div>
+      ) : null}
       {registered ? (
         <div className="auth-success" role="status">
           {planIntent === "pro"

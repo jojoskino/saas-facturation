@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { getStoredToken } from "../api/client";
+import { APP_NAME, CONTACT_EMAIL } from "../constants/brand";
 import { isExternalHref, publicPlanCtaHref } from "../utils/billingFlow";
 import "../styles/landing.css";
 
@@ -174,7 +175,7 @@ export default function Page() {
           <div className="nav-shell">
             <div className="nav-pill">
               <Link className="logo" to="/" onClick={() => setMenuOpen(false)}>
-                Factu<span>ro</span>
+                LA<span>FACTURE</span>
               </Link>
               <nav className="links nav-desktop" aria-label="Navigation principale">
                 <a href="#features">Fonctionnalités</a>
@@ -368,7 +369,7 @@ export default function Page() {
             <Reveal>
               <div className="pricing-intro">
                 <p className="pricing-kicker">Tarification</p>
-                <h2>Des offres lisibles, en franc CFA</h2>
+                <h2>Des offres adaptées à vos besoins</h2>
                 <p>
                   Commencez gratuitement, passez à Pro quand votre volume le demande. L&apos;offre Entreprise est étudiée sur devis.
                 </p>
@@ -489,7 +490,7 @@ export default function Page() {
                 </p>
                 <div style={{ marginTop: 18 }}>
                   <a className="btn btn-primary" href="#pricing">
-                    Démarrer avec Facturo
+                    Démarrer avec {APP_NAME}
                   </a>
                 </div>
               </div>
@@ -503,7 +504,7 @@ export default function Page() {
         <div className="container foot">
           <div className="foot-brand">
             <div className="logo">
-              Factu<span>ro</span>
+              LA<span>FACTURE</span>
             </div>
             <p>Facturation claire pour freelances et petites entreprises en Afrique de l&apos;Ouest.</p>
             <Link className="foot-cta" to={isLoggedIn ? "/app" : "/register"}>
@@ -530,7 +531,7 @@ export default function Page() {
           <div>
             <p className="foot-title">Contact & légal</p>
             <p className="foot-contact">
-              <a href="mailto:contact@facturo.app">contact@facturo.app</a>
+              <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
             </p>
             <ul className="foot-links" style={{ marginTop: 12 }}>
               <li><Link to="/legal/mentions">Mentions légales</Link></li>
@@ -542,14 +543,14 @@ export default function Page() {
               <a href="https://www.linkedin.com" target="_blank" rel="noreferrer" aria-label="LinkedIn">
                 <i className="fa-brands fa-linkedin-in" />
               </a>
-              <a href="mailto:contact@facturo.app" aria-label="E-mail">
+              <a href={`mailto:${CONTACT_EMAIL}`} aria-label="E-mail">
                 <i className="fa-solid fa-envelope" />
               </a>
             </div>
           </div>
         </div>
         <div className="container foot-bottom">
-          <span>© {new Date().getFullYear()} Facturo. Tous droits réservés.</span>
+          <span>© {new Date().getFullYear()} {APP_NAME}. Tous droits réservés.</span>
           <div className="foot-bottom-links">
             <Link to="/legal/mentions">Mentions légales</Link>
             <Link to="/legal/confidentialite">Confidentialité</Link>

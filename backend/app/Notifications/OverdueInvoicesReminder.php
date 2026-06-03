@@ -2,16 +2,13 @@
 
 namespace App\Notifications;
 
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
+use App\Support\BrandedMailMessage;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Collection;
 
-class OverdueInvoicesReminder extends Notification implements ShouldQueue
+class OverdueInvoicesReminder extends Notification
 {
-    use Queueable;
-
     /**
      * @param  Collection<int, \App\Models\Invoice>  $invoices
      */
@@ -24,25 +21,26 @@ class OverdueInvoicesReminder extends Notification implements ShouldQueue
 
     public function toMail(object $notifiable): MailMessage
     {
-        $lines = $this->invoices->map(function ($invoice): string {
+        $app = config('app.name', 'LAFACTURE');
+
+        $rows = $this->invoices->map(function ($invoice): array {
             $client = $invoice->client?->name ?? 'Client';
 
-            return sprintf(
-                '- %s (%s) : %s %s — échéance %s',
-                $invoice->number,
-                $client,
-                number_format((float) $invoice->total, 2, ',', ' '),
-                $invoice->currency,
-                $invoice->due_date?->format('d/m/Y') ?? '—'
-            );
-        })->implode("\n");
+            return [
+                'number' => $invoice->number,
+                'client' => $client,
+                'amount' => number_format((float) $invoice->total, 2, ',', ' ').' '.($invoice->currency ?? 'XOF'),
+                'due' => $invoice->due_date?->format('d/m/Y') ?? '—',
+            ];
+        })->all();
 
-        return (new MailMessage)
-            ->subject('Facturo — rappel factures en retard')
-            ->greeting('Bonjour '.$notifiable->name.',')
-            ->line('Vous avez '.$this->invoices->count().' facture(s) en retard :')
-            ->line($lines)
-            ->action('Ouvrir Facturo', config('app.frontend_url', 'http://localhost:5173').'/app/factures')
-            ->line('Pensez à relancer vos clients ou enregistrer un paiement partiel.');
+        return BrandedMailMessage::make()
+            ->subject("{$app} — rappel factures en retard")
+            ->markdown('mail.overdue-reminder', [
+                'name' => $notifiable->name ?? null,
+                'count' => $this->invoices->count(),
+                'rows' => $rows,
+                'actionUrl' => BrandedMailMessage::frontendUrl('app/factures'),
+            ]);
     }
 }

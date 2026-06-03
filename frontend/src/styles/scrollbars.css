@@ -1,10 +1,10 @@
-/* Scrollbars — charte Facturo (#14213D, #FCA311, #E5E5E5) */
+/* Scrollbars — charte LAFACTURE (#14213D, #2c4570, #E5E5E5) */
 
 :root {
   --scrollbar-track: #e8edf5;
   --scrollbar-thumb: #b7c4da;
   --scrollbar-thumb-hover: #14213d;
-  --scrollbar-thumb-active: #fca311;
+  --scrollbar-thumb-active: #2c4570;
 }
 
 * {

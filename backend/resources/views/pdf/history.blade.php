@@ -42,6 +42,6 @@
 </table>
 
 <div class="doc-footer">
-    Document généré par Facturo — historique {{ $documentNumber }}
+    Document généré par LAFACTURE — historique {{ $documentNumber }}
 </div>
 @endsection

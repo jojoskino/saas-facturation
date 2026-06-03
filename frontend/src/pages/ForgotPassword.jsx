@@ -21,9 +21,12 @@ export default function ForgotPassword() {
         method: "POST",
         body: JSON.stringify({ email }),
       });
-      setMessage(res?.message || "Si cette adresse existe, un e-mail a été envoyé.");
+      setMessage(
+        res?.message ||
+          "Si un compte existe avec cette adresse, vous recevrez un e-mail avec un lien de réinitialisation (valable 60 minutes)."
+      );
     } catch (err) {
-      setError(err?.body?.message || err?.message || "Erreur.");
+      setError(err?.body?.message || err?.message || "Envoi impossible. Réessayez dans quelques instants.");
     } finally {
       setLoading(false);
     }
@@ -32,7 +35,7 @@ export default function ForgotPassword() {
   return (
     <AuthBrand
       title="Mot de passe oublié"
-      tagline="Récupérez l'accès à votre espace de facturation."
+      tagline="Nous vous enverrons un lien sécurisé pour choisir un nouveau mot de passe."
       footer={
         <Link to="/login">Retour à la connexion</Link>
       }
@@ -40,27 +43,30 @@ export default function ForgotPassword() {
       {error ? <div className="auth-error">{error}</div> : null}
       {message ? <div className="auth-success">{message}</div> : null}
 
-      <form onSubmit={onSubmit} className="auth-form-box">
-        <div className="auth-field">
-          <FieldLabel htmlFor="forgot-email" required>
-            E-mail
-          </FieldLabel>
-          <div className="auth-input-wrap">
-            <i className="fa-solid fa-envelope auth-input-icon" aria-hidden />
-            <input
-              id="forgot-email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="vous@exemple.com"
-            />
+      {!message ? (
+        <form onSubmit={onSubmit} className="auth-form-box">
+          <div className="auth-field">
+            <FieldLabel htmlFor="forgot-email" required>
+              E-mail du compte
+            </FieldLabel>
+            <div className="auth-input-wrap">
+              <i className="fa-solid fa-envelope auth-input-icon" aria-hidden />
+              <input
+                id="forgot-email"
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="vous@exemple.com"
+                autoComplete="email"
+              />
+            </div>
           </div>
-        </div>
-        <button className="auth-submit" type="submit" disabled={loading}>
-          {loading ? "Envoi..." : "Envoyer le lien"}
-        </button>
-      </form>
+          <button className="auth-submit" type="submit" disabled={loading}>
+            {loading ? "Envoi..." : "Envoyer le lien"}
+          </button>
+        </form>
+      ) : null}
     </AuthBrand>
   );
 }

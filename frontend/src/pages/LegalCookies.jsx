@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { PRIVACY_EMAIL } from "../constants/brand";
 
 export default function LegalCookies() {
   return (
@@ -12,7 +13,7 @@ export default function LegalCookies() {
         <h2>1. Qu&apos;est-ce qu&apos;un cookie ?</h2>
         <p>
           Un cookie est un petit fichier texte déposé sur votre terminal lors de la consultation d&apos;un site ou de
-          l&apos;utilisation d&apos;une application web. Facturo utilise principalement le stockage local du navigateur pour
+          l&apos;utilisation d&apos;une application web. LAFACTURE utilise principalement le stockage local du navigateur pour
           l&apos;authentification API.
         </p>
 
@@ -41,7 +42,7 @@ export default function LegalCookies() {
 
         <h2>3. Cookies non utilisés</h2>
         <p>
-          Par défaut, Facturo ne dépose pas de cookies publicitaires, de reciblage ou de mesure d&apos;audience tiers. Aucun
+          Par défaut, LAFACTURE ne dépose pas de cookies publicitaires, de reciblage ou de mesure d&apos;audience tiers. Aucun
           réseau social n&apos;est intégré au cœur de l&apos;application métier.
         </p>
 
@@ -54,7 +55,7 @@ export default function LegalCookies() {
 
         <h2>5. Contact</h2>
         <p>
-          Pour toute question : <a href="mailto:privacy@facturo.app">privacy@facturo.app</a>
+          Pour toute question : <a href={`mailto:${PRIVACY_EMAIL}`}>{PRIVACY_EMAIL}</a>
         </p>
       </section>
 

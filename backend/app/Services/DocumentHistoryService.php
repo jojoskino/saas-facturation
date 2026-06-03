@@ -124,7 +124,7 @@ class DocumentHistoryService
             $events[] = $this->event(
                 $invoice->created_at,
                 'Document créé',
-                sprintf('Facture %s enregistrée dans Facturo.', $invoice->number),
+                sprintf('Facture %s enregistrée dans LAFACTURE.', $invoice->number),
             );
         }
 
@@ -215,7 +215,7 @@ class DocumentHistoryService
             $events[] = $this->event(
                 $quote->created_at,
                 'Document créé',
-                sprintf('Devis %s enregistré dans Facturo.', $quote->number),
+                sprintf('Devis %s enregistré dans LAFACTURE.', $quote->number),
             );
         }
 

@@ -81,6 +81,21 @@ class ApiAuthTest extends TestCase
             ->assertJsonPath('email', 'auth@example.com');
     }
 
+    public function test_login_rejects_invalid_credentials(): void
+    {
+        User::factory()->create([
+            'email' => 'auth@example.com',
+            'password' => 'Secret1!ab',
+        ]);
+
+        $this->postJson('/api/login', [
+            'email' => 'auth@example.com',
+            'password' => 'wrong-password',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['email']);
+    }
+
     public function test_company_profile_update(): void
     {
         $user = User::factory()->create([
@@ -118,5 +133,31 @@ class ApiAuthTest extends TestCase
             'company_name' => 'ACME SARL',
             'company_email' => 'contact@acme.ci',
         ]);
+    }
+
+    public function test_password_reset_token_is_single_use(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'reset@example.com',
+            'password' => 'Secret1!ab',
+        ]);
+
+        $token = \Illuminate\Support\Facades\Password::createToken($user);
+
+        $this->postJson('/api/reset-password', [
+            'email' => $user->email,
+            'token' => $token,
+            'password' => 'NewPassword1!',
+            'password_confirmation' => 'NewPassword1!',
+        ])->assertOk();
+
+        $this->postJson('/api/reset-password', [
+            'email' => $user->email,
+            'token' => $token,
+            'password' => 'AnotherPass1!',
+            'password_confirmation' => 'AnotherPass1!',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['email']);
     }
 }

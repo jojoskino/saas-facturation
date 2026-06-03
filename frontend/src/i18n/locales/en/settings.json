@@ -47,6 +47,7 @@
     "timezone": "Timezone",
     "notifications": "Email notifications",
     "notificationsHint": "Reminders for overdue invoices",
+    "notificationsServerHint": "Automatic delivery requires SMTP on the server and the Laravel scheduler (see TESTING.md).",
     "save": "Save preferences",
     "success": "Settings saved.",
     "error": "Could not save settings."

@@ -5,7 +5,7 @@ return [
     'documentations' => [
         'default' => [
             'api' => [
-                'title' => 'Facturo API — Swagger',
+                'title' => 'LAFACTURE API — Swagger',
             ],
 
             'routes' => [

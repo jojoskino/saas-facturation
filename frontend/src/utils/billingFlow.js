@@ -1,12 +1,11 @@
 import { getStoredToken } from "../api/client";
+import { APP_NAME, CONTACT_EMAIL } from "../constants/brand";
 
 export const BILLING_PLANS = {
   free: "free",
   pro: "pro",
   enterprise: "enterprise",
 };
-
-const ENTERPRISE_EMAIL = "contact@facturo.app";
 
 /** Chemin app abonnement avec intention de plan. */
 export function billingAppPath(plan, { startCheckout = false } = {}) {
@@ -24,7 +23,7 @@ export function publicPlanCtaHref(planId) {
   const loggedIn = Boolean(getStoredToken());
 
   if (planId === BILLING_PLANS.enterprise) {
-    return `mailto:${ENTERPRISE_EMAIL}?subject=Offre%20Entreprise%20Facturo`;
+    return `mailto:${CONTACT_EMAIL}?subject=Offre%20Entreprise%20${encodeURIComponent(APP_NAME)}`;
   }
 
   if (planId === BILLING_PLANS.free) {

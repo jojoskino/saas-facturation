@@ -35,7 +35,6 @@ Route::middleware('auth:sanctum')->group(function (): void {
     Route::get('/billing', [BillingController::class, 'show']);
     Route::post('/billing/checkout', [BillingController::class, 'checkout']);
     Route::post('/billing/portal', [BillingController::class, 'portal']);
-    Route::post('/billing/simulate', [BillingController::class, 'simulate']);
 
     Route::get('/dashboard/summary', [DashboardController::class, 'summary']);
     Route::get('/dashboard/home', [DashboardController::class, 'home']);

@@ -1,8 +1,25 @@
 import { cachedGet, clearApiCache, invalidateForMutation } from "./cache.js";
 
+function isLocalApiUrl(urlString) {
+  try {
+    const url = new URL(urlString);
+    const host = url.hostname;
+    const port = url.port || (url.protocol === "https:" ? "443" : "80");
+    return (host === "localhost" || host === "127.0.0.1") && (port === "8000" || port === "80");
+  } catch {
+    return false;
+  }
+}
+
 function resolveApiBase() {
   const raw = import.meta.env?.VITE_API_BASE_URL;
   const trimmed = typeof raw === "string" ? raw.trim() : "";
+
+  // En dev / preview local, le proxy Vite évite les blocages CORS (ports 5173, 4173…).
+  if (import.meta.env.DEV && (!trimmed || isLocalApiUrl(trimmed))) {
+    return "";
+  }
+
   if (trimmed) return trimmed.replace(/\/$/, "");
   if (import.meta.env.DEV) return "";
   return "http://127.0.0.1:8000";
@@ -15,8 +32,8 @@ function networkError() {
     typeof window !== "undefined" &&
     (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
   const msg = isLocal
-    ? "Impossible de joindre l'API locale. Lancez le backend : cd backend && php artisan serve"
-    : "Le service est momentanément indisponible. L'API backend doit être relancée (Render ou Railway).";
+    ? "Impossible de joindre l'API locale. Vérifiez : (1) backend sur http://127.0.0.1:8000 — cd backend puis php artisan serve ; (2) frontend via npm run dev (pas le build statique seul)."
+    : "Le service est momentanément indisponible. L'API backend (Fly.io) doit être relancée — voir API-RELANCE.md.";
   const err = new Error(msg);
   err.status = 0;
   err.body = null;

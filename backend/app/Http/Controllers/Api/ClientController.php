@@ -364,7 +364,7 @@ class ClientController extends Controller
                 $payload = $this->sanitizePayload([
                     'first_name' => $first,
                     'last_name' => $last,
-                    'email' => trim((string) ($row['email'] ?? '')) ?: 'import-'.$index.'@facturo.local',
+                    'email' => trim((string) ($row['email'] ?? '')) ?: 'import-'.$index.'@lafacture.local',
                     'phone' => trim((string) ($row['telephone'] ?? $row['phone'] ?? '')),
                     'company' => trim((string) ($row['entreprise'] ?? $row['company'] ?? '')),
                     'address' => trim((string) ($row['adresse'] ?? $row['address'] ?? '')),

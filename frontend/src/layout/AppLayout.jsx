@@ -7,7 +7,8 @@ import { useApiQuery } from "../hooks/useApiQuery";
 import { setAppLanguage } from "../i18n";
 import { applyUserBranding } from "../utils/branding";
 import { prefetchAppData } from "../utils/prefetchAppData";
-import ModalPortal from "../components/ModalPortal";
+import ConfirmDialog from "../components/ConfirmDialog";
+import AppLogo from "../components/AppLogo";
 
 const navItems = [
   { to: "/app", labelKey: "nav.dashboard", icon: "fa-chart-pie", end: true },
@@ -64,8 +65,8 @@ export default function AppLayout() {
       navigate("/login", { replace: true });
       return;
     }
-    prefetchAppData();
-  }, [navigate]);
+    prefetchAppData(location.pathname);
+  }, [navigate, location.pathname]);
 
   useEffect(() => {
     if (meError && getStoredToken()) {
@@ -170,16 +171,19 @@ export default function AppLayout() {
           justify-content: space-between;
           gap: 8px;
         }
-        .app-shell__brand-title {
+        .app-shell__brand-title,
+        .app-shell__brand-logo {
           display: inline-flex;
           align-items: center;
-          white-space: nowrap;
-          overflow: hidden;
-          font-size: 1.24rem;
-          letter-spacing: -0.03em;
-          text-shadow: 0 1px 0 rgba(255, 255, 255, 0.9);
+          min-width: 0;
         }
-        .app-shell__brand span { color: var(--color-accent); }
+        .app-shell__sidebar.collapsed .app-shell__brand-logo .app-logo__text {
+          display: none;
+        }
+        .app-shell__sidebar.collapsed .app-shell__brand {
+          justify-content: center;
+          padding-inline: 8px;
+        }
         .app-shell__sidebar.collapsed .app-shell__brand-title { display: none; }
         .app-shell__nav {
           flex: 1;
@@ -395,14 +399,8 @@ export default function AppLayout() {
         }
         .app-shell__header-brand {
           display: none;
-          font-family: var(--heading);
-          font-weight: 800;
-          font-size: 1.12rem;
-          letter-spacing: -0.03em;
-          color: var(--color-text);
           margin: 0;
         }
-        .app-shell__header-brand span { color: var(--color-accent); }
         .app-shell__sidebar-tools {
           display: none;
           padding: 0 12px 8px;
@@ -516,45 +514,6 @@ export default function AppLayout() {
           position: relative;
           z-index: var(--z-page-content);
         }
-        .app-shell__confirm-backdrop {
-          position: fixed;
-          inset: 0;
-          background: rgba(20, 33, 61, 0.35);
-          z-index: var(--z-modal, 500);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 18px;
-        }
-        .app-shell__confirm-modal {
-          width: min(480px, 100%);
-          border-radius: 12px;
-          background: var(--glass-surface-strong);
-          border: 1px solid var(--color-border);
-          box-shadow: var(--shadow-soft);
-          padding: 16px;
-        }
-        .app-shell__confirm-modal h3 {
-          margin: 0 0 8px;
-          font-family: var(--heading);
-          font-size: 1.05rem;
-        }
-        .app-shell__confirm-modal p {
-          margin: 0;
-          color: var(--color-text-muted);
-          font-size: 14px;
-        }
-        .app-shell__confirm-actions {
-          display: flex;
-          justify-content: flex-start;
-          gap: 8px;
-          margin-top: 14px;
-        }
-        .app-shell__btn--soft-danger {
-          border-color: #efc2c2;
-          background: #fff6f6;
-          color: #9d2f2f;
-        }
         @media (max-width: 768px) {
           .app-shell__title { display: none; }
           .app-shell__header-brand { display: block; }
@@ -614,9 +573,7 @@ export default function AppLayout() {
 
       <aside className={`app-shell__sidebar ${sidebarOpen ? "open" : ""} ${effectiveCollapsed ? "collapsed" : ""}`}>
         <div className="app-shell__brand">
-          <div className="app-shell__brand-title">
-            Factu<span>ro</span>
-          </div>
+          <AppLogo size="sm" showText={!effectiveCollapsed} className="app-shell__brand-logo" />
           {isMobileNav ? (
             <button
               type="button"
@@ -674,7 +631,7 @@ export default function AppLayout() {
             <h1 className="app-shell__title">{pageTitle}</h1>
           </div>
           <p className="app-shell__header-brand" aria-hidden="true">
-            Factu<span>ro</span>
+            <AppLogo size="sm" />
           </p>
           <div className="app-shell__header-right">
             {userName ? (
@@ -711,34 +668,14 @@ export default function AppLayout() {
         </main>
       </div>
 
-      {confirmLogoutOpen ? (
-        <ModalPortal>
-          <div
-            className="app-shell__confirm-backdrop"
-            onClick={() => setConfirmLogoutOpen(false)}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="logout-confirm-title"
-          >
-            <div className="app-shell__confirm-modal" onClick={(e) => e.stopPropagation()}>
-              <h3 id="logout-confirm-title">{t("logout.title")}</h3>
-              <p>{t("logout.message")}</p>
-              <div className="app-shell__confirm-actions">
-                <button type="button" className="app-shell__btn app-shell__btn--primary" onClick={logout}>
-                  {t("logout.confirm")}
-                </button>
-                <button
-                  type="button"
-                  className="app-shell__btn app-shell__btn--soft-danger"
-                  onClick={() => setConfirmLogoutOpen(false)}
-                >
-                  {t("actions.cancel")}
-                </button>
-              </div>
-            </div>
-          </div>
-        </ModalPortal>
-      ) : null}
+      <ConfirmDialog
+        open={confirmLogoutOpen}
+        onClose={() => setConfirmLogoutOpen(false)}
+        title={t("logout.title")}
+        description={t("logout.message")}
+        confirmLabel={t("logout.confirm")}
+        onConfirm={logout}
+      />
     </div>
   );
 }

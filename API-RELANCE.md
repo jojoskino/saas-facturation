@@ -1,17 +1,41 @@
-# Relancer l'API Facturo (backend hors ligne)
+# Relancer l'API LAFACTURE (backend hors ligne)
 
 Le frontend Vercel **ne peut pas fonctionner sans API** Laravel en ligne.
 
 ## État actuel
 
-- **Vercel** : https://saas-facturation.vercel.app (OK) — `VITE_API_BASE_URL=https://facturo-api.fly.dev`
-- **API Fly.io** : https://facturo-api.fly.dev (OK) — Postgres `facturo-db`
-- **Railway** : essai expiré (ne plus utiliser)
+- **Vercel** : https://saas-facturation.vercel.app — `VITE_API_BASE_URL=https://facturo-api.fly.dev`
+- **API Fly.io** : https://facturo-api.fly.dev — Postgres `facturo-db`
 - **Local** : `php artisan serve` dans `backend/` (port 8000)
 
 ---
 
-## Option 1 — Render (gratuit, recommandé)
+## Option 1 — Fly.io (production actuelle)
+
+Si la connexion affiche « service indisponible », la base Postgres est souvent **arrêtée** (machine suspendue).
+
+```powershell
+# 1. Vérifier l'état
+flyctl status -a facturo-db
+flyctl status -a facturo-api
+
+# 2. Relancer Postgres si STATE = stopped
+flyctl machine list -a facturo-db
+flyctl machine start <ID> -a facturo-db
+
+# 3. Attendre CHECKS = passing, puis redémarrer l'API
+flyctl machine list -a facturo-api
+flyctl machine restart <ID> -a facturo-api
+
+# 4. Vérifier
+curl.exe https://facturo-api.fly.dev/up
+```
+
+Réponse HTML « Application up » = API OK.
+
+---
+
+## Option 2 — Render (alternative)
 
 1. [render.com](https://render.com) → compte GitHub
 2. **New** → **Blueprint** → repo `jojoskino/saas-facturation`

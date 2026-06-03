@@ -14,7 +14,7 @@
   border-radius: 10px;
   border: 1px solid var(--color-border-strong);
   background: #fff;
-  color: #14213d;
+  color: #06708E;
   padding: 10px 18px;
   font-size: 13px;
   font-weight: 700;
@@ -29,14 +29,14 @@
 }
 
 .form-actions__btn--primary {
-  background-color: var(--color-primary, #14213d);
+  background-color: var(--color-primary, #06708E);
   color: var(--color-primary-contrast, #ffffff);
-  border-color: var(--color-primary, #14213d);
+  border-color: var(--color-primary, #06708E);
 }
 
 .form-actions__btn--primary:hover:not(:disabled) {
-  background-color: #0f1a2e;
-  border-color: #0f1a2e;
+  background-color: #055a72;
+  border-color: #055a72;
   color: #ffffff;
   filter: none;
 }

@@ -21,7 +21,7 @@
         @forelse($items as $item)
             <tr>
                 <td>{{ $item->description }}</td>
-                <td class="doc-col-num">{{ $item->quantity }}</td>
+                <td class="doc-col-num">{{ \App\Support\DocumentFormat::quantity($item->quantity) }}</td>
                 <td class="doc-col-num">{{ number_format((float) $item->unit_price, 2, ',', ' ') }}</td>
                 <td class="doc-col-num">{{ number_format((float) $item->tax_rate, 2, ',', ' ') }}</td>
                 <td class="doc-col-num">{{ number_format((float) $item->line_total, 2, ',', ' ') }}</td>

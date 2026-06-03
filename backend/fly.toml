@@ -1,4 +1,4 @@
-# Fly.io — API Facturo (Laravel)
+# Fly.io — API LAFACTURE (Laravel)
 # Deploy: cd backend && fly deploy
 
 app = 'facturo-api'
@@ -8,7 +8,7 @@ primary_region = 'cdg'
   dockerfile = 'Dockerfile'
 
 [env]
-  APP_NAME = 'Facturo'
+  APP_NAME = 'LAFACTURE'
   APP_ENV = 'production'
   APP_DEBUG = 'false'
   LOG_CHANNEL = 'stderr'
@@ -16,7 +16,7 @@ primary_region = 'cdg'
   SESSION_DRIVER = 'database'
   CACHE_STORE = 'database'
   QUEUE_CONNECTION = 'sync'
-  BILLING_MODE = 'simulation'
+  BILLING_MODE = 'auto'
   FRONTEND_URL = 'https://saas-facturation.vercel.app'
   CORS_ALLOWED_ORIGINS = 'https://saas-facturation.vercel.app'
 

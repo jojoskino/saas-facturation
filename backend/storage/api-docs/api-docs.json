@@ -1,7 +1,7 @@
 {
     "openapi": "3.0.0",
     "info": {
-        "title": "Facturo API",
+        "title": "LAFACTURE API",
         "description": "API REST : authentification (Sanctum), clients, devis, factures, synthèse tableau de bord.",
         "version": "1.0.0"
     },
