@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { apiDownload, apiFetch, getStoredToken } from "../api/client";
-import { canExportCsv, invoiceQuotaFromUser, normalizePlan } from "../utils/planFeatures";
 import { useApiQuery } from "../hooks/useApiQuery";
 import AppModal from "../components/AppModal";
 import { FieldLabel } from "../components/AppFormControls";
@@ -30,11 +29,6 @@ export default function Dashboard() {
   const [codeError, setCodeError] = useState("");
   const [unlockLoading, setUnlockLoading] = useState(false);
   const [exportError, setExportError] = useState("");
-
-  const planFeatures = summary?.plan_features;
-  const plan = normalizePlan(planFeatures?.plan);
-  const csvExportEnabled = canExportCsv(planFeatures || plan);
-  const invoiceQuota = invoiceQuotaFromUser({ plan_features: planFeatures, plan });
 
   useEffect(() => {
     localStorage.removeItem("facturo_amounts_visible");
@@ -154,10 +148,6 @@ export default function Dashboard() {
 
   async function handleExportCsv() {
     setExportError("");
-    if (!csvExportEnabled) {
-      setExportError("L'export CSV est réservé à l'offre Pro.");
-      return;
-    }
     try {
       await apiDownload("/api/dashboard/export?period=year", "revenus.csv", "text/csv");
     } catch (err) {
@@ -547,18 +537,6 @@ export default function Dashboard() {
 
       {summaryError ? <div className="dash-banner">{summaryError}</div> : null}
       {exportError ? <div className="dash-banner dash-banner--warn">{exportError}</div> : null}
-      {plan === "free" && invoiceQuota.limit != null ? (
-        <div className="dash-banner dash-banner--plan">
-          Offre Gratuite : {invoiceQuota.used}/{invoiceQuota.limit} factures ce mois-ci.
-          {invoiceQuota.remaining === 0
-            ? " Passez à Pro pour des factures illimitées et l'export CSV."
-            : " Passez à Pro pour l'export CSV et le tableau de bord analytique complet."}{" "}
-          <Link to="/app/abonnement?plan=pro&checkout=start" style={{ fontWeight: 700, color: "#14213d" }}>
-            Passer à Pro →
-          </Link>
-        </div>
-      ) : null}
-
       {showKpiSkeleton ? (
         <DashboardSkeleton />
       ) : (
@@ -603,8 +581,8 @@ export default function Dashboard() {
               <strong>{shown(revenuePaid)}</strong>
               <button
                 type="button"
-                className={`dash-export-link${csvExportEnabled ? "" : " is-locked"}`}
-                title={csvExportEnabled ? "Exporter les revenus (CSV)" : "Réservé à l'offre Pro"}
+                className="dash-export-link"
+                title="Exporter les revenus (CSV)"
                 onClick={handleExportCsv}
               >
                 <i className="fa-solid fa-file-csv" aria-hidden />

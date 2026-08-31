@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import AppLogo from "./AppLogo";
+import { LOGO_ALT } from "../constants/brand";
 
 export function AuthBrand({ title, tagline, children, footer }) {
   return (
@@ -24,7 +25,7 @@ export function AuthBrand({ title, tagline, children, footer }) {
             </div>
           </section>
 
-          <aside className="auth-brand-panel auth-panel--glass" aria-label="LAFACTURE">
+          <aside className="auth-brand-panel auth-panel--glass" aria-label={LOGO_ALT}>
             <div className="auth-brand-lockup">
               <AppLogo size="lg" className="auth-brand-lockup-inline" />
               {tagline ? <p className="auth-brand-tagline">{tagline}</p> : null}

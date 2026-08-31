@@ -223,11 +223,11 @@ class DocumentPdfService
             'address' => (string) ($user->company_address ?? ''),
             'email' => (string) ($user->company_email ?: $user->email),
             'phone' => (string) ($user->company_phone ?? ''),
-            'tax_id' => (string) ($user->company_tax_id ?? ''),
+            'tax_id' => (string) ($user->sensitiveFieldValue('company_tax_id') ?? ''),
             'bank' => trim(implode(' — ', array_filter([
                 $user->company_bank_name,
-                $user->company_bank_iban ? 'IBAN: '.$user->company_bank_iban : null,
-                $user->company_bank_bic ? 'BIC: '.$user->company_bank_bic : null,
+                $user->sensitiveFieldValue('company_bank_iban') ? 'IBAN: '.$user->sensitiveFieldValue('company_bank_iban') : null,
+                $user->sensitiveFieldValue('company_bank_bic') ? 'BIC: '.$user->sensitiveFieldValue('company_bank_bic') : null,
             ]))),
             'footer' => (string) ($user->company_legal_footer ?? ''),
         ];

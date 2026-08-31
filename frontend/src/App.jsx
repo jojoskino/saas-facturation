@@ -10,17 +10,12 @@ const Register = lazy(() => import("./pages/Register"));
 const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
-const LegalMentions = lazy(() => import("./pages/LegalMentions"));
-const LegalPrivacy = lazy(() => import("./pages/LegalPrivacy"));
-const LegalTerms = lazy(() => import("./pages/LegalTerms"));
-const LegalCookies = lazy(() => import("./pages/LegalCookies"));
 const ClientsPage = lazy(() => import("./pages/app/ClientsPage"));
 const DevisPage = lazy(() => import("./pages/app/DevisPage"));
 const FacturesPage = lazy(() => import("./pages/app/FacturesPage"));
 const ProfilePage = lazy(() => import("./pages/app/ProfilePage"));
 const SettingsPage = lazy(() => import("./pages/app/SettingsPage"));
 const RapportsPage = lazy(() => import("./pages/app/RapportsPage"));
-const BillingPage = lazy(() => import("./pages/app/BillingPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 function LazyPage({ children }) {
@@ -76,38 +71,6 @@ function App() {
             </LazyPage>
           }
         />
-        <Route
-          path="/legal/mentions"
-          element={
-            <LazyPage>
-              <LegalMentions />
-            </LazyPage>
-          }
-        />
-        <Route
-          path="/legal/confidentialite"
-          element={
-            <LazyPage>
-              <LegalPrivacy />
-            </LazyPage>
-          }
-        />
-        <Route
-          path="/legal/cgu"
-          element={
-            <LazyPage>
-              <LegalTerms />
-            </LazyPage>
-          }
-        />
-        <Route
-          path="/legal/cookies"
-          element={
-            <LazyPage>
-              <LegalCookies />
-            </LazyPage>
-          }
-        />
         <Route element={<AppLayout />}>
           <Route
             path="/app"
@@ -130,14 +93,6 @@ function App() {
             element={
               <LazyPage>
                 <ProfilePage />
-              </LazyPage>
-            }
-          />
-          <Route
-            path="/app/abonnement"
-            element={
-              <LazyPage>
-                <BillingPage />
               </LazyPage>
             }
           />

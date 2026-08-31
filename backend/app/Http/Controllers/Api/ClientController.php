@@ -13,10 +13,13 @@ use App\Support\Utf8;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 use OpenApi\Attributes as OA;
 
 class ClientController extends Controller
 {
+    private const MAX_IMPORT_ROWS = 500;
     #[OA\Get(
         path: '/api/clients',
         tags: ['Clients'],
@@ -119,35 +122,7 @@ class ClientController extends Controller
     )]
     public function store(Request $request): JsonResponse
     {
-        $data = $request->validate([
-            'first_name' => ['required', 'string', 'max:120', "regex:/^[\pL\s'\-]+$/u"],
-            'last_name' => ['required', 'string', 'max:120', "regex:/^[\pL\s'\-]+$/u"],
-            'email' => ['required', 'email', 'max:255'],
-            'phone' => ['required', 'string', 'max:32', 'regex:/^\+?[0-9\s\-().]{8,20}$/'],
-            'company' => ['required', 'string', 'max:255', "regex:/^[\pL0-9\s'&().,\-]+$/u"],
-            'address' => ['nullable', 'string'],
-            'tax_id' => ['nullable', 'string', 'max:128', 'regex:/^[A-Za-z0-9\-_\/. ]+$/'],
-            'notes' => ['nullable', 'string'],
-        ], [
-            'first_name.required' => 'Le prénom du client est obligatoire.',
-            'first_name.max' => 'Le prénom ne doit pas dépasser :max caractères.',
-            'first_name.regex' => 'Le prénom ne doit contenir que des lettres.',
-            'last_name.required' => 'Le nom du client est obligatoire.',
-            'last_name.max' => 'Le nom ne doit pas dépasser :max caractères.',
-            'last_name.regex' => 'Le nom ne doit contenir que des lettres.',
-            'email.required' => "L'adresse e-mail est obligatoire.",
-            'email.email' => "L'adresse e-mail n'est pas valide.",
-            'email.max' => "L'adresse e-mail ne doit pas dépasser :max caractères.",
-            'phone.required' => 'Le téléphone est obligatoire.',
-            'phone.max' => 'Le téléphone ne doit pas dépasser :max caractères.',
-            'phone.regex' => 'Le téléphone ne doit contenir que des chiffres et séparateurs valides.',
-            'company.required' => "Le nom de l'entreprise est obligatoire.",
-            'company.max' => "Le nom de l'entreprise ne doit pas dépasser :max caractères.",
-            'company.regex' => "Le nom de l'entreprise contient des caractères invalides.",
-            'tax_id.max' => "L'identifiant fiscal ne doit pas dépasser :max caractères.",
-            'tax_id.regex' => "L'identifiant fiscal contient des caractères invalides.",
-        ]);
-
+        $data = $this->validateClientInput($request->all());
         $data = $this->sanitizePayload($data);
         $client = $request->user()->clients()->create($data);
         UserAnalyticsCache::bust((int) $request->user()->id);
@@ -218,35 +193,7 @@ class ClientController extends Controller
             ->where('user_id', $request->user()->id)
             ->findOrFail($id);
 
-        $data = $request->validate([
-            'first_name' => ['required', 'string', 'max:120', "regex:/^[\pL\s'\-]+$/u"],
-            'last_name' => ['required', 'string', 'max:120', "regex:/^[\pL\s'\-]+$/u"],
-            'email' => ['required', 'email', 'max:255'],
-            'phone' => ['required', 'string', 'max:32', 'regex:/^\+?[0-9\s\-().]{8,20}$/'],
-            'company' => ['required', 'string', 'max:255', "regex:/^[\pL0-9\s'&().,\-]+$/u"],
-            'address' => ['nullable', 'string'],
-            'tax_id' => ['nullable', 'string', 'max:128', 'regex:/^[A-Za-z0-9\-_\/. ]+$/'],
-            'notes' => ['nullable', 'string'],
-        ], [
-            'first_name.required' => 'Le prénom du client est obligatoire.',
-            'first_name.max' => 'Le prénom ne doit pas dépasser :max caractères.',
-            'first_name.regex' => 'Le prénom ne doit contenir que des lettres.',
-            'last_name.required' => 'Le nom du client est obligatoire.',
-            'last_name.max' => 'Le nom ne doit pas dépasser :max caractères.',
-            'last_name.regex' => 'Le nom ne doit contenir que des lettres.',
-            'email.required' => "L'adresse e-mail est obligatoire.",
-            'email.email' => "L'adresse e-mail n'est pas valide.",
-            'email.max' => "L'adresse e-mail ne doit pas dépasser :max caractères.",
-            'phone.required' => 'Le téléphone est obligatoire.',
-            'phone.max' => 'Le téléphone ne doit pas dépasser :max caractères.',
-            'phone.regex' => 'Le téléphone ne doit contenir que des chiffres et séparateurs valides.',
-            'company.required' => "Le nom de l'entreprise est obligatoire.",
-            'company.max' => "Le nom de l'entreprise ne doit pas dépasser :max caractères.",
-            'company.regex' => "Le nom de l'entreprise contient des caractères invalides.",
-            'tax_id.max' => "L'identifiant fiscal ne doit pas dépasser :max caractères.",
-            'tax_id.regex' => "L'identifiant fiscal contient des caractères invalides.",
-        ]);
-
+        $data = $this->validateClientInput($request->all());
         $data = $this->sanitizePayload($data);
         $client->update($data);
         UserAnalyticsCache::bust((int) $request->user()->id);
@@ -321,12 +268,6 @@ class ClientController extends Controller
 
     public function importCsv(Request $request): JsonResponse
     {
-        if (! PlanFeatures::canImportClientsCsv($request->user()->plan)) {
-            return response()->json([
-                'message' => "L'import CSV clients est réservé à l'offre Pro.",
-            ], 403);
-        }
-
         $data = $request->validate([
             'csv' => ['required', 'string', 'max:500000'],
         ]);
@@ -335,6 +276,7 @@ class ClientController extends Controller
         $header = null;
         $created = 0;
         $errors = [];
+        $dataRows = 0;
 
         foreach ($lines as $index => $line) {
             $line = trim($line);
@@ -346,6 +288,13 @@ class ClientController extends Controller
                 $header = array_map(fn ($h) => mb_strtolower(trim((string) $h)), $cols);
                 continue;
             }
+
+            $dataRows++;
+            if ($dataRows > self::MAX_IMPORT_ROWS) {
+                $errors[] = 'Import limité à '.self::MAX_IMPORT_ROWS.' lignes de données.';
+                break;
+            }
+
             if (count($cols) < 2) {
                 $errors[] = 'Ligne '.($index + 1).' : colonnes insuffisantes.';
                 continue;
@@ -361,18 +310,22 @@ class ClientController extends Controller
                 continue;
             }
             try {
-                $payload = $this->sanitizePayload([
+                $validated = $this->validateClientInput([
                     'first_name' => $first,
                     'last_name' => $last,
                     'email' => trim((string) ($row['email'] ?? '')) ?: 'import-'.$index.'@lafacture.local',
-                    'phone' => trim((string) ($row['telephone'] ?? $row['phone'] ?? '')),
-                    'company' => trim((string) ($row['entreprise'] ?? $row['company'] ?? '')),
+                    'phone' => trim((string) ($row['telephone'] ?? $row['phone'] ?? '')) ?: '+22500000000',
+                    'company' => trim((string) ($row['entreprise'] ?? $row['company'] ?? '')) ?: 'Particulier',
                     'address' => trim((string) ($row['adresse'] ?? $row['address'] ?? '')),
                     'tax_id' => trim((string) ($row['siret'] ?? $row['tax_id'] ?? '')),
                     'notes' => trim((string) ($row['notes'] ?? '')),
                 ]);
+                $payload = $this->sanitizePayload($validated);
                 $request->user()->clients()->create($payload);
                 $created++;
+            } catch (ValidationException $e) {
+                $firstError = collect($e->errors())->flatten()->first();
+                $errors[] = 'Ligne '.($index + 1).' : '.($firstError ?: 'données invalides.');
             } catch (\Throwable $e) {
                 $errors[] = 'Ligne '.($index + 1).' : '.$e->getMessage();
             }
@@ -387,6 +340,42 @@ class ClientController extends Controller
             'created' => $created,
             'errors' => $errors,
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $input
+     * @return array<string, mixed>
+     */
+    private function validateClientInput(array $input): array
+    {
+        return Validator::make($input, [
+            'first_name' => ['required', 'string', 'max:120', "regex:/^[\pL\s'\-]+$/u"],
+            'last_name' => ['required', 'string', 'max:120', "regex:/^[\pL\s'\-]+$/u"],
+            'email' => ['required', 'email', 'max:255'],
+            'phone' => ['required', 'string', 'max:32', 'regex:/^\+?[0-9\s\-().]{8,20}$/'],
+            'company' => ['required', 'string', 'max:255', "regex:/^[\pL0-9\s'&().,\-]+$/u"],
+            'address' => ['nullable', 'string'],
+            'tax_id' => ['nullable', 'string', 'max:128', 'regex:/^[A-Za-z0-9\-_\/. ]+$/'],
+            'notes' => ['nullable', 'string'],
+        ], [
+            'first_name.required' => 'Le prénom du client est obligatoire.',
+            'first_name.max' => 'Le prénom ne doit pas dépasser :max caractères.',
+            'first_name.regex' => 'Le prénom ne doit contenir que des lettres.',
+            'last_name.required' => 'Le nom du client est obligatoire.',
+            'last_name.max' => 'Le nom ne doit pas dépasser :max caractères.',
+            'last_name.regex' => 'Le nom ne doit contenir que des lettres.',
+            'email.required' => "L'adresse e-mail est obligatoire.",
+            'email.email' => "L'adresse e-mail n'est pas valide.",
+            'email.max' => "L'adresse e-mail ne doit pas dépasser :max caractères.",
+            'phone.required' => 'Le téléphone est obligatoire.',
+            'phone.max' => 'Le téléphone ne doit pas dépasser :max caractères.',
+            'phone.regex' => 'Le téléphone ne doit contenir que des chiffres et séparateurs valides.',
+            'company.required' => "Le nom de l'entreprise est obligatoire.",
+            'company.max' => "Le nom de l'entreprise ne doit pas dépasser :max caractères.",
+            'company.regex' => "Le nom de l'entreprise contient des caractères invalides.",
+            'tax_id.max' => "L'identifiant fiscal ne doit pas dépasser :max caractères.",
+            'tax_id.regex' => "L'identifiant fiscal contient des caractères invalides.",
+        ])->validate();
     }
 
     /**

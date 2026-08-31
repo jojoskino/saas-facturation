@@ -1,23 +1,34 @@
-/** Logo LAFACTURE — icône + wordmark (même rendu partout dans l’app). */
+import { LOGO_ALT, LOGO_SRC } from "../constants/brand";
 
-export default function AppLogo({ size = "md", showText = true, className = "" }) {
-  const markSize = size === "sm" ? 28 : size === "lg" ? 40 : 32;
+/** Hauteur + largeur max — logo horizontal dans public/logo.png */
+const SIZES = {
+  /** Sidebar repliée : crop sur l’icône document (droite) */
+  icon: { height: 32, maxWidth: 36, fit: "cover", position: "right center" },
+  sm: { height: 30, maxWidth: 118 },
+  md: { height: 34, maxWidth: 148 },
+  lg: { height: 50, maxWidth: 210 },
+  nav: { height: 32, maxWidth: 138 },
+  foot: { height: 40, maxWidth: 168 },
+};
+
+/** Logo image — tailles calibrées pour le lockup horizontal. */
+export default function AppLogo({ size = "md", className = "" }) {
+  const spec = SIZES[size] ?? SIZES.md;
 
   return (
     <span className={`app-logo app-logo--${size} ${className}`.trim()}>
       <img
-        src="/favicon.svg"
-        alt=""
-        width={markSize}
-        height={markSize}
-        className="app-logo__mark"
+        src={LOGO_SRC}
+        alt={LOGO_ALT}
+        height={spec.height}
+        className="app-logo__img"
         decoding="async"
+        style={{
+          maxWidth: spec.maxWidth,
+          objectFit: spec.fit ?? "contain",
+          objectPosition: spec.position,
+        }}
       />
-      {showText ? (
-        <span className="app-logo__text">
-          LA<span>FACTURE</span>
-        </span>
-      ) : null}
     </span>
   );
 }

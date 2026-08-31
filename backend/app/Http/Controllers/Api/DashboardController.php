@@ -196,12 +196,6 @@ class DashboardController extends Controller
 
     public function exportCsv(Request $request): StreamedResponse|JsonResponse
     {
-        if (! PlanFeatures::canExportCsv($request->user()->plan)) {
-            return response()->json([
-                'message' => "L'export CSV est réservé à l'offre Pro.",
-            ], 403);
-        }
-
         $userId = (int) $request->user()->id;
         $period = (string) $request->query('period', 'year');
         $now = CarbonImmutable::now();

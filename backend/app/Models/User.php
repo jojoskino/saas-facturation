@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Notifications\ResetPasswordNotification;
+use App\Notifications\VerifyEmailNotification;
 use Illuminate\Auth\MustVerifyEmail;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -77,7 +78,33 @@ class User extends Authenticatable
             'notifications_email' => 'boolean',
             'plan_period_end' => 'datetime',
             'billing_payment_method' => 'array',
+            'company_tax_id' => 'encrypted',
+            'company_bank_iban' => 'encrypted',
+            'company_bank_bic' => 'encrypted',
         ];
+    }
+
+    public function sendEmailVerificationNotification(): void
+    {
+        $this->notify(new VerifyEmailNotification);
+    }
+
+    /**
+     * Lit un champ sensible (chiffré en base) pour affichage interne (PDF, etc.).
+     */
+    public function sensitiveFieldValue(string $attribute): ?string
+    {
+        if (! in_array($attribute, ['company_tax_id', 'company_bank_iban', 'company_bank_bic'], true)) {
+            return null;
+        }
+
+        $value = $this->getAttribute($attribute);
+
+        if (! is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        return $value;
     }
 
     public function sendPasswordResetNotification($token): void

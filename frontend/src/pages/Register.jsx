@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import "../styles/auth-pages.css";
 import { apiFetch } from "../api/client";
 import { AuthBrand } from "../components/AuthShell";
@@ -7,12 +7,9 @@ import PasswordField from "../components/PasswordField";
 import PasswordRequirements from "../components/PasswordRequirements";
 import { FieldLabel } from "../components/AppFormControls";
 import { evaluatePassword, passwordsMatch, PASSWORD_POLICY_HINT } from "../utils/passwordPolicy";
-import { BILLING_PLANS, loginPathWithPlan } from "../utils/billingFlow";
 
 export default function Register() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const selectedPlan = searchParams.get("plan") === BILLING_PLANS.pro ? BILLING_PLANS.pro : null;
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -42,9 +39,7 @@ export default function Register() {
           password_confirmation: passwordConfirmation,
         }),
       });
-      const loginQs = new URLSearchParams({ registered: "1" });
-      if (selectedPlan === BILLING_PLANS.pro) loginQs.set("plan", "pro");
-      navigate(`/login?${loginQs.toString()}`, { replace: true });
+      navigate("/login?registered=1", { replace: true });
     } catch (err) {
       const body = err.body;
       let msg = body?.message || err.message || "Inscription impossible.";
@@ -64,15 +59,10 @@ export default function Register() {
       tagline="Créez votre compte et commencez à facturer en quelques minutes."
       footer={
         <>
-          Déjà inscrit ? <Link to={loginPathWithPlan(selectedPlan || "")}>Se connecter</Link>
+          Déjà inscrit ? <Link to="/login">Se connecter</Link>
         </>
       }
     >
-      {selectedPlan === BILLING_PLANS.pro ? (
-        <div className="auth-success" role="status">
-          Offre Pro sélectionnée — après connexion, vous serez guidé vers le paiement sécurisé.
-        </div>
-      ) : null}
       {error ? <div className="auth-error">{error}</div> : null}
 
       <form onSubmit={onSubmit} className="auth-form-box">

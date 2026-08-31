@@ -33,7 +33,7 @@ function networkError() {
     (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
   const msg = isLocal
     ? "Impossible de joindre l'API locale. Vérifiez : (1) backend sur http://127.0.0.1:8000 — cd backend puis php artisan serve ; (2) frontend via npm run dev (pas le build statique seul)."
-    : "Le service est momentanément indisponible. L'API backend (Fly.io) doit être relancée — voir API-RELANCE.md.";
+    : "Impossible de joindre l'API. Vérifiez que le backend Laravel tourne (cd backend && php artisan serve).";
   const err = new Error(msg);
   err.status = 0;
   err.body = null;
@@ -72,28 +72,21 @@ export function resolveAssetUrl(url) {
 }
 
 export function getStoredToken() {
-  const sessionToken = sessionStorage.getItem("facturo_token");
-  if (sessionToken) return sessionToken;
-
-  const persistentToken = localStorage.getItem("facturo_token");
-  return persistentToken;
+  return sessionStorage.getItem("facturo_token");
 }
 
-export function setStoredToken(token, { remember = false } = {}) {
+export function setStoredToken(token) {
   if (token) {
-    if (remember) {
-      localStorage.setItem("facturo_token", token);
-      sessionStorage.removeItem("facturo_token");
-    } else {
-      sessionStorage.setItem("facturo_token", token);
-      localStorage.removeItem("facturo_token");
-    }
+    sessionStorage.setItem("facturo_token", token);
   } else {
     sessionStorage.removeItem("facturo_token");
     localStorage.removeItem("facturo_token");
     clearApiCache();
   }
 }
+
+// Migration : anciens tokens persistés ne doivent plus être utilisés.
+localStorage.removeItem("facturo_token");
 
 async function rawApiFetch(path, options = {}) {
   const headers = new Headers(options.headers || {});

@@ -41,4 +41,4 @@ npm run build
 npm run preview
 ```
 
-Sortie : `dist/` (déployée sur Vercel).
+Sortie : dossier `dist/`.

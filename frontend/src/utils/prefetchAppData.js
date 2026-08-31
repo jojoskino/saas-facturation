@@ -10,7 +10,6 @@ const ROUTE_PREFETCH = {
   ],
   "/app/clients": ["/api/clients?page=1&per_page=12&sort=recent"],
   "/app/rapports": ["/api/reports/summary?period=year"],
-  "/app/abonnement": ["/api/billing"],
 };
 
 function resolvePrefetchPaths(pathname) {

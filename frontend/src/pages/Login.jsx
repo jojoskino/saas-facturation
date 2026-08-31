@@ -7,18 +7,15 @@ import { AuthBrand } from "../components/AuthShell";
 import PasswordField from "../components/PasswordField";
 import { FieldLabel } from "../components/AppFormControls";
 
-import { authRedirectPath } from "../utils/billingFlow";
-
 export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const passwordResetMessage = location.state?.passwordResetMessage;
   const registered = searchParams.get("registered") === "1";
-  const planIntent = searchParams.get("plan");
+  const verified = searchParams.get("verified") === "1";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [remember, setRemember] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -31,10 +28,9 @@ export default function Login() {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
-      setStoredToken(data.token, { remember });
-      const redirectTo = authRedirectPath(searchParams);
-      prefetchAppData(redirectTo);
-      navigate(redirectTo, { replace: true });
+      setStoredToken(data.token);
+      prefetchAppData("/app");
+      navigate("/app", { replace: true });
     } catch (err) {
       const msg =
         err.body?.errors?.email?.[0] ||
@@ -64,9 +60,12 @@ export default function Login() {
       ) : null}
       {registered ? (
         <div className="auth-success" role="status">
-          {planIntent === "pro"
-            ? "Compte créé. Connectez-vous pour finaliser votre abonnement Pro."
-            : "Compte créé. Vous pouvez vous connecter."}
+          Compte créé. Consultez votre boîte mail pour confirmer votre adresse, puis connectez-vous.
+        </div>
+      ) : null}
+      {verified ? (
+        <div className="auth-success" role="status">
+          Adresse e-mail confirmée. Vous pouvez vous connecter.
         </div>
       ) : null}
       {error ? <div className="auth-error">{error}</div> : null}
@@ -103,13 +102,6 @@ export default function Login() {
           placeholder="Votre mot de passe"
           autoComplete="current-password"
         />
-
-        <div className="auth-row">
-          <label className="auth-check">
-            <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
-            <span>Se souvenir de moi</span>
-          </label>
-        </div>
 
         <button className="auth-submit" type="submit" disabled={loading}>
           {loading ? "Connexion..." : "Se connecter"}

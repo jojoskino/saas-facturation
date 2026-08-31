@@ -1,16 +1,18 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import AppLogo from "./AppLogo";
+import { LOGO_ALT, LOGO_SRC } from "../constants/brand";
 
 describe("AppLogo", () => {
-  it("affiche le wordmark LAFACTURE", () => {
-    const { container } = render(<AppLogo />);
-    expect(screen.getByText("FACTURE")).toBeInTheDocument();
-    expect(container.querySelector(".app-logo__mark")).toHaveAttribute("src", "/favicon.svg");
+  it("affiche le logo image", () => {
+    render(<AppLogo />);
+    const img = screen.getByRole("img", { name: LOGO_ALT });
+    expect(img).toHaveAttribute("src", LOGO_SRC);
+    expect(img).toHaveClass("app-logo__img");
   });
 
-  it("peut masquer le texte", () => {
-    render(<AppLogo showText={false} />);
-    expect(screen.queryByText("FACTURE")).not.toBeInTheDocument();
+  it("applique la taille demandée", () => {
+    render(<AppLogo size="lg" />);
+    expect(screen.getByRole("img", { name: LOGO_ALT })).toHaveAttribute("height", "50");
   });
 });

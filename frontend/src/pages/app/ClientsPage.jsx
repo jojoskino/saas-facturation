@@ -8,9 +8,7 @@ import AppModal from "../../components/AppModal";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { AppSelect } from "../../components/AppFormControls";
 import ModalPortal from "../../components/ModalPortal";
-import { useAccountMe } from "../../hooks/useAccountMe";
 import { useAmountsPrivacy } from "../../hooks/useAmountsPrivacy";
-import { canImportClientsCsv } from "../../utils/planFeatures";
 import DocumentPreviewModal from "../../components/DocumentPreviewModal";
 import { clientDocumentPreviewPaths } from "../../utils/documentPreview";
 import ListFilterBar, { ListFilterField, ListFilterGrid } from "../../components/list/ListFilterBar";
@@ -33,8 +31,6 @@ export default function ClientsPage() {
   const { t } = useTranslation("app");
   const { t: tc } = useTranslation("common");
   const { maskMoney } = useAmountsPrivacy();
-  const { user } = useAccountMe();
-  const csvImportEnabled = canImportClientsCsv(user?.plan_features || user?.plan);
   const [clients, setClients] = useState(
     () => paginatedFromCache(buildClientsUrl(1, "", "all", "recent"))?.rows ?? [],
   );
@@ -647,15 +643,8 @@ export default function ClientsPage() {
                 <button
                   className="clients-btn app-list-btn"
                   type="button"
-                  title={csvImportEnabled ? "Importer des clients" : "Réservé à l'offre Pro"}
-                  disabled={!csvImportEnabled}
-                  onClick={() => {
-                    if (!csvImportEnabled) {
-                      setError("L'import CSV clients est réservé à l'offre Pro.");
-                      return;
-                    }
-                    setImportOpen(true);
-                  }}
+                  title="Importer des clients"
+                  onClick={() => setImportOpen(true)}
                 >
                   <i className="fa-solid fa-file-import" /> <span className="btn-label-long">Import CSV</span>
                 </button>

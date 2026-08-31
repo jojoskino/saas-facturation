@@ -4,9 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\AccountDeletionService;
 use App\Services\CompanyLogoService;
 use App\Support\PasswordRules;
-use App\Support\BillingPayload;
 use App\Support\PlanFeatures;
 use App\Support\Utf8;
 use Illuminate\Auth\Events\Verified;
@@ -70,12 +70,13 @@ class AuthController extends Controller
             'email' => $data['email'],
             'password' => $data['password'],
             'plan' => 'free',
-            'email_verified_at' => now(),
         ]);
+
+        $user->sendEmailVerificationNotification();
 
         return response()->json(
             [
-                'message' => 'Compte créé. Vous pouvez vous connecter.',
+                'message' => 'Compte créé. Consultez votre boîte mail pour confirmer votre adresse avant d\'utiliser l\'application.',
                 'user' => $this->userPayload($user),
             ],
             201,
@@ -123,10 +124,6 @@ class AuthController extends Controller
             throw ValidationException::withMessages([
                 'email' => ['Les identifiants fournis sont incorrects.'],
             ]);
-        }
-
-        if (! $user->hasVerifiedEmail()) {
-            $user->forceFill(['email_verified_at' => now()])->save();
         }
 
         $user->tokens()->delete();
@@ -246,14 +243,14 @@ class AuthController extends Controller
             'company_legal_footer' => ['nullable', 'string', 'max:10000'],
             'document_color_primary' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'document_color_accent' => ['nullable', 'string', 'regex:/^#[0-9A-Fa-f]{6}$/'],
-            'company_logo' => ['nullable', 'image', 'max:2048'],
+            'company_logo' => ['nullable', 'file', 'mimes:jpeg,jpg,png,webp,gif', 'max:2048'],
             'remove_company_logo' => ['nullable', 'boolean'],
         ], [
             'company_email.email' => "L'e-mail affiché sur les documents n'est pas valide.",
             'document_color_primary.regex' => 'La couleur principale doit être un code hexadécimal (#RRGGBB).',
             'document_color_accent.regex' => "La couleur d'accent doit être un code hexadécimal (#RRGGBB).",
-            'company_logo.image' => 'Le logo doit être une image (PNG, JPG, SVG, WebP).',
             'company_logo.max' => 'Le logo ne doit pas dépasser 2 Mo.',
+            'company_logo.mimes' => 'Le logo doit être au format JPEG, PNG, WebP ou GIF.',
         ]);
 
         unset($data['company_logo'], $data['remove_company_logo']);
@@ -373,11 +370,13 @@ class AuthController extends Controller
         /** @var User $user */
         $user = $request->user();
 
-        if (! $user->hasVerifiedEmail()) {
-            $user->forceFill(['email_verified_at' => now()])->save();
+        if ($user->hasVerifiedEmail()) {
+            return response()->json(['message' => 'Votre adresse e-mail est déjà confirmée.']);
         }
 
-        return response()->json(['message' => 'La vérification e-mail n\'est pas requise pour ce compte.']);
+        $user->sendEmailVerificationNotification();
+
+        return response()->json(['message' => 'Un e-mail de confirmation vient d\'être envoyé.']);
     }
 
     public function updatePassword(Request $request): JsonResponse
@@ -410,6 +409,28 @@ class AuthController extends Controller
             [],
             JSON_INVALID_UTF8_SUBSTITUTE | JSON_UNESCAPED_UNICODE
         );
+    }
+
+    public function destroyAccount(Request $request, AccountDeletionService $deletion): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        $data = $request->validate([
+            'password' => ['required', 'string'],
+        ], [
+            'password.required' => 'Le mot de passe est obligatoire pour supprimer le compte.',
+        ]);
+
+        if (! Hash::check($data['password'], $user->password)) {
+            throw ValidationException::withMessages([
+                'password' => ['Mot de passe incorrect.'],
+            ]);
+        }
+
+        $deletion->delete($user);
+
+        return response()->json(['message' => 'Compte supprimé définitivement.']);
     }
 
     /**
@@ -447,7 +468,6 @@ class AuthController extends Controller
             'notifications_email' => (bool) ($user->notifications_email ?? true),
             'plan' => PlanFeatures::normalize($user->plan),
             'plan_features' => PlanFeatures::forUser($user),
-            'billing' => BillingPayload::forUser($user),
         ];
     }
 

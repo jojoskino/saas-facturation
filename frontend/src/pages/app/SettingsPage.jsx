@@ -286,17 +286,6 @@ export default function SettingsPage() {
           <i className="fa-solid fa-chevron-right settings-row-chevron" aria-hidden />
         </button>
 
-        <Link to="/app/abonnement" className="settings-row">
-          <span className="settings-row-icon" aria-hidden>
-            <i className="fa-solid fa-gem" />
-          </span>
-          <span className="settings-row-text">
-            <strong>{t("plan.tileTitle")}</strong>
-            <span>{t("plan.tileDesc")}</span>
-          </span>
-          <i className="fa-solid fa-chevron-right settings-row-chevron" aria-hidden />
-        </Link>
-
         <button type="button" className="settings-row" onClick={() => setSecurityOpen(true)}>
           <span className="settings-row-icon" aria-hidden>
             <i className="fa-solid fa-shield-halved" />

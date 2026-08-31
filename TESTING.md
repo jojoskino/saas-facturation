@@ -42,4 +42,4 @@ Les e-mails apparaissent dans `backend/storage/logs/laravel.log`.
 Le toggle « Notifications par e-mail » enregistre la préférence utilisateur. L'envoi automatique nécessite :
 
 - une configuration SMTP (`MAIL_*`) ;
-- le planificateur Laravel : `php artisan schedule:work` (dev) ou cron en production.
+- le planificateur Laravel : `php artisan schedule:work` (dev).

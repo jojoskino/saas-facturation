@@ -6,6 +6,7 @@ use GdImage;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 /** Normalise les logos entreprise pour un rendu net (UI + PDF). */
 class CompanyLogoService
@@ -14,11 +15,26 @@ class CompanyLogoService
 
     private const MAX_HEIGHT = 512;
 
+    /** @var list<string> */
+    private const ALLOWED_MIMES = [
+        'image/jpeg',
+        'image/jpg',
+        'image/png',
+        'image/webp',
+        'image/gif',
+    ];
+
     public function store(UploadedFile $file, int $userId): string
     {
         $mime = strtolower((string) ($file->getMimeType() ?: ''));
 
-        if ($mime === 'image/svg+xml' || ! $this->canProcess()) {
+        if (! in_array($mime, self::ALLOWED_MIMES, true)) {
+            throw ValidationException::withMessages([
+                'company_logo' => ['Format non autorisé. Utilisez JPEG, PNG, WebP ou GIF.'],
+            ]);
+        }
+
+        if (! $this->canProcess()) {
             return $file->store('company-logos/'.$userId, 'public');
         }
 

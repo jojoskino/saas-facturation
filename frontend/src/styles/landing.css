@@ -85,14 +85,15 @@ html { scroll-behavior: smooth; }
         }
         .nav-desktop { display: flex; }
         .logo {
-          font-family: var(--heading);
-          font-size: 22px;
-          font-weight: 800;
-          color: #14213d;
-          letter-spacing: -0.03em;
+          display: inline-flex;
+          align-items: center;
           flex-shrink: 0;
+          line-height: 0;
+          max-width: min(138px, 34vw);
         }
-        .logo span { color: #fca311; }
+        .logo .app-logo__img {
+          width: auto;
+        }
         a.logo { text-decoration: none; color: inherit; }
         .nav-pill .links {
           display: flex;
@@ -973,8 +974,9 @@ html { scroll-behavior: smooth; }
           gap: clamp(24px, 4vw, 40px);
           padding: clamp(40px, 5vw, 52px) 0 32px;
         }
-        .foot-brand .logo { color: #fff; font-size: 26px; }
-        .foot-brand .logo span { color: #fca311; }
+        .foot-brand .app-logo {
+          max-width: 168px;
+        }
         .foot-brand p {
           margin: 12px 0 0;
           max-width: 28ch;
@@ -1118,7 +1120,6 @@ html { scroll-behavior: smooth; }
           .hero-grid { padding: 20px 0 28px; }
           .features, .steps, .pricing-grid, .testimonials, .foot { grid-template-columns: 1fr; }
           .nav-pill { padding: 10px 10px 10px 16px; }
-          .logo { font-size: 20px; }
           .foot-bottom { flex-direction: column; align-items: flex-start; }
           .cta-band { text-align: left; }
           .hero-cta .btn { width: auto; min-width: min(100%, 280px); }

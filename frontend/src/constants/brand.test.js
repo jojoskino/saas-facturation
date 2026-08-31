@@ -1,10 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { APP_NAME, CONTACT_EMAIL, PRIVACY_EMAIL } from "./brand";
+import { APP_NAME, CONTACT_EMAIL, LOGO_ALT, LOGO_SRC } from "./brand";
 
 describe("brand constants", () => {
-  it("expose le nom et les e-mails LAFACTURE", () => {
-    expect(APP_NAME).toBe("LAFACTURE");
-    expect(CONTACT_EMAIL).toBe("contact@lafacture.app");
-    expect(PRIVACY_EMAIL).toBe("privacy@lafacture.app");
+  it("expose le logo et le contact développeur", () => {
+    expect(LOGO_SRC).toBe("/logo.png");
+    expect(LOGO_ALT).toBe("La Facture");
+    expect(APP_NAME).toBe("La Facture");
+    expect(CONTACT_EMAIL).toBe("essev2030@gmail.com");
   });
 });

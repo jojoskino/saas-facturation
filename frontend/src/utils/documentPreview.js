@@ -92,11 +92,12 @@ export function assertDocumentPreviewHtml(html) {
 /** Extrait styles + contenu pour un rendu fiable dans innerHTML (évite la coupure du bas). */
 export function prepareDocumentPreviewHtml(html) {
   if (typeof DOMParser === "undefined") {
-    return html;
+    return sanitizePreviewHtml(html);
   }
 
   try {
     const doc = new DOMParser().parseFromString(html, "text/html");
+    doc.querySelectorAll("script, iframe, object, embed, link[rel='import']").forEach((node) => node.remove());
     const styles = Array.from(doc.querySelectorAll("style"))
       .map((node) => node.textContent || "")
       .filter(Boolean)
@@ -104,11 +105,17 @@ export function prepareDocumentPreviewHtml(html) {
     const bodyHtml = doc.body?.innerHTML?.trim() || html;
 
     if (!styles) {
-      return bodyHtml;
+      return sanitizePreviewHtml(bodyHtml);
     }
 
-    return `<style>${styles}</style>${bodyHtml}`;
+    return sanitizePreviewHtml(`<style>${styles}</style>${bodyHtml}`);
   } catch {
-    return html;
+    return sanitizePreviewHtml(html);
   }
+}
+
+function sanitizePreviewHtml(html) {
+  return String(html || "")
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "");
 }

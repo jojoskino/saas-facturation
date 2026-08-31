@@ -1,6 +1,6 @@
 {
-  "name": "LAFACTURE",
-  "short_name": "LAFACTURE",
+  "name": "La Facture",
+  "short_name": "La Facture",
   "description": "Facturation moderne pour freelances et TPE",
   "start_url": "/",
   "display": "standalone",
@@ -9,15 +9,15 @@
   "lang": "fr",
   "icons": [
     {
-      "src": "/favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/favicon.svg",
+      "src": "/logo.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "maskable"
     }
   ]

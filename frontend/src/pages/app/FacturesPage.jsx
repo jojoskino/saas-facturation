@@ -13,9 +13,7 @@ import ConfirmDialog from "../../components/ConfirmDialog";
 import ModalPortal from "../../components/ModalPortal";
 import ToastStack, { useToasts } from "../../components/ToastStack";
 import DocumentLinesEditor, { computeLineTotals, createEmptyLine, validateDocumentLines } from "../../components/DocumentLinesEditor";
-import { useAccountMe } from "../../hooks/useAccountMe";
 import { useAmountsPrivacy } from "../../hooks/useAmountsPrivacy";
-import { invoiceQuotaFromUser } from "../../utils/planFeatures";
 import ListFilterBar, { ListFilterField, ListFilterGrid } from "../../components/list/ListFilterBar";
 import ListPageHeader from "../../components/list/ListPageHeader";
 import ListPagination from "../../components/list/ListPagination";
@@ -47,11 +45,9 @@ const defaultForm = {
 
 export default function FacturesPage() {
   const { t } = useTranslation("app");
-  const { user } = useAccountMe();
   const { toasts, pushToast, dismissToast } = useToasts();
   const { maskMoney } = useAmountsPrivacy();
   const showMoney = (value) => maskMoney(value, formatMoney);
-  const invoiceQuota = invoiceQuotaFromUser(user);
   const statusOptions = useMemo(
     () => [
       { value: "draft", label: t("invoices.statusDraft") },
@@ -108,8 +104,6 @@ export default function FacturesPage() {
 
   const isEditing = editingId !== null;
   const financialEditable = !editingInvoice || canEditFinancialFields(editingInvoice);
-  const quotaBlocked = invoiceQuota.limit != null && invoiceQuota.remaining === 0;
-
   useEffect(() => {
     loadInvoices(page);
   }, [page, search, filterStatus, listTab]);
@@ -193,10 +187,6 @@ export default function FacturesPage() {
   }
 
   function openCreate() {
-    if (quotaBlocked) {
-      pushToast(t("invoices.quotaReached"), "error");
-      return;
-    }
     setError("");
     resetForm();
     captureFormBaseline(defaultForm);
@@ -821,30 +811,11 @@ export default function FacturesPage() {
           color: #fff;
           border-color: #14213d;
         }
-        .inv-quota {
-          border-radius: 10px;
-          border: 1px solid #f8d6b4;
-          background: #fff8ef;
-          padding: 10px 12px;
-          font-size: 13px;
-        }
       `}</style>
 
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
 
       {error ? <div className="inv-banner inv-banner--error">{error}</div> : null}
-
-      {invoiceQuota.limit != null ? (
-        <div className="inv-quota">
-          {t("invoices.quotaBanner", { used: invoiceQuota.used, limit: invoiceQuota.limit })}
-          {quotaBlocked ? (
-            <>
-              {" "}
-              <Link to="/app/abonnement?plan=pro&checkout=start">{t("invoices.quotaReached")}</Link>
-            </>
-          ) : null}
-        </div>
-      ) : null}
 
       <div className="inv-tabs">
         <button
@@ -892,7 +863,7 @@ export default function FacturesPage() {
           count={`${meta.total} ${listTab === "credit_note" ? "avoir(s)" : "facture(s)"} enregistré(s)`}
           actions={
             listTab === "invoice" ? (
-              <button className="inv-btn inv-btn--accent app-list-btn" type="button" onClick={openCreate} disabled={quotaBlocked}>
+              <button className="inv-btn inv-btn--accent app-list-btn" type="button" onClick={openCreate}>
                 <i className="fa-solid fa-plus" /> <span className="btn-label-long">{t("invoices.new")}</span>
               </button>
             ) : null

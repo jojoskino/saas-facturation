@@ -1,10 +1,10 @@
 import { test, expect } from "@playwright/test";
 
-test.describe("Pages publiques LAFACTURE", () => {
-  test("accueil affiche la marque et les liens principaux", async ({ page }) => {
+test.describe("Pages publiques", () => {
+  test("accueil affiche le logo et les liens principaux", async ({ page }) => {
     await page.goto("/");
-    await expect(page).toHaveTitle(/LAFACTURE/);
-    await expect(page.getByRole("link", { name: /LA\s*FACTURE|LAFACTURE/i }).first()).toBeVisible();
+    await expect(page).toHaveTitle(/La Facture/);
+    await expect(page.getByRole("img", { name: "La Facture" }).first()).toBeVisible();
     await expect(page.getByRole("link", { name: "Connexion" }).first()).toBeVisible();
   });
 
@@ -30,25 +30,8 @@ test.describe("Pages publiques LAFACTURE", () => {
     await expect(page.getByRole("button", { name: /Envoyer le lien/i })).toBeVisible();
   });
 
-  test("mentions légales affichent LAFACTURE", async ({ page }) => {
-    await page.goto("/legal/mentions");
-    await expect(page.getByRole("heading", { name: /Mentions légales/i })).toBeVisible();
-    await expect(page.getByText("LAFACTURE", { exact: true })).toBeVisible();
-  });
-
-  test("CGU et confidentialité sont accessibles", async ({ page }) => {
-    await page.goto("/legal/cgu");
-    await expect(page.getByRole("heading", { name: /Conditions générales/i })).toBeVisible();
-
-    await page.goto("/legal/confidentialite");
-    await expect(page.getByRole("heading", { name: /Politique de confidentialité/i })).toBeVisible();
-
-    await page.goto("/legal/cookies");
-    await expect(page.getByRole("heading", { name: /Politique de cookies/i })).toBeVisible();
-  });
-
-  test("offre Entreprise propose un contact commercial", async ({ page }) => {
-    await page.goto("/#tarifs");
-    await expect(page.getByRole("link", { name: /Contacter les ventes/i })).toBeVisible();
+  test("footer affiche le contact développeur", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("link", { name: "essev2030@gmail.com" })).toBeVisible();
   });
 });

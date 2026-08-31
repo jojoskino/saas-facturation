@@ -127,7 +127,7 @@ class QuoteController extends Controller
             'valid_until' => ['nullable', 'date'],
             'currency' => ['nullable', 'string', 'max:8'],
             'notes' => ['nullable', 'string'],
-            'items' => ['nullable', 'array'],
+            'items' => ['required', 'array', 'min:1'],
             'items.*.description' => ['required_with:items', 'string', 'max:500'],
             'items.*.quantity' => ['required_with:items', 'numeric', 'min:0'],
             'items.*.unit_price' => ['required_with:items', 'numeric', 'min:0'],
@@ -136,9 +136,7 @@ class QuoteController extends Controller
 
         $itemsInput = $data['items'] ?? [];
         $discountPercent = (float) ($data['discount_percent'] ?? 0);
-        $computed = count($itemsInput) > 0
-            ? DocumentMath::quoteLinesFromInput($itemsInput, $discountPercent)
-            : ['lines' => [], 'subtotal' => '0.00', 'tax_amount' => '0.00', 'total' => '0.00'];
+        $computed = DocumentMath::quoteLinesFromInput($itemsInput, $discountPercent);
 
         $quote = $request->user()->quotes()->create([
             'client_id' => $data['client_id'] ?? null,
@@ -237,7 +235,7 @@ class QuoteController extends Controller
             'valid_until' => ['nullable', 'date'],
             'currency' => ['nullable', 'string', 'max:8'],
             'notes' => ['nullable', 'string'],
-            'items' => ['sometimes', 'array'],
+            'items' => ['sometimes', 'array', 'min:1'],
             'items.*.description' => ['required_with:items', 'string', 'max:500'],
             'items.*.quantity' => ['required_with:items', 'numeric', 'min:0'],
             'items.*.unit_price' => ['required_with:items', 'numeric', 'min:0'],
@@ -259,9 +257,7 @@ class QuoteController extends Controller
 
         if (array_key_exists('items', $data)) {
             $discountPercent = (float) ($quote->discount_percent ?? 0);
-            $computed = count($data['items']) > 0
-                ? DocumentMath::quoteLinesFromInput($data['items'], $discountPercent)
-                : ['lines' => [], 'subtotal' => '0.00', 'tax_amount' => '0.00', 'total' => '0.00'];
+            $computed = DocumentMath::quoteLinesFromInput($data['items'], $discountPercent);
 
             $quote->items()->delete();
             foreach ($computed['lines'] as $line) {

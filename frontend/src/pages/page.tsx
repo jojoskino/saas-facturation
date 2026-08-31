@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { getStoredToken } from "../api/client";
-import { APP_NAME, CONTACT_EMAIL } from "../constants/brand";
-import { isExternalHref, publicPlanCtaHref } from "../utils/billingFlow";
+import AppLogo from "../components/AppLogo";
+import { CONTACT_EMAIL } from "../constants/brand";
 import "../styles/landing.css";
 
 function useReveal<T extends HTMLElement>() {
@@ -124,12 +124,12 @@ export default function Page() {
     [
       "fa-file-export",
       "Exports PDF et CSV",
-      "Téléchargez vos PDF et exportez vos revenus (Pro) ou vos clients via CSV (Pro).",
+      "Téléchargez vos PDF et exportez vos revenus ou vos clients via CSV.",
     ],
     [
       "fa-chart-line",
       "Tableau de bord et rapports",
-      "Visualisez votre CA, vos impayés et, avec l'offre Pro, des rapports et graphiques détaillés.",
+      "Visualisez votre CA, vos impayés et des rapports détaillés avec graphiques.",
     ],
   ];
 
@@ -140,11 +140,11 @@ export default function Page() {
     ],
     [
       "Puis-je importer mes clients ?",
-      "Oui, avec l'offre Pro : import CSV via un modèle d'en-têtes prédéfinis (prénom, nom, e-mail, etc.).",
+      "Oui, via un import CSV avec un modèle d'en-têtes prédéfinis (prénom, nom, e-mail, etc.).",
     ],
     [
-      "Le plan Gratuit est-il limité dans le temps ?",
-      "Non. Il reste disponible sans limite de durée, avec un plafond de 10 factures par mois.",
+      "L'application est-elle gratuite ?",
+      "Oui, l'application est entièrement gratuite, sans limite de durée ni de fonctionnalités.",
     ],
     [
       "Puis-je partager mes données avec mon comptable ?",
@@ -174,20 +174,20 @@ export default function Page() {
           />
           <div className="nav-shell">
             <div className="nav-pill">
-              <Link className="logo" to="/" onClick={() => setMenuOpen(false)}>
-                LA<span>FACTURE</span>
+              <Link className="logo" to="/" onClick={() => setMenuOpen(false)} aria-label="Accueil">
+                <AppLogo size="nav" />
               </Link>
               <nav className="links nav-desktop" aria-label="Navigation principale">
                 <a href="#features">Fonctionnalités</a>
-                <a href="#pricing">Tarifs</a>
+                <a href="#how">Comment ça marche</a>
                 <a href="#faq">FAQ</a>
               </nav>
               <div className="nav-actions nav-desktop">
                 <Link className="btn btn-secondary btn-pill-nav" to={isLoggedIn ? "/app" : "/login"}>
                   {isLoggedIn ? "Mon espace" : "Connexion"}
                 </Link>
-                <Link className="btn btn-primary btn-pill-nav" to={isLoggedIn ? "/app/abonnement?plan=pro&checkout=start" : "/register"}>
-                  {isLoggedIn ? "Passer à Pro" : "Commencer"}
+                <Link className="btn btn-primary btn-pill-nav" to={isLoggedIn ? "/app" : "/register"}>
+                  {isLoggedIn ? "Ouvrir l'application" : "Commencer"}
                 </Link>
               </div>
               <button
@@ -209,9 +209,9 @@ export default function Page() {
                 <i className="fa-solid fa-layer-group" aria-hidden />
                 Fonctionnalités
               </a>
-              <a href="#pricing" onClick={() => setMenuOpen(false)}>
-                <i className="fa-solid fa-tags" aria-hidden />
-                Tarifs
+              <a href="#how" onClick={() => setMenuOpen(false)}>
+                <i className="fa-solid fa-route" aria-hidden />
+                Comment ça marche
               </a>
               <a href="#faq" onClick={() => setMenuOpen(false)}>
                 <i className="fa-solid fa-circle-question" aria-hidden />
@@ -224,10 +224,10 @@ export default function Page() {
                 </Link>
                 <Link
                   className="btn btn-primary"
-                  to={isLoggedIn ? "/app/abonnement?plan=pro&checkout=start" : "/register"}
+                  to={isLoggedIn ? "/app" : "/register"}
                   onClick={() => setMenuOpen(false)}
                 >
-                  {isLoggedIn ? "Passer à Pro" : "Commencer gratuitement"}
+                  {isLoggedIn ? "Ouvrir l'application" : "Commencer gratuitement"}
                 </Link>
               </div>
             </nav>
@@ -295,7 +295,7 @@ export default function Page() {
               </h1>
               <p className="hero-lead">
                 Créez des devis et factures professionnels en quelques clics. Simple, rapide et pensé pour
-                les freelances et les petites entreprises — gratuit pour commencer.
+                les freelances et les petites entreprises — entièrement gratuit.
               </p>
               <div className="hero-cta">
                 <Link
@@ -304,8 +304,8 @@ export default function Page() {
                 >
                   Commencer gratuitement
                 </Link>
-                <a className="btn btn-secondary btn-hero-secondary" href="#pricing">
-                  Voir les tarifs
+                <a className="btn btn-secondary btn-hero-secondary" href="#features">
+                  Découvrir les fonctionnalités
                 </a>
               </div>
             </div>
@@ -316,7 +316,7 @@ export default function Page() {
         <section className="section" id="features">
           <div className="container">
             <div className="section-head section-head--features">
-              <h2>Tout ce dont vous avez besoin pour facturer au quotidien</h2>
+              <h2>Facturez simplement</h2>
             </div>
             <div className="features">
               {features.map(([icon, title, description], index) => (
@@ -364,99 +364,6 @@ export default function Page() {
           </div>
         </section>
 
-        <section className="section section--pricing" id="pricing">
-          <div className="container" id="tarifs">
-            <Reveal>
-              <div className="pricing-intro">
-                <p className="pricing-kicker">Tarification</p>
-                <h2>Des offres adaptées à vos besoins</h2>
-                <p>
-                  Commencez gratuitement, passez à Pro quand votre volume le demande. L&apos;offre Entreprise est étudiée sur devis.
-                </p>
-              </div>
-              <div className="pricing-grid">
-                {[
-                  {
-                    id: "free" as const,
-                    eyebrow: "Démarrage",
-                    name: "Gratuit",
-                    desc: "Idéal pour valider le produit et vos premiers flux documentaires.",
-                    amount: "0",
-                    suffix: "F CFA",
-                    period: "par mois",
-                    cta: "Démarrer",
-                    primary: false,
-                    badge: null as string | null,
-                    items: ["10 factures / mois", "Devis et factures PDF", "Gestion clients", "Tableau de bord"],
-                  },
-                  {
-                    id: "pro" as const,
-                    eyebrow: "Le plus choisi",
-                    name: "Pro",
-                    desc: "Pour les indépendants et TPE qui facturent chaque semaine.",
-                    amount: "5 000",
-                    suffix: "F CFA",
-                    period: "par mois · facturation locale",
-                    cta: "Choisir Pro",
-                    primary: true,
-                    badge: "Populaire",
-                    items: [
-                      "Factures illimitées",
-                      "Import clients CSV",
-                      "Exports CSV revenus",
-                      "Rapports et graphiques avancés",
-                      "Rappels e-mail configurables",
-                    ],
-                  },
-                  {
-                    id: "enterprise" as const,
-                    eyebrow: "Équipes",
-                    name: "Entreprise",
-                    desc: "Pour les équipes : fonctionnalités et accompagnement définis ensemble.",
-                    amount: "Sur devis",
-                    suffix: "",
-                    period: "selon périmètre",
-                    cta: "Contacter les ventes",
-                    primary: false,
-                    badge: null as string | null,
-                    items: ["Volume et périmètre sur mesure", "Accompagnement dédié", "Évolutions prioritaires", "Contact commercial"],
-                  },
-                ].map((plan) => {
-                  const ctaHref = publicPlanCtaHref(plan.id);
-                  const ctaClass = `btn ${plan.primary ? "btn-primary" : "btn-secondary"}`;
-                  const ctaLabel = plan.id === "pro" && isLoggedIn ? "Passer à Pro" : plan.cta;
-
-                  return (
-                  <article key={plan.name} className={`price-card ${plan.primary ? "featured" : ""}`}>
-                    {plan.badge ? <span className="price-badge">{plan.badge}</span> : null}
-                    <div className="price-eyebrow">{plan.eyebrow}</div>
-                    <h3>{plan.name}</h3>
-                    <p className="price-desc">{plan.desc}</p>
-                    <div className="price-row">
-                      <span className="price-amount">{plan.amount}{plan.suffix ? `\u00A0${plan.suffix}` : ""}</span>
-                    </div>
-                    <div className="price-period">{plan.period}</div>
-                    <ul className="list">
-                      {plan.items.map((item) => (
-                        <li key={item}>
-                          <i className="fa-solid fa-check" aria-hidden />
-                          <span>{item}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    {isExternalHref(ctaHref) ? (
-                      <a className={ctaClass} href={ctaHref}>{ctaLabel}</a>
-                    ) : (
-                      <Link className={ctaClass} to={ctaHref}>{ctaLabel}</Link>
-                    )}
-                  </article>
-                  );
-                })}
-              </div>
-            </Reveal>
-          </div>
-        </section>
-
         <section className="section" id="faq">
           <div className="container">
             <Reveal>
@@ -484,14 +391,14 @@ export default function Page() {
           <div className="container">
             <Reveal>
               <div className="cta-band">
-                <h2>Passez à une facturation plus fiable, plus rapide, plus pro</h2>
+                <h2>Une facturation plus fiable, plus rapide, plus pro</h2>
                 <p className="muted">
-                  Lancez-vous aujourd&apos;hui avec une plateforme adaptée aux freelances, TPE et petites équipes.
+                  Lancez-vous aujourd&apos;hui avec une plateforme gratuite adaptée aux freelances, TPE et petites équipes.
                 </p>
                 <div style={{ marginTop: 18 }}>
-                  <a className="btn btn-primary" href="#pricing">
-                    Démarrer avec {APP_NAME}
-                  </a>
+                  <Link className="btn btn-primary" to={isLoggedIn ? "/app" : "/register"}>
+                    Démarrer gratuitement
+                  </Link>
                 </div>
               </div>
             </Reveal>
@@ -503,9 +410,7 @@ export default function Page() {
       <footer className="site-footer">
         <div className="container foot">
           <div className="foot-brand">
-            <div className="logo">
-              LA<span>FACTURE</span>
-            </div>
+            <AppLogo size="foot" />
             <p>Facturation claire pour freelances et petites entreprises en Afrique de l&apos;Ouest.</p>
             <Link className="foot-cta" to={isLoggedIn ? "/app" : "/register"}>
               {isLoggedIn ? "Ouvrir l'application" : "Créer un compte gratuit"}
@@ -516,7 +421,6 @@ export default function Page() {
             <ul className="foot-links">
               <li><a href="#features">Fonctionnalités</a></li>
               <li><a href="#how">Comment ça marche</a></li>
-              <li><a href="#pricing">Tarifs</a></li>
               <li><a href="#faq">FAQ</a></li>
             </ul>
           </div>
@@ -529,34 +433,14 @@ export default function Page() {
             </ul>
           </div>
           <div>
-            <p className="foot-title">Contact & légal</p>
+            <p className="foot-title">Contact développeur</p>
             <p className="foot-contact">
               <a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a>
             </p>
-            <ul className="foot-links" style={{ marginTop: 12 }}>
-              <li><Link to="/legal/mentions">Mentions légales</Link></li>
-              <li><Link to="/legal/confidentialite">Confidentialité</Link></li>
-              <li><Link to="/legal/cgu">CGU</Link></li>
-              <li><Link to="/legal/cookies">Cookies</Link></li>
-            </ul>
-            <div className="socials">
-              <a href="https://www.linkedin.com" target="_blank" rel="noreferrer" aria-label="LinkedIn">
-                <i className="fa-brands fa-linkedin-in" />
-              </a>
-              <a href={`mailto:${CONTACT_EMAIL}`} aria-label="E-mail">
-                <i className="fa-solid fa-envelope" />
-              </a>
-            </div>
           </div>
         </div>
         <div className="container foot-bottom">
-          <span>© {new Date().getFullYear()} {APP_NAME}. Tous droits réservés.</span>
-          <div className="foot-bottom-links">
-            <Link to="/legal/mentions">Mentions légales</Link>
-            <Link to="/legal/confidentialite">Confidentialité</Link>
-            <Link to="/legal/cgu">CGU</Link>
-            <Link to="/legal/cookies">Cookies</Link>
-          </div>
+          <span>© {new Date().getFullYear()}. Application gratuite.</span>
         </div>
       </footer>
 

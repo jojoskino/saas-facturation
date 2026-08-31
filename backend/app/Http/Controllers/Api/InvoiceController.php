@@ -126,17 +126,16 @@ class InvoiceController extends Controller
             'issue_date' => ['nullable', 'date'],
             'due_date' => ['nullable', 'date'],
             'currency' => ['nullable', 'string', 'max:8'],
-            'subtotal' => ['required', 'numeric', 'min:0'],
-            'tax_amount' => ['required', 'numeric', 'min:0'],
-            'total' => ['nullable', 'numeric', 'min:0'],
-            'paid_at' => ['nullable', 'date'],
             'discount_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'notes' => ['nullable', 'string'],
-            'items' => ['nullable', 'array'],
+            'items' => ['required_without:quote_id', 'array', 'min:1'],
             'items.*.description' => ['required_with:items', 'string', 'max:500'],
             'items.*.quantity' => ['required_with:items', 'numeric', 'min:0'],
             'items.*.unit_price' => ['required_with:items', 'numeric', 'min:0'],
             'items.*.tax_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'subtotal' => ['prohibited'],
+            'tax_amount' => ['prohibited'],
+            'total' => ['prohibited'],
         ]);
 
         $quoteLines = $this->applyQuoteSource($userId, $data);
@@ -411,17 +410,17 @@ class InvoiceController extends Controller
             'issue_date' => ['nullable', 'date'],
             'due_date' => ['nullable', 'date'],
             'currency' => ['nullable', 'string', 'max:8'],
-            'subtotal' => ['sometimes', 'required', 'numeric', 'min:0'],
-            'tax_amount' => ['sometimes', 'required', 'numeric', 'min:0'],
-            'total' => ['sometimes', 'nullable', 'numeric', 'min:0'],
             'paid_at' => ['nullable', 'date'],
             'discount_percent' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'notes' => ['nullable', 'string'],
-            'items' => ['sometimes', 'array'],
+            'items' => ['sometimes', 'array', 'min:1'],
             'items.*.description' => ['required_with:items', 'string', 'max:500'],
             'items.*.quantity' => ['required_with:items', 'numeric', 'min:0'],
             'items.*.unit_price' => ['required_with:items', 'numeric', 'min:0'],
             'items.*.tax_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'subtotal' => ['prohibited'],
+            'tax_amount' => ['prohibited'],
+            'total' => ['prohibited'],
         ]);
 
         $beforeSnapshot = $this->activityLogger->snapshotInvoice($invoice);
@@ -612,28 +611,23 @@ class InvoiceController extends Controller
         $itemsInput = $data['items'] ?? [];
         $discountPercent = (float) ($data['discount_percent'] ?? 0);
 
-        if (is_array($itemsInput) && count($itemsInput) > 0) {
-            $validRows = array_values(array_filter($itemsInput, function ($row): bool {
-                return trim((string) ($row['description'] ?? '')) !== '';
-            }));
-
-            if (count($validRows) > 0) {
-                return DocumentMath::quoteLinesFromInput($validRows, $discountPercent);
-            }
+        if (! is_array($itemsInput) || count($itemsInput) === 0) {
+            throw ValidationException::withMessages([
+                'items' => ['Ajoutez au moins une ligne de prestation.'],
+            ]);
         }
 
-        $subtotal = round((float) ($data['subtotal'] ?? 0), 2);
-        $taxAmount = round((float) ($data['tax_amount'] ?? 0), 2);
-        $total = isset($data['total']) && $data['total'] !== null && $data['total'] !== ''
-            ? round((float) $data['total'], 2)
-            : round($subtotal + $taxAmount, 2);
+        $validRows = array_values(array_filter($itemsInput, function ($row): bool {
+            return trim((string) ($row['description'] ?? '')) !== '';
+        }));
 
-        return [
-            'lines' => [],
-            'subtotal' => number_format($subtotal, 2, '.', ''),
-            'tax_amount' => number_format($taxAmount, 2, '.', ''),
-            'total' => number_format($total, 2, '.', ''),
-        ];
+        if (count($validRows) === 0) {
+            throw ValidationException::withMessages([
+                'items' => ['Chaque ligne doit avoir une description.'],
+            ]);
+        }
+
+        return DocumentMath::quoteLinesFromInput($validRows, $discountPercent);
     }
 
     /**

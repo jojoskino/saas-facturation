@@ -38,5 +38,18 @@ class AppServiceProvider extends ServiceProvider
 
             return Limit::perMinute(5)->by($id.'|'.$ip);
         });
+
+        RateLimiter::for('heavy-api', function (Request $request): Limit {
+            $userId = (string) optional($request->user())->id;
+            $ip = (string) $request->ip();
+
+            return Limit::perMinute(30)->by($userId !== '' ? 'user:'.$userId : 'ip:'.$ip);
+        });
+
+        RateLimiter::for('csv-import', function (Request $request): Limit {
+            $userId = (string) optional($request->user())->id;
+
+            return Limit::perMinute(5)->by('import:'.$userId);
+        });
     }
 }

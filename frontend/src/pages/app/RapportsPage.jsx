@@ -4,9 +4,7 @@ import { apiDownload, getStoredToken } from "../../api/client";
 import { useApiQuery } from "../../hooks/useApiQuery";
 import { useAmountsPrivacy } from "../../hooks/useAmountsPrivacy";
 import ReportsSkeleton from "../../components/skeleton/ReportsSkeleton";
-import { canAdvancedReports, canExportCsv } from "../../utils/planFeatures";
 import StatusBarChart from "../../components/StatusBarChart";
-import ProLockedSection from "../../components/ProLockedSection";
 
 const PERIODS = [
   { value: "month", labelKey: "periodMonth" },
@@ -40,9 +38,6 @@ export default function RapportsPage() {
   const { data, error, loading } = useApiQuery(query, {
     enabled: Boolean(getStoredToken()),
   });
-
-  const advanced = canAdvancedReports(data?.plan_features);
-  const csvEnabled = canExportCsv(data?.plan_features);
 
   const monthlyTrend = useMemo(() => {
     const raw = data?.monthly_revenue_cfa;
@@ -86,10 +81,6 @@ export default function RapportsPage() {
 
   async function handleExport() {
     setExportError("");
-    if (!csvEnabled) {
-      setExportError(t("exportLocked"));
-      return;
-    }
     const exportPeriod = period === "month" ? "month" : period === "quarter" ? "quarter" : "year";
     try {
       await apiDownload(`/api/dashboard/export?period=${exportPeriod}`, "rapport-revenus.csv", "text/csv");
@@ -195,11 +186,13 @@ export default function RapportsPage() {
           border-color: rgba(252,163,17,.35);
           background: rgba(252,163,17,.08);
         }
-        .rpt-period-label {
+        .rpt-period-label,
+        .rpt-hint {
           font-size: 12px;
           color: var(--color-text-muted);
           margin-bottom: 12px;
         }
+        .rpt-hint { margin-top: -4px; line-height: 1.45; }
         .rpt-grid {
           display: grid;
           grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -323,9 +316,9 @@ export default function RapportsPage() {
         <div className="rpt-actions">
           <button
             type="button"
-            className={`rpt-btn rpt-btn--accent${csvEnabled ? "" : " is-locked"}`}
+            className="rpt-btn rpt-btn--accent"
             onClick={handleExport}
-            title={csvEnabled ? t("exportCsv") : t("exportLocked")}
+            title={t("exportCsv")}
           >
             <i className="fa-solid fa-file-csv" aria-hidden />
             {t("exportCsv")}
@@ -405,11 +398,9 @@ export default function RapportsPage() {
           </div>
         </section>
 
-        <ProLockedSection
-          title={t("aging")}
-          hint={t("agingHint")}
-          locked={!advanced}
-        >
+        <section className="rpt-panel">
+          <h3>{t("aging")}</h3>
+          <p className="rpt-hint">{t("agingHint")}</p>
           <div className="rpt-aging">
             {[
               { key: "0_30", label: t("aging0_30") },
@@ -426,15 +417,13 @@ export default function RapportsPage() {
               </div>
             ))}
           </div>
-        </ProLockedSection>
+        </section>
       </div>
 
       <div className="rpt-pro-row">
-        <ProLockedSection
-          title={t("topClients")}
-          hint={t("topClientsHint")}
-          locked={!advanced}
-        >
+        <section className="rpt-panel">
+          <h3>{t("topClients")}</h3>
+          <p className="rpt-hint">{t("topClientsHint")}</p>
           <div className="app-list-table-wrap rpt-table-wrap">
             <table className="rpt-table">
               <thead>
@@ -479,7 +468,7 @@ export default function RapportsPage() {
               ))
             )}
           </div>
-        </ProLockedSection>
+        </section>
 
         <section className="rpt-panel">
           <h3>{t("overdueList")}</h3>

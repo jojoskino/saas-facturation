@@ -6,7 +6,6 @@ import frSettings from "./locales/fr/settings.json";
 import frProfile from "./locales/fr/profile.json";
 import frApp from "./locales/fr/app.json";
 import frReports from "./locales/fr/reports.json";
-import frBilling from "./locales/fr/billing.json";
 
 const STORAGE_KEY = "facturo_locale";
 
@@ -29,14 +28,12 @@ export async function ensureEnglishLoaded() {
       import("./locales/en/profile.json"),
       import("./locales/en/app.json"),
       import("./locales/en/reports.json"),
-      import("./locales/en/billing.json"),
-    ]).then(([common, settings, profile, app, reports, billing]) => {
+    ]).then(([common, settings, profile, app, reports]) => {
       i18n.addResourceBundle("en", "common", common.default, true, true);
       i18n.addResourceBundle("en", "settings", settings.default, true, true);
       i18n.addResourceBundle("en", "profile", profile.default, true, true);
       i18n.addResourceBundle("en", "app", app.default, true, true);
       i18n.addResourceBundle("en", "reports", reports.default, true, true);
-      i18n.addResourceBundle("en", "billing", billing.default, true, true);
     });
   }
 
@@ -53,13 +50,12 @@ i18n.use(initReactI18next).init({
       profile: frProfile,
       app: frApp,
       reports: frReports,
-      billing: frBilling,
     },
   },
   lng: initialLanguage === "en" ? "fr" : initialLanguage,
   fallbackLng: "fr",
   defaultNS: "common",
-  ns: ["common", "settings", "profile", "app", "reports", "billing"],
+  ns: ["common", "settings", "profile", "app", "reports"],
   interpolation: { escapeValue: false },
 });
 
